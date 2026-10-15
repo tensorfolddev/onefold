@@ -146,9 +146,11 @@ that ticket. Backed up hourly with the database.
 - **Releases deploy themselves:** when the promote bot moves `stg` or `prod`, CI builds the Docker image, pushes it
   to GitHub's registry, and SSHes to the VPS to run `./deploy.sh <env> <commit>`: pull, run migrations, restart.
   Migrations are written to work with the previous version too, so a deploy never breaks the running site.
-- **Backups:** every hour `pg_dump` + the files folder → encrypted (rclone crypt) → Google Drive; 48 hourly + 30 daily
-  kept; each run pings a free monitor that emails if a backup is missed. `./restore.sh <backup>` restores;
-  `./restore-test.sh` restores the latest into a throwaway database and checks it (monthly).
+- **Backups:** every hour (host cron) `pg_dump` + the files and WhatsApp volumes + the environment's settings → one
+  `.tar` → encrypted (rclone crypt, rclone itself in Docker) → that environment's Google Drive; 48 hourly + 30 daily
+  kept; each run pings healthchecks.io, which emails if a backup is missed. `./restore.sh <env> <backup>` restores
+  (into a fresh database, swapped in only when complete); `./restore-test.sh <env>` restores the latest into a
+  throwaway database, lets the installed release migrate and load it, and reports (monthly).
 - **Server dies:** `./recover.sh` on a fresh VPS installs Docker, firewall and the stack, then restores the latest
   backup from Drive — back online in ~30–60 min, losing at most the last hour. Tested before we call it done.
 - **Easy setup for anyone later:** `./setup.sh` on a clean Ubuntu VPS asks for the settings and does the rest;

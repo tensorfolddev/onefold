@@ -1,0 +1,84 @@
+# One 1Fold environment — production or staging — run by the deploy scripts as the Compose project onefold-<env>:
+# its own database, website and worker, its own volumes and settings ($ONEFOLD_HOME/<env>/.env and app.env).
+# Caddy (deploy/edge) reaches the website as <env>-web on the shared "onefold-edge" network. Nothing else is
+# published; the database is only reachable from inside the environment.
+name: "onefold-${ONEFOLD_ENV:?set ONEFOLD_ENV}"
+
+x-logs: &logs
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+x-app: &app
+  image: "${IMAGE:?no release installed yet — run deploy.sh}"
+  env_file: [app.env]
+  restart: unless-stopped
+  logging: *logs
+  depends_on:
+    postgres: { condition: service_healthy }
+
+services:
+  postgres:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_USER: onefold_admin
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?}"
+      POSTGRES_DB: onefold
+    volumes: ["db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U onefold_admin -d onefold]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    shm_size: 256mb
+    mem_limit: ${DB_MEMORY:-1g}
+    cpus: ${DB_CPUS:-1}
+    logging: *logs
+    networks: [internal]
+
+  web:
+    <<: *app
+    environment:
+      DATABASE_URL: "postgres://onefold_web:${WEB_DB_PASSWORD:?}@postgres:5432/onefold"
+    volumes: ["files:/data/files"]
+    mem_limit: ${WEB_MEMORY:-1g}
+    cpus: ${WEB_CPUS:-1}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    networks:
+      internal: {}
+      edge: { aliases: ["${ONEFOLD_ENV}-web"] }
+
+  worker:
+    <<: *app
+    command: [node, src/worker/index.ts]
+    environment:
+      DATABASE_URL: "postgres://onefold_web:${WEB_DB_PASSWORD:?}@postgres:5432/onefold"
+    volumes: ["files:/data/files", "whatsapp:/data/whatsapp"]
+    mem_limit: ${WORKER_MEMORY:-512m}
+    cpus: ${WORKER_CPUS:-0.5}
+    networks: [internal]
+
+  # Not a service: `compose run --rm migrate` (deploy.sh, restore.sh). The only process that gets the owner's password.
+  migrate:
+    <<: *app
+    command: [node, src/server/db/migrate.ts]
+    restart: "no"
+    profiles: [tools]
+    environment:
+      DATABASE_ADMIN_URL: "postgres://onefold_admin:${POSTGRES_PASSWORD:?}@postgres:5432/onefold"
+      DATABASE_URL: "postgres://onefold_web:${WEB_DB_PASSWORD:?}@postgres:5432/onefold"
+    networks: [internal]
+
+networks:
+  internal: {}
+  edge: { name: onefold-edge, external: true }
+
+volumes:
+  db: {}
+  files: {}
+  whatsapp: {}

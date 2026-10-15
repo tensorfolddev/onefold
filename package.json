@@ -12,6 +12,7 @@
     "db:down": "docker compose -f deploy/compose.dev.yml -p onefold-dev down",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env.local src/server/db/migrate.ts",
+    "worker": "node --env-file-if-exists=.env.local src/worker/index.ts",
     "test": "node --test --test-concurrency=1 \"src/**/*.test.ts\"",
     "e2e": "playwright test",
     "check": "npm run typecheck && npm run lint && npm test"

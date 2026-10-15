@@ -69,9 +69,11 @@ export interface Auth {
   signOut: () => void;
 }
 
-interface View { db: Db; version: number; meId: string; panel: Panel; orgSlug: string; emailUnverified: boolean }
+interface View { db: Db; version: number; meId: string; panel: Panel; orgSlug: string; emailUnverified: boolean; build?: string }
 
 const StoreCtx = createContext<{ store: Store | null; auth: Auth } | null>(null);
+/** The commit this page was built from (set by the Docker build); the server says which one it runs. */
+const BUILD = process.env.NEXT_PUBLIC_GIT_SHA ?? "dev";
 const TOAST_MS = 5000;
 const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong — please try again");
 
@@ -85,6 +87,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const queue = useRef<Promise<void>>(Promise.resolve()); // the server gets changes in the order they were made
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastId = useRef(0);
+  const toldNewVersion = useRef(false);
 
   const dismiss = useCallback((id: number) => setToasts((ts) => ts.filter((t) => t.id !== id)), []);
   const toast = useCallback((text: string, undo?: () => void) => {
@@ -100,11 +103,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const v = await api<View>("/api/org");
       if (pending.current === 0) show(v);
+      if (v.build && BUILD !== "dev" && v.build !== BUILD && !toldNewVersion.current) {
+        toldNewVersion.current = true;
+        toast("A new version of 1Fold is ready — refresh the page to get it");
+      }
     } catch (e) {
       if (e instanceof ApiError && (e.status === 401 || e.status === 403)) show(null); // signed out, or turned off
       else throw e;
     }
-  }, [show]);
+  }, [show, toast]);
   const refreshOrSay = useCallback(() => refresh().catch((e: unknown) => toast(message(e))), [refresh, toast]);
 
   useEffect(() => {

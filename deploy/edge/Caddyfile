@@ -1,0 +1,31 @@
+# Both environments behind one Caddy. Certificates come from Let's Encrypt by themselves once DNS points here.
+# A stopped environment answers 502 until it's started again.
+{
+	email {$ACME_EMAIL}
+}
+
+(app) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	request_body {
+		max_size 12MB
+	}
+}
+
+{$PROD_DOMAIN} {
+	import app
+	reverse_proxy prod-web:3000 {
+		flush_interval -1
+	}
+}
+
+{$STG_DOMAIN} {
+	import app
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy stg-web:3000 {
+		flush_interval -1
+	}
+}
