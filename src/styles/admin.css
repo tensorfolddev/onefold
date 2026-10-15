@@ -305,3 +305,16 @@
 .wa-state[data-state="connected"] { color: var(--positive-color); }
 .wa-state[data-state="logged_out"] { color: var(--negative-color); }
 
+/* ---------- Claude & MCP: personal API tokens ---------- */
+.mcp-dialog { width: min(640px, 100vw); }
+.mcp-form { display: flex; gap: 8px; align-items: center; }
+.mcp-name { flex: 1; height: 40px; }
+.mcp-made { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--border-radius-medium); background: color-mix(in srgb, var(--positive-color) 8%, transparent); font-size: 14px; line-height: 20px; }
+.mcp-command { display: block; padding: 10px 12px; border-radius: var(--border-radius-medium); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; background: var(--primary-background-color); box-shadow: 0 0 0 1px var(--layout-border-color); user-select: all; }
+.mcp-heading { margin-top: 4px; font-size: 14px; font-weight: 500; }
+.mcp-tokens { display: flex; flex-direction: column; gap: 6px; list-style: none; margin-top: 8px; }
+.mcp-tokens li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--layout-border-color); border-radius: var(--border-radius-medium); }
+.mcp-tokens li > svg { width: 16px; height: 16px; color: var(--secondary-text-color); }
+.mcp-token-text { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
+.mcp-token-text .muted { font-size: 12px; overflow-wrap: anywhere; }
+

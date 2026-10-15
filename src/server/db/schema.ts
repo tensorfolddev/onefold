@@ -270,6 +270,25 @@ export const undoPoints = pgTable("undo_points", {
   }),
 ]);
 
+// ---------- MCP ----------
+
+/**
+ * Personal API tokens for MCP clients (Claude Code, Claude Desktop…): each acts as the person who made it, in that
+ * company, with their permissions. Shown once; only the hash is kept. No row-level security: a request arrives with
+ * only the token, before anyone knows the company — like sessions.
+ */
+export const apiTokens = pgTable("api_tokens", {
+  id: text("id").primaryKey(), // SHA-256 of the token
+  orgId: text("org_id").notNull(),
+  memberId: text("member_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(), // "Claude Code on my laptop"
+  hint: text("hint").notNull(), // the token's last 4 characters, to tell tokens apart
+  createdAt: ts("created_at").notNull().defaultNow(),
+  lastUsedAt: ts("last_used_at"),
+  revokedAt: ts("revoked_at"),
+}, (t) => [index("api_tokens_member").on(t.orgId, t.memberId)]);
+
 // ---------- WhatsApp (platform tables: the worker reads them across companies, so no row-level security) ----------
 
 /** The bot — one per environment, on its own number. What the worker last saw, and what an admin asked it to do. */

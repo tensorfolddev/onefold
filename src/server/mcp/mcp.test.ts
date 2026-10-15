@@ -1,0 +1,155 @@
+// The MCP server over real HTTP requests on a real Postgres: tokens (once, revocable), who may call it, the tools,
+// and that every tool runs with the token owner's permissions — never another company's data.
+import { after, before, test } from "node:test";
+import assert from "node:assert/strict";
+import { acceptInvitation, readSession, setPassword, signUpCompany, type SessionRow } from "../accounts.ts";
+import { applySteps, createInvites, viewFor } from "../changes.ts";
+import { freshDatabase } from "../testing/db.ts";
+import { handleMcp } from "./server.ts";
+import { createApiToken, listApiTokens, revokeApiToken } from "./tokens.ts";
+
+let pg: Awaited<ReturnType<typeof freshDatabase>>;
+before(async () => { pg = await freshDatabase(); });
+after(async () => { await pg.drop(); });
+
+const APP = "https://1fold.test";
+const PASSWORD = "Correct-Horse-42";
+
+async function rpc(token: string | null, method: string, params: unknown = {}, headers: Record<string, string> = {}) {
+  const res = await handleMcp(new Request(`${APP}/api/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json", Accept: "application/json, text/event-stream",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers,
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  }), APP);
+  return { status: res.status, body: await res.json() as { result?: { content: { text: string }[]; isError?: boolean; tools?: { name: string }[]; serverInfo?: { name: string } }; error?: { message: string } } };
+}
+/** Calls a tool: its JSON answer, or the refusal's text. */
+async function tool(token: string, name: string, args: Record<string, unknown> = {}) {
+  const { body } = await rpc(token, "tools/call", { name, arguments: args });
+  const text = body.result!.content[0].text;
+  return body.result!.isError ? { refused: text } : { data: JSON.parse(text) };
+}
+
+let admin: SessionRow;
+let dev: SessionRow;
+let ayla = "";
+let sam = "";
+let adminToken = "";
+let devToken = "";
+
+test("tokens: shown once, listed without the secret, refused once revoked", async () => {
+  const founder = await signUpCompany({ name: "Ayla Khan", email: "ayla@acme.example", password: PASSWORD, company: "Acme", slug: "acme-mcp" });
+  admin = (await readSession(founder.token))!;
+  ayla = founder.personId;
+  const { invites } = await createInvites(admin, [{ email: "sam@acme.example", panel: "developer" }], APP);
+  const joined = await acceptInvitation(invites[0].link.split("/invite/")[1], { name: "Sam Dev", password: PASSWORD });
+  dev = (await readSession(joined.token))!;
+  sam = joined.personId;
+
+  const made = await createApiToken(admin, "  Claude Code   on my laptop ");
+  assert.match(made.token, /^1fold_[\w-]{43}$/);
+  assert.equal(made.name, "Claude Code on my laptop");
+  adminToken = made.token;
+  const listed = await listApiTokens(admin);
+  assert.deepEqual(listed.map((t) => [t.name, t.hint]), [["Claude Code on my laptop", made.token.slice(-4)]]);
+  assert.ok(!JSON.stringify(listed).includes(made.token));
+
+  const throwaway = await createApiToken(admin, "old");
+  assert.equal((await rpc(throwaway.token, "tools/list")).status, 200);
+  await revokeApiToken(admin, throwaway.id);
+  assert.equal((await rpc(throwaway.token, "tools/list")).status, 401);
+  await assert.rejects(revokeApiToken(dev, made.id)); // not theirs
+  devToken = (await createApiToken(dev, "Sam's Claude")).token;
+});
+
+test("only a token gets in, and never from another website", async () => {
+  assert.equal((await rpc(null, "tools/list")).status, 401);
+  assert.equal((await rpc("1fold_not-a-real-token", "tools/list")).status, 401);
+  assert.equal((await rpc(adminToken, "tools/list", {}, { Origin: "https://evil.example" })).status, 403);
+  const init = await rpc(adminToken, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
+  assert.equal(init.body.result!.serverInfo!.name, "1fold");
+  const names = (await rpc(adminToken, "tools/list")).body.result!.tools!.map((t) => t.name).sort();
+  assert.deepEqual(names, ["add_comment", "add_dependency", "create_ticket", "get_ticket", "list_products", "list_tickets", "move_ticket", "set_section", "update_ticket"]);
+});
+
+test("the tools work on tickets as the token's owner, and every change is audited as MCP", async () => {
+  await applySteps(admin, [{ name: "createProduct", args: [{ key: "CH", name: "Checkout", type: "internal", pmId: ayla, projectManagerId: ayla }] }]);
+  const products = await tool(adminToken, "list_products");
+  assert.deepEqual(products.data.map((p: { key: string; lists: string[] }) => [p.key, p.lists]), [["CH", ["Backlog", "To Do", "In Progress", "Review", "Done"]]]);
+
+  const made = await tool(adminToken, "create_ticket", { product: "checkout", title: "Build the cart", assignee: "me", priority: "high", due: "2026-10-31", status: "To Do" });
+  assert.deepEqual([made.data.key, made.data.status, made.data.assignee, made.data.priority, made.data.due, made.data.url],
+    ["CH-1", "To Do", "Ayla Khan", "high", "2026-10-31", `${APP}/admin/t/CH-1`]);
+  await tool(adminToken, "create_ticket", { product: "CH", title: "Design the cart" });
+
+  assert.equal((await tool(adminToken, "move_ticket", { key: "ch-1", status: "in progress" })).data.status, "In Progress");
+  assert.equal((await tool(adminToken, "update_ticket", { key: "CH-1", due: "", estimate_hours: 5 })).data.due, null);
+  await tool(adminToken, "add_comment", { key: "CH-1", text: "Started on the totals." });
+  await tool(adminToken, "set_section", { key: "CH-1", section: "acceptance_criteria", value: ["Totals add up", { text: "Coupons apply", done: true }] });
+  await tool(adminToken, "set_section", { key: "CH-1", section: "goal", value: "Let people pay." });
+  await tool(adminToken, "set_section", { key: "CH-1", section: "definition_of_done", value: ["reviewed"] });
+  await tool(adminToken, "add_dependency", { key: "CH-1", depends_on: "CH-2" });
+  assert.match((await tool(adminToken, "add_dependency", { key: "CH-2", depends_on: "CH-1" })).refused!, /loop/);
+
+  const ticket = (await tool(adminToken, "get_ticket", { key: "CH-1" })).data;
+  const section = (id: string) => ticket.sections.find((x: { id: string }) => x.id === id).value;
+  assert.equal(section("goal"), "Let people pay.");
+  assert.deepEqual(section("acceptance_criteria"), [{ text: "Totals add up", done: false }, { text: "Coupons apply", done: true }]);
+  assert.equal(section("definition_of_done").filter((d: { done: boolean }) => d.done).length, 1);
+  assert.deepEqual(section("dependencies").map((d: { key: string }) => d.key), ["CH-2"]);
+  assert.deepEqual(ticket.updates.map((u: { by: string; text: string }) => [u.by, u.text]), [["Ayla Khan", "Started on the totals."]]);
+
+  const listed = await tool(adminToken, "list_tickets", { product: "CH", assignee: "me" });
+  assert.deepEqual(listed.data.tickets.map((t: { key: string }) => t.key), ["CH-1"]);
+  assert.match((await tool(adminToken, "move_ticket", { key: "CH-1", status: "Nowhere" })).refused!, /No list "Nowhere" in CH/);
+  assert.match((await tool(adminToken, "update_ticket", { key: "CH-1", due: "2026-02-30" })).refused!, /real date/);
+
+  const audited = await pg.asOwner<{ command: string }>(`select command from audit_log where source = 'mcp' order by id`);
+  assert.deepEqual(audited.map((r) => r.command), [
+    "createTicket", "updateTicket", "createTicket", "moveTicket", "updateTicket", "addComment", "setSection", "setSection", "setSection", "addDependency",
+  ]);
+  assert.equal((await viewFor(admin)).db.tickets.find((t) => t.key === "CH-1")!.estimateH, 5); // the website sees it too
+
+  const epic = await tool(adminToken, "create_ticket", { product: "CH", title: "Payments", type: "epic" });
+  assert.deepEqual([epic.data.key, epic.data.type], ["CH-3", "epic"]); // made in the Epic list
+  assert.match((await tool(adminToken, "create_ticket", { product: "CH", title: "X", type: "epic", status: "To Do" })).refused!, /Epic list/);
+});
+
+test("only POST, never an oversized body, even without a length", async () => {
+  const get = await handleMcp(new Request(`${APP}/api/mcp`, { headers: { Authorization: `Bearer ${adminToken}`, Accept: "text/event-stream" } }), APP);
+  assert.equal(get.status, 405);
+  const huge = new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(`{"x":"${"a".repeat(600 * 1024)}"}`)); c.close(); } });
+  const res = await handleMcp(new Request(`${APP}/api/mcp`, {
+    method: "POST", body: huge, duplex: "half",
+    headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+  } as RequestInit), APP);
+  assert.equal(res.status, 413);
+});
+
+test("a developer's token reaches only their products; another company's reaches nothing of this one", async () => {
+  assert.deepEqual((await tool(devToken, "list_products")).data, []);
+  assert.match((await tool(devToken, "get_ticket", { key: "CH-1" })).refused!, /No ticket CH-1/);
+  assert.match((await tool(devToken, "create_ticket", { product: "CH", title: "Sneaky" })).refused!, /No product "CH"/);
+  await applySteps(admin, [{ name: "setMember", args: ["CH", sam, true] }]);
+  assert.equal((await tool(devToken, "create_ticket", { product: "CH", title: "My own" })).data.key, "CH-4");
+
+  const other = await signUpCompany({ name: "Eve", email: "eve@other.example", password: PASSWORD, company: "Other", slug: "other-mcp" });
+  const eveToken = (await createApiToken((await readSession(other.token))!, "Eve's")).token;
+  assert.deepEqual((await tool(eveToken, "list_products")).data, []);
+  assert.match((await tool(eveToken, "get_ticket", { key: "CH-1" })).refused!, /No ticket CH-1/);
+  assert.equal((await tool(eveToken, "list_tickets", {})).data.total, 0);
+});
+
+test("a token stops working when its owner is turned off, or their password changes", async () => {
+  await applySteps(admin, [{ name: "updatePerson", args: [sam, { active: false }] }]);
+  assert.equal((await rpc(devToken, "tools/list")).status, 401);
+  await applySteps(admin, [{ name: "updatePerson", args: [sam, { active: true }] }]);
+  assert.equal((await rpc(devToken, "tools/list")).status, 200);
+
+  await setPassword(admin, ayla, "Another-Horse-77"); // e.g. after a stolen password: the tokens it made must die too
+  assert.equal((await rpc(adminToken, "tools/list")).status, 401);
+  assert.deepEqual(await listApiTokens(admin), []);
+});

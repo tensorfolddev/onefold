@@ -84,6 +84,33 @@ export async function applySteps(who: SessionRow, steps: Step[], opts: { undoabl
   });
 }
 
+/** A change put together on the server (an MCP tool): the new data, a key it made, and the steps for the audit log. */
+export interface Composed<K> { db: Db; key?: K; steps: Step[] }
+
+/**
+ * Runs a change composed from several commands as one (e.g. create a ticket, then fill it in): the same lock, save,
+ * audit log and live update as applySteps — the commands check permissions themselves, as always.
+ */
+export async function applyComposed<K>(who: SessionRow, source: Source, run: (db: Db, me: Person) => Composed<K>): Promise<{ version: number; key?: K }> {
+  return inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
+    const loaded = await mustLoad(tx, who);
+    const me = personFor(loaded, who.userId);
+    let result: Composed<K>;
+    try {
+      result = run(loaded.db, me);
+    } catch (e) {
+      if (e instanceof AccessError || e instanceof ValidationError) throw e;
+      console.error("[changes] a composed change failed", e);
+      throw new ValidationError("That change couldn't be applied");
+    }
+    if (result.db === loaded.db) return { version: loaded.version, key: result.key }; // nothing to save
+    const version = await saveCompany(tx, loaded, result.db);
+    await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source },
+      result.steps.map((st) => ({ command: st.name, args: st.args })), version);
+    return { version, key: result.key };
+  });
+}
+
 /** Puts back the company as it was before your last undoable change — only if nobody changed anything since. */
 export async function undoLast(who: SessionRow): Promise<Applied> {
   return inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
