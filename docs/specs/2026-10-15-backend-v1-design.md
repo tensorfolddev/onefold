@@ -77,11 +77,11 @@ cross-company reads impossible even if a query forgets a filter. The app connect
 
 | Group | Tables |
 |---|---|
-| Accounts | `users` (email, password_hash, email_verified_at) · `members` (org, user, panel, job title, team, capacity, colour, active, whatsapp_number, whatsapp_verified_at, brief_opt_in) · `sessions` · `email_tokens` (reset-password and confirm-email links) · `api_tokens` · `invites` |
+| Accounts | `users` (email, password_hash, email_verified_at) · `members` (org, user, panel, job title, team, capacity, colour, active) · `sessions` · `email_tokens` (reset-password and confirm-email links) · `api_tokens` · `invites` |
 | Company | `orgs` (slug, name, email_domain, domain_lock, timezone, version) · `teams` · `job_titles` · `product_groups` |
 | Products | `products` · `product_members` · `board_lists` · `requirements` · `decisions` · `milestones` · `docs` · `stage_requests` |
 | Tickets | `tickets` (PK org + key "AP-12"; `sections` JSONB) · `ticket_dependencies` · `attachments` (metadata; bytes on disk) · `comments` · `ticket_activity` · `notifications` |
-| Platform | `audit_log` · `brief_deliveries` · `whatsapp_link_codes` |
+| Platform | `audit_log` · `whatsapp_bot` (the bot's state, QR while pairing, admin requests) · `whatsapp_links` (a member's chat, brief on/off) · `whatsapp_link_codes` · `brief_deliveries` (one per person per day) |
 
 Rules: secrets only hashed (passwords Argon2id; session / reset / invite / API tokens SHA-256); timestamps
 `timestamptz`, due dates `date`; nothing computed is stored; people are deactivated, never deleted.
@@ -111,11 +111,11 @@ fallback, and admin alerts (WhatsApp disconnected). Production sends from `tenso
 Follows how Hermes Agent runs WhatsApp: a **Baileys** bridge (Node.js, no browser), **bot mode** on a **dedicated
 number**, **deny by default**, and **never message someone who hasn't messaged the bot first**.
 
-- **Pairing the bot (admin, once):** Settings → WhatsApp shows a QR (refreshes ~every 20 s). Scan it from the bot
+- **Pairing the bot (a platform admin — `PLATFORM_ADMIN_EMAILS` — once):** Settings → WhatsApp shows a QR (refreshes ~every 20 s). Scan it from the bot
   phone: *Linked Devices → Link a device*. The session is saved on the worker's disk (`chmod 700`, in the encrypted
   backups, never in git), so restarts don't need a rescan.
 - **A teammate joins:** Profile → *Connect WhatsApp* shows a one-tap `wa.me` link with a code prefilled
-  (`1FOLD-4821`). They send it; the bot matches the code, links their number, and replies "You're connected".
+  (`1FOLD-7K2QXM`: once, for 15 minutes). They send it; the bot matches the code, links their number, and replies "You're connected".
   This proves the number is theirs **and** means they messaged first. Unknown senders are ignored.
 - **The brief:** at **9:00 Pakistan time** on working days, each connected member gets their tasks for the day —
   overdue, due today, in progress, in review — with links. Messages go out a few seconds apart. Replies:

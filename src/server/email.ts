@@ -84,3 +84,19 @@ export const verifyEmail = (p: { to: string; link: string }) => message(
   { label: "Confirm my email", url: p.link },
   "Didn't create a 1Fold account? Ignore this email.",
 );
+
+/** The daily brief, when WhatsApp can't take it. `lines` is the WhatsApp text, kept as plain lines. */
+export const briefEmail = (p: { to: string; orgName: string; text: string; myWorkUrl: string }) => message(
+  p.to, `Your tasks today at ${p.orgName}`,
+  p.text.split("\n").filter((l) => l.trim() && !/^Reply /.test(l)).map((l) => l.replace(/\*/g, "")),
+  { label: "Open My Work", url: p.myWorkUrl },
+  "WhatsApp couldn't be reached this morning, so your 1Fold brief came by email instead.",
+);
+
+export const botDownEmail = (p: { to: string; settingsUrl: string }) => message(
+  p.to, "1Fold's WhatsApp bot was disconnected",
+  ["The WhatsApp number 1Fold sends daily briefs from was logged out (or WhatsApp stopped it).",
+    "Until it's connected again, briefs go out by email. To reconnect: Settings → WhatsApp → Connect the bot, then scan the code from the bot's phone (Linked devices → Link a device)."],
+  { label: "Open Settings", url: p.settingsUrl },
+  "You get this because you can manage 1Fold's WhatsApp bot (PLATFORM_ADMIN_EMAILS).",
+);

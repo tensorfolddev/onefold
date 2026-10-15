@@ -16,7 +16,8 @@ export default defineConfig({
   webServer: {
     command: `npx next start -p ${PORT}`,
     url: `http://localhost:${PORT}/signin`,
-    env: { RESEND_API_KEY: "" }, // never send real email from tests, even if .env.local has a key
+    // Never send real email from tests, even if .env.local has a key. One fixed login may manage the WhatsApp bot.
+    env: { RESEND_API_KEY: "", PLATFORM_ADMIN_EMAILS: "platform-admin@onefold.example" },
     reuseExistingServer: true,
     timeout: 120_000,
   },

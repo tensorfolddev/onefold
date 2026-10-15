@@ -1,9 +1,10 @@
 // Selectors for My Work (the signed-in person's view). Pure functions over the live store data.
-import { today } from "@/domain/clock";
-import { statusOf, toneOf as toneOfTicket } from "@/domain/selectors/product";
-import type { Db } from "@/data/db";
-import { shortDate } from "@/domain/status";
-import type { Ticket, Tone } from "@/domain/types";
+// Relative imports, so the server (the worker's daily brief) can use these too.
+import { today } from "../clock.ts";
+import { statusOf, toneOf as toneOfTicket } from "./product.ts";
+import type { Db } from "../../data/db.ts";
+import { shortDate } from "../status.ts";
+import type { Ticket, Tone } from "../types.ts";
 
 const DAY_MS = 86400000;
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

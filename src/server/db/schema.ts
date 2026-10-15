@@ -270,6 +270,49 @@ export const undoPoints = pgTable("undo_points", {
   }),
 ]);
 
+// ---------- WhatsApp (platform tables: the worker reads them across companies, so no row-level security) ----------
+
+/** The bot — one per environment, on its own number. What the worker last saw, and what an admin asked it to do. */
+export const whatsappBot = pgTable("whatsapp_bot", {
+  id: integer("id").primaryKey(), // always 1
+  state: text("state").notNull(), // off | pairing | connecting | connected | logged_out
+  qr: text("qr"), // while pairing: what the QR code shows
+  phone: text("phone"), // the bot's own number, once connected
+  request: text("request"), // pair | logout — set by a platform admin, cleared by the worker
+  alertedAt: ts("alerted_at"), // when admins were last emailed that the bot lost its connection
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+/** A teammate's WhatsApp chat, per company they're in. Only ever made by them messaging the bot first. */
+export const whatsappLinks = pgTable("whatsapp_links", {
+  orgId: text("org_id").notNull(),
+  memberId: text("member_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id),
+  jid: text("jid").notNull(), // the chat the bot answers in
+  phone: text("phone").notNull(), // digits, for showing; "" when WhatsApp only gave us a private id
+  briefs: boolean("briefs").notNull().default(true), // the daily brief (STOP / START)
+  linkedAt: ts("linked_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.memberId] }), index("whatsapp_links_jid").on(t.jid)]);
+
+/** The one-time code a teammate sends the bot to link their number ("1FOLD-7K2QXM"). Only its hash is kept. */
+export const whatsappLinkCodes = pgTable("whatsapp_link_codes", {
+  id: text("id").primaryKey(), // SHA-256 of the code
+  orgId: text("org_id").notNull(),
+  memberId: text("member_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id),
+  expiresAt: ts("expires_at").notNull(),
+  usedAt: ts("used_at"),
+});
+
+/** One daily brief per person per day, however it went — so a restart never sends it twice. */
+export const briefDeliveries = pgTable("brief_deliveries", {
+  orgId: text("org_id").notNull(),
+  memberId: text("member_id").notNull(),
+  day: day("day").notNull(), // the company's local date
+  channel: text("channel").notNull(), // pending | whatsapp | email | none (nothing to tell)
+  at: ts("at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.memberId, t.day] })]);
+
 /** Every change, who made it and from where. Append-only: the app role can't update or delete rows. */
 export const auditLog = pgTable("audit_log", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
