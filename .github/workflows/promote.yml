@@ -53,7 +53,7 @@ jobs:
           if [ "$HEAD" != "$want" ] || [ "$HEAD_REPO" != "$REPO" ]; then fail "$BASE only takes releases from $want (this PR is from $HEAD)"; fi
 
           # Every required check passed on the exact commit being released.
-          for c in checks e2e branch-flow; do
+          for c in checks e2e branch-flow upgrade-test migrations; do
             ok=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=$c" --jq '[.check_runs[] | select(.conclusion == "success")] | length')
             if [ "$ok" -lt 1 ]; then fail "check '$c' hasn't passed on ${HEAD_SHA:0:7} yet"; fi
           done

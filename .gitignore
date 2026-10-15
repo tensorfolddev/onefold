@@ -20,8 +20,9 @@
 # production
 /build
 
-# local data (uploaded files in development)
+# local data (uploaded files in development; a laptop trial of the deploy scripts)
 /data/
+/.onefold-local/
 
 # misc
 .DS_Store

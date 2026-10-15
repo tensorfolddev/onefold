@@ -1,0 +1,28 @@
+# Caddy in front of both environments: automatic HTTPS certificates, and each domain sent to its environment's
+# website (prod-web / stg-web on the shared "onefold-edge" network). Started by setup.sh; settings in edge/.env.
+name: onefold-edge
+
+services:
+  caddy:
+    image: caddy:2.11.4-alpine
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      PROD_DOMAIN: ${PROD_DOMAIN:-1fold.tensorfold.ai}
+      STG_DOMAIN: ${STG_DOMAIN:-teamfold.tensorfold.ai}
+      ACME_EMAIL: ${ACME_EMAIL:-tensorfold@gmail.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+    networks: [edge]
+
+networks:
+  edge: { name: onefold-edge, external: true }
+
+volumes:
+  caddy_data: {}
+  caddy_config: {}

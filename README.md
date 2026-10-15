@@ -43,6 +43,15 @@ kept on disk in `FILES_DIR` (default `./data/files`, git-ignored; a backed-up vo
 serves one only to people who can see its ticket. Images nothing refers to any more — not a ticket, not anyone's
 Undo — are deleted by `cleanupFiles()` once they're an hour old.
 
+## Deploying
+
+One VPS runs production (`1fold.tensorfold.ai`) and staging (`teamfold.tensorfold.ai`) side by side, each with its own
+database, files and settings, behind Caddy (HTTPS). Releases deploy themselves when the promote bot moves `stg` or
+`prod`; backups go to Google Drive every hour, encrypted; one command restores, and one command rebuilds everything on
+a new server. Setup and every command: [deploy/README.md](deploy/README.md).
+
+The worker (`npm run worker` locally) runs scheduled jobs next to the website.
+
 ## Environments
 
 `NEXT_PUBLIC_APP_ENV` = `dev` | `stg` | `prod` (see `.env.example`). dev and stg show a badge on every screen.
@@ -88,4 +97,4 @@ and sends the recorded steps to `POST /api/org/changes`. The server replays them
 (same rules, same permission checks), in one transaction, saves only the rows that changed, writes the audit log and
 tells everyone else's browser to refresh. Each browser only ever receives what its person may see.
 
-Not built yet: deployment, the WhatsApp brief and the MCP server — see the design's build order.
+Not built yet: the WhatsApp brief and the MCP server — see the design's build order.
