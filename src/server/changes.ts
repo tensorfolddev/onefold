@@ -18,11 +18,14 @@ import { journal, type Source } from "./journal.ts";
 export interface Step { name: string; args: unknown[] }
 export const MAX_STEPS = 25;
 
-/** Invites carry secrets the server must generate, so browsers can't send them as steps. */
-const SERVER_ONLY = new Set<string>(["inviteMembers"]);
+/**
+ * Not for browsers to send as steps: invites carry secrets the server must make, and an image is added by uploading
+ * it (POST /api/files), so a ticket can never point at a file that isn't there.
+ */
+const SERVER_ONLY = new Set<string>(["inviteMembers", "addAttachment"]);
 const isBrowserCommand = (name: string): name is CommandName => Object.hasOwn(commands, name) && !SERVER_ONLY.has(name);
 
-async function mustLoad(tx: Tx, who: SessionRow): Promise<Loaded> {
+export async function mustLoad(tx: Tx, who: SessionRow): Promise<Loaded> {
   const loaded = await loadCompany(tx, who.orgId);
   if (!loaded) throw new AccessError();
   return loaded;

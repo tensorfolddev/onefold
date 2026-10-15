@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { can as canFor, type Action, type Ctx } from "../domain/permissions.ts";
 import type { Panel, Person } from "../domain/types.ts";
 import { Toaster, type ToastItem } from "../ui/Toast.tsx";
-import { api, ApiError } from "./api.ts";
+import { api, ApiError, upload } from "./api.ts";
 import { AccessError, record, recorded, ValidationError, type CommandName, type Commands, type InviteInput, type Step } from "./commands.ts";
 import { makeLookups, type Db, type Lookups } from "./db.ts";
 import { isPublicPath, PANEL_SLUG, panelFromSlug, panelHome } from "./session.ts";
@@ -42,6 +42,8 @@ export interface Store extends Lookups {
   emailUnverified: boolean;
   /** Emails you a new "confirm your email" link. Resolves to an error message, or null when it was sent. */
   sendVerification: () => Promise<string | null>;
+  /** Uploads an image onto a ticket (after any changes still on their way). Resolves to an error message, or null. */
+  uploadImage: (ticketKey: string, file: Blob, name: string) => Promise<string | null>;
 }
 
 export type SignInResult =
@@ -123,6 +125,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => { events.close(); document.removeEventListener("visibilitychange", onVisible); };
   }, [orgId, refreshOrSay]);
 
+  // Leaving (reload, close, typed URL) while changes are still on their way would drop them: ask first.
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => { if (pending.current > 0) e.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
   // Moved to another panel by an admin (or opened a link to another panel): go to your own.
   useEffect(() => {
     if (!view || isPublicPath(pathname)) return;
@@ -146,6 +155,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [refreshOrSay, toast]);
 
   const undo = useCallback(() => send("/api/org/undo", {}), [send]);
+
+  // In the same queue as changes, so an image added to a ticket made a moment ago arrives after that ticket.
+  const uploadImage = useCallback((ticketKey: string, file: Blob, name: string) => {
+    pending.current += 1;
+    const done = queue.current.then(async () => {
+      try {
+        await upload(`/api/files?ticket=${encodeURIComponent(ticketKey)}&name=${encodeURIComponent(name)}`, file);
+        return null;
+      } catch (e) {
+        return message(e);
+      } finally {
+        pending.current -= 1;
+        if (pending.current === 0) await refreshOrSay();
+      }
+    });
+    queue.current = done.then(() => undefined);
+    return done;
+  }, [refreshOrSay]);
 
   const act = useCallback(<K,>(fn: (db: Db, me: Person) => ActResult<K>, opts: RunOptions = {}) => {
     const cur = viewRef.current;
@@ -249,9 +276,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...lookups, db: view.db, me, panel: view.panel,
       href: (path: string) => `/${PANEL_SLUG[view.panel]}${path}`,
       can: (action, ctx = {}) => canFor(me, action, ctx),
-      run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification,
+      run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification, uploadImage,
     };
-  }, [view, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification]);
+  }, [view, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage]);
 
   return (
     <StoreCtx.Provider value={{ store, auth }}>
