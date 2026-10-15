@@ -1,0 +1,242 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  Bell, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, Moon,
+  RotateCcw, Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
+} from "lucide-react";
+import { visibleProducts } from "@/domain/permissions";
+import { isSoundOn, playSound, setSoundOn } from "@/features/tickets/sounds";
+import { AppStateProvider, useAppState, type Theme } from "@/features/shell/state";
+import { useAuth, useMe } from "@/data/StoreProvider";
+import type { Panel } from "@/domain/types";
+import { Avatar, EnvBadge, Tooltip } from "@/ui/primitives";
+import { Popover } from "@/ui/Popover";
+import { NotificationsPanel } from "./NotificationsPanel";
+import { ProductsSidebar } from "./ProductsSidebar";
+import { TicketPanelHost } from "@/features/tickets/TicketPanel";
+
+interface NavItem { path: string; label: string; icon: LucideIcon }
+
+/** Each panel's own navigation (paths are relative to /admin, /manager or /dev). */
+const NAV: Record<Panel, NavItem[]> = {
+  admin: [
+    { path: "", label: "Home", icon: Home },
+    { path: "/products", label: "Products", icon: LayoutGrid },
+    { path: "/people", label: "People", icon: UserCog },
+    { path: "/teams", label: "Teams", icon: Users },
+    { path: "/settings", label: "Settings", icon: Settings },
+  ],
+  manager: [
+    { path: "", label: "Home", icon: Home },
+    { path: "/my-work", label: "My Work", icon: ListChecks },
+    { path: "/products", label: "Products", icon: LayoutGrid },
+    { path: "/teams", label: "Team", icon: Users },
+  ],
+  developer: [
+    { path: "", label: "My Work", icon: ListChecks },
+    { path: "/products", label: "Products", icon: LayoutGrid },
+  ],
+};
+
+export const PANEL_LABEL: Record<Panel, string> = { admin: "Admin", manager: "Manager", developer: "Developer" };
+
+/** Path inside the panel: "/dev/products/AP" → "/products/AP", "/dev" → "". */
+const panelPath = (pathname: string) => pathname.replace(/^\/[^/]+/, "");
+const isActive = (rel: string, path: string) => (path === "" ? rel === "" : rel.startsWith(path));
+
+/** Waits for a signed-in person (the store fixes stale sessions), then renders that panel's shell. */
+export function PanelShell({ children }: { children: React.ReactNode }) {
+  const { ready, signedIn } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  // The cookie said signed in, but this browser doesn't have that company (cleared storage): sign in again.
+  useEffect(() => { if (ready && !signedIn) router.replace(`/signin?next=${encodeURIComponent(pathname)}`); }, [ready, signedIn, router, pathname]);
+  if (!signedIn) return <div className="app-loading" aria-busy="true" />;
+  return <AppStateProvider><AppShell>{children}</AppShell></AppStateProvider>;
+}
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const hasSidebar = panelPath(pathname).startsWith("/products");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  return (
+    <div className={`app${hasSidebar ? "" : " no-sidebar"}${sidebarOpen ? " sidebar-open" : ""}`}>
+      <Topbar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
+      <Rail pathname={pathname} />
+      {hasSidebar && <ProductsSidebar rel={panelPath(pathname)} onNavigate={() => setSidebarOpen(false)} />}
+      <main className="work-area" id="main">{children}</main>
+      <NotificationsPanel />
+      <TicketPanelHost />
+    </div>
+  );
+}
+
+export function BrandMark() {
+  // 1Fold's own mark: a folded sheet (not monday's logo).
+  return (
+    <svg className="brand-mark" viewBox="0 0 28 28" aria-hidden>
+      <rect x="3" y="3" width="22" height="22" rx="6" fill="var(--primary-color)" />
+      <path d="M17 3h2a6 6 0 0 1 6 6v2l-8-8Z" fill="var(--primary-selected-color)" />
+      <path d="M11.5 20V9.2L9 10.6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M15.5 20v-9.5h4.5M15.5 15h3.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
+  const { openTicket, notificationsOpen, setNotificationsOpen } = useAppState();
+  const { db, me, href } = useMe();
+  const [query, setQuery] = useState("");
+  const unread = db.notifications.filter((n) => n.personId === me.id && !n.read).length;
+  const visible = new Set(visibleProducts(me, db.products).map((p) => p.key));
+  const tickets = db.tickets.filter((t) => visible.has(t.productKey));
+
+  const search = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim().toLowerCase();
+    if (!q) return;
+    const hit = tickets.find((t) => t.key.toLowerCase() === q) ??
+      tickets.find((t) => `${t.key} ${t.title}`.toLowerCase().includes(q));
+    if (hit) {
+      openTicket(hit.key);
+      setQuery("");
+    }
+  };
+
+  return (
+    <header className="app-topbar">
+      <button type="button" className="btn btn-tertiary btn-icon sidebar-toggle" aria-label="Toggle products sidebar" onClick={onToggleSidebar}>
+        <Menu />
+      </button>
+      <Link href={href("")} className="brand" aria-label="1Fold home">
+        <BrandMark />
+        <span>1Fold</span>
+      </Link>
+      <EnvBadge />
+      <div className="topbar-center">
+        <form className="topbar-search" onSubmit={search} role="search">
+          <Search aria-hidden />
+          <input
+            aria-label="Search tickets by key or title"
+            placeholder="Search tickets (e.g. AP-12)…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{ border: 0, background: "transparent", outline: 0, width: "100%" }}
+          />
+        </form>
+      </div>
+      <div className="topbar-actions">
+        <Tooltip label="Notifications">
+          <button
+            type="button"
+            className={`topbar-icon${notificationsOpen ? " is-open" : ""}`}
+            aria-label={`Notifications, ${unread} unread`}
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+          >
+            <Bell />
+            {unread > 0 && <span className="count-badge">{unread}</span>}
+          </button>
+        </Tooltip>
+        <span className="topbar-divider hide-mobile" />
+        <UserMenu />
+      </div>
+    </header>
+  );
+}
+
+const THEMES: { id: Theme; label: string; icon: React.ReactNode }[] = [
+  { id: "light", label: "Light", icon: <Sun /> },
+  { id: "dark", label: "Dark", icon: <Moon /> },
+  { id: "night", label: "Night", icon: <SunMoon /> },
+];
+
+function UserMenu() {
+  const { theme, setTheme } = useAppState();
+  const { db, me, panel, isDemo, signOut, resetDemo } = useMe();
+  const [sound, setSound] = useState(isSoundOn);
+  return (
+    <Popover
+      align="right"
+      width={260}
+      trigger={({ toggle }) => (
+        <button type="button" onClick={toggle} aria-label="Account menu" style={{ display: "inline-flex" }}>
+          <Avatar personId={me.id} />
+        </button>
+      )}
+    >
+      {(close) => (
+        <>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 8px 12px" }}>
+            <Avatar personId={me.id} size="lg" />
+            <div>
+              <div style={{ fontWeight: 500 }}>{me.name}</div>
+              <div className="muted label">{me.role} · {db.org.name}</div>
+              <span className="chip sm panel-badge" data-panel={panel}>{PANEL_LABEL[panel]}</span>
+            </div>
+          </div>
+          <div className="menu-divider" />
+          <div className="menu-section-label">Theme</div>
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`menu-item${theme === t.id ? " is-selected" : ""}`}
+              role="menuitemradio"
+              aria-checked={theme === t.id}
+              onClick={() => { setTheme(t.id); close(); }}
+            >
+              {t.icon}
+              {t.label}
+              {theme === t.id && <Check className="menu-item-end" />}
+            </button>
+          ))}
+          <div className="menu-divider" />
+          <button
+            type="button" className="menu-item" role="menuitemcheckbox" aria-checked={sound}
+            onClick={() => { setSoundOn(!sound); setSound(!sound); if (!sound) playSound("drop"); }}
+          >
+            {sound ? <Volume2 /> : <VolumeX />} Sounds
+            <span className="menu-item-end">{sound ? "On" : "Off"}</span>
+          </button>
+          <div className="menu-divider" />
+          {isDemo && (
+            <button
+              type="button" className="menu-item"
+              onClick={() => {
+                close();
+                if (window.confirm("Reset the demo? Everything you changed in it on this browser is lost.")) void resetDemo();
+              }}
+            >
+              <RotateCcw /> Reset demo data
+            </button>
+          )}
+          <button type="button" className="menu-item" onClick={() => { close(); signOut(); }}>
+            <LogOut /> Sign out
+          </button>
+        </>
+      )}
+    </Popover>
+  );
+}
+
+function Rail({ pathname }: { pathname: string }) {
+  const { panel, href } = useMe();
+  const rel = panelPath(pathname);
+  return (
+    <nav className="app-rail" aria-label="Main">
+      {NAV[panel].map(({ path, label, icon: Icon }) => {
+        const active = isActive(rel, path);
+        return (
+          <Link key={path} href={href(path)} className={`rail-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}>
+            <span className="rail-icon"><Icon /></span>
+            <span className="rail-label">{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
