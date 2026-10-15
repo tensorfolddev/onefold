@@ -218,6 +218,29 @@ test("a forgotten password is reset from the emailed link, which then stops work
   await expect(page.getByRole("heading", { name: "This link can't be used" })).toBeVisible();
 });
 
+test("WhatsApp: a teammate is told when the bot isn't connected; only a platform admin can ask it to connect", async ({ page, browser }) => {
+  await signUp(page, "Eta", "platform-admin@onefold.example"); // a fixed login: each run adds another company to it
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: "WhatsApp" }).click();
+  await expect(page.getByRole("dialog", { name: "WhatsApp" })).toBeVisible();
+  await expect(page.getByText(/isn't connected right now/)).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await confirmEmail(page, "platform-admin@onefold.example"); // a platform admin must have proven the address
+  await page.goto("/admin/settings");
+  await expect(page.getByRole("heading", { name: "WhatsApp" })).toBeVisible();
+  const connect = page.getByRole("button", { name: "Connect the bot" });
+  if (await connect.isVisible()) await connect.click(); // (a request left waiting by an earlier run needs no new one)
+  await expect(page.getByText("Waiting for the worker to start pairing…")).toBeVisible(); // no worker runs in these tests
+
+  const other = await freshPage(browser);
+  await signUp(other, "Theta", email("th"));
+  await other.goto("/admin/settings");
+  await expect(other.getByRole("heading", { name: "Company" })).toBeVisible();
+  await expect(other.getByRole("heading", { name: "WhatsApp" })).toHaveCount(0); // an ordinary admin doesn't manage the bot
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

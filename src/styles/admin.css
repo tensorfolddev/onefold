@@ -289,3 +289,19 @@
 .settings-toggle input:checked::after { transform: translateX(16px); }
 .settings-toggle input:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .settings-toggle input, .settings-toggle input::after { transition: none; } }
+
+/* ---------- WhatsApp: the brief dialog and the bot in Settings ---------- */
+.wa-dialog { width: min(520px, 100vw); }
+.wa-linked { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.wa-linked svg { width: 16px; height: 16px; color: var(--positive-color); }
+.wa-steps { display: flex; flex-direction: column; gap: 12px; padding-left: 20px; font-size: 14px; line-height: 21px; }
+.wa-steps li > .btn { margin-right: 10px; }
+.wa-code { padding: 2px 6px; border-radius: 6px; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; background: var(--allgrey-background-color); }
+.wa-intro { max-width: 640px; margin: 4px 0 14px; font-size: 13px; }
+.wa-pairing { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+.wa-qr { width: 256px; height: 256px; border-radius: var(--border-radius-medium); background: #fff; padding: 8px; box-shadow: 0 0 0 1px var(--layout-border-color); }
+.wa-qr.is-loading { background: var(--allgrey-background-color); }
+.wa-foot { justify-content: flex-start; align-items: center; flex-wrap: wrap; }
+.wa-state[data-state="connected"] { color: var(--positive-color); }
+.wa-state[data-state="logged_out"] { color: var(--negative-color); }
+

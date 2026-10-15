@@ -1,6 +1,6 @@
 // Product-space selectors. Pure functions over the live store data (callers pass `db` from useDb()).
-import type { Db } from "@/data/db";
-import type { Milestone, Status, StatusCategory, Ticket, Tone } from "@/domain/types";
+import type { Db } from "../../data/db.ts";
+import type { Milestone, Status, StatusCategory, Ticket, Tone } from "../types.ts";
 
 export const statusOf = (db: Db, t: Ticket): Status | undefined =>
   db.statusesByProduct[t.productKey]?.find((s) => s.id === t.statusId);

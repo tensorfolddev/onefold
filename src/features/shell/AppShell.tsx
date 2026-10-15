@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, Moon,
+  Bell, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon,
   Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { visibleProducts } from "@/domain/permissions";
@@ -17,6 +17,7 @@ import { Popover } from "@/ui/Popover";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { ProductsSidebar } from "./ProductsSidebar";
 import { TicketPanelHost } from "@/features/tickets/TicketPanel";
+import { WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 
 interface NavItem { path: string; label: string; icon: LucideIcon }
 
@@ -158,7 +159,10 @@ function UserMenu() {
   const { theme, setTheme } = useAppState();
   const { db, me, panel, signOut } = useMe();
   const [sound, setSound] = useState(isSoundOn);
+  const [whatsApp, setWhatsApp] = useState(false);
   return (
+    <>
+    {whatsApp && <WhatsAppDialog onClose={() => setWhatsApp(false)} />}
     <Popover
       align="right"
       width={260}
@@ -202,6 +206,9 @@ function UserMenu() {
             {sound ? <Volume2 /> : <VolumeX />} Sounds
             <span className="menu-item-end">{sound ? "On" : "Off"}</span>
           </button>
+          <button type="button" className="menu-item" onClick={() => { close(); setWhatsApp(true); }}>
+            <MessageCircle /> WhatsApp
+          </button>
           <div className="menu-divider" />
           <button type="button" className="menu-item" onClick={() => { close(); signOut(); }}>
             <LogOut /> Sign out
@@ -209,6 +216,7 @@ function UserMenu() {
         </>
       )}
     </Popover>
+    </>
   );
 }
 

@@ -54,6 +54,20 @@ and the DNS for `tensorfold.ai`.
 6. **First release**: GitHub → Actions → deploy → Run workflow → `prod` (then `stg`). Or on the server:
    `/opt/onefold/repo/deploy/deploy.sh prod <commit>`. Open `https://1fold.tensorfold.ai/signup`.
 
+## WhatsApp
+
+Each environment sends daily briefs from its **own WhatsApp number** — use a dedicated SIM in a spare phone, never a
+personal number. To connect it (once; the session is kept in the `whatsapp` volume and backed up hourly):
+
+1. Make sure your email is in `PLATFORM_ADMIN_EMAILS` in `/opt/onefold/<env>/app.env` (then `start.sh <env>`).
+2. Sign in, open **Settings → WhatsApp → Connect the bot**. A QR code appears within a few seconds.
+3. On the bot's phone: WhatsApp → **Settings → Linked devices → Link a device**, and scan it.
+
+Teammates then link their own numbers from their name (top right) → **WhatsApp**: 1Fold gives them a code to send the
+bot, which proves the number is theirs. Briefs go out at 9:00 (the company's time zone) on working days. If WhatsApp
+ever logs the bot out, the platform admins get an email, briefs go by email meanwhile, and Settings shows
+*Disconnected — scan again*. The worker's log: `compose.sh prod logs -f worker`.
+
 ## Releasing
 
 Releases go out by themselves: when the promote bot moves `stg` or `prod` (see the main README), the **deploy**

@@ -52,6 +52,14 @@ a new server. Setup and every command: [deploy/README.md](deploy/README.md).
 
 The worker (`npm run worker` locally) runs scheduled jobs next to the website.
 
+## WhatsApp brief
+
+The worker runs a WhatsApp bot (Baileys, the way Hermes Agent does: bot mode on its own number, deny by default,
+never writes first). People link their number by sending it a one-time code (their name → WhatsApp); every working
+day at 9:00 in the company's time zone they get what's overdue, due today, in progress and in review. Replies:
+TODAY, STOP, START. When WhatsApp is down the brief goes by email. Platform admins (`PLATFORM_ADMIN_EMAILS`) pair the
+bot in Settings → WhatsApp. Locally: `npm run worker` next to `npm run dev`.
+
 ## Environments
 
 `NEXT_PUBLIC_APP_ENV` = `dev` | `stg` | `prod` (see `.env.example`). dev and stg show a badge on every screen.
@@ -97,4 +105,4 @@ and sends the recorded steps to `POST /api/org/changes`. The server replays them
 (same rules, same permission checks), in one transaction, saves only the rows that changed, writes the audit log and
 tells everyone else's browser to refresh. Each browser only ever receives what its person may see.
 
-Not built yet: the WhatsApp brief and the MCP server — see the design's build order.
+Not built yet: the MCP server — see the design's build order.
