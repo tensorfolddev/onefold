@@ -19,7 +19,7 @@ type KeyOf<R> = R extends { key: infer K } ? K : true;
 export interface RunOptions { success?: string; undoable?: boolean }
 type ActResult<K> = Db | { db: Db; key: K };
 
-export interface CreatedInvite { id: string; email: string; panel: Panel; role: string; link: string }
+export interface CreatedInvite { id: string; email: string; panel: Panel; role: string; link: string; emailed: boolean }
 
 export interface Store extends Lookups {
   db: Db;
@@ -38,6 +38,10 @@ export interface Store extends Lookups {
   createInvites: (invites: InviteInput[]) => Promise<CreatedInvite[]>;
   /** Your password, or (admins) a teammate's. Resolves to an error message, or null when it worked. */
   setPassword: (personId: string, password: string) => Promise<string | null>;
+  /** Your email isn't confirmed yet (only when email is set up) — invites wait until it is. */
+  emailUnverified: boolean;
+  /** Emails you a new "confirm your email" link. Resolves to an error message, or null when it was sent. */
+  sendVerification: () => Promise<string | null>;
 }
 
 export type SignInResult =
@@ -63,7 +67,7 @@ export interface Auth {
   signOut: () => void;
 }
 
-interface View { db: Db; version: number; meId: string; panel: Panel; orgSlug: string }
+interface View { db: Db; version: number; meId: string; panel: Panel; orgSlug: string; emailUnverified: boolean }
 
 const StoreCtx = createContext<{ store: Store | null; auth: Auth } | null>(null);
 const TOAST_MS = 5000;
@@ -230,6 +234,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try { await api("/api/org/password", { personId, password }); return null; } catch (e) { return message(e); }
   }, []);
 
+  const sendVerification = useCallback(async () => {
+    try { await api("/api/org/verify-email", {}); return null; } catch (e) { return message(e); }
+  }, []);
+
   const auth: Auth = useMemo(() => ({ ready, signIn, createCompany, checkSlug, lookupInvite, acceptInvite, signOut }),
     [ready, signIn, createCompany, checkSlug, lookupInvite, acceptInvite, signOut]);
 
@@ -241,9 +249,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...lookups, db: view.db, me, panel: view.panel,
       href: (path: string) => `/${PANEL_SLUG[view.panel]}${path}`,
       can: (action, ctx = {}) => canFor(me, action, ctx),
-      run, act, toast, signOut, createInvites, setPassword,
+      run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification,
     };
-  }, [view, lookups, run, act, toast, signOut, createInvites, setPassword]);
+  }, [view, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification]);
 
   return (
     <StoreCtx.Provider value={{ store, auth }}>

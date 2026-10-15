@@ -36,6 +36,16 @@ function sameOrigin(req: NextRequest) {
   try { return new URL(origin).host === req.headers.get("host"); } catch { return false; }
 }
 
+/**
+ * Where people open 1Fold — links in emails are built from it. Production must set APP_URL: the request's own Host
+ * can be forged, and a reset link pointing at someone else's site would hand them the token.
+ */
+export function appUrl(req: NextRequest): string {
+  const url = process.env.APP_URL;
+  if (!url && process.env.NODE_ENV === "production") throw new Error("APP_URL must be set (e.g. https://1fold.tensorfold.ai)");
+  return (url ?? req.nextUrl.origin).replace(/\/$/, "");
+}
+
 /** The person's real IP. Behind Caddy, the last X-Forwarded-For entry is the one Caddy added. */
 export const clientIp = (req: NextRequest) => req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "local";
 

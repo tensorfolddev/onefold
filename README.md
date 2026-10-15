@@ -29,6 +29,13 @@ Changing the database: edit `src/server/db/schema.ts`, run `npm run db:generate`
 Migrations only ever **add** things (design §12): never edit a released migration, never drop what the running
 version uses.
 
+## Email
+
+Invites, "confirm your email" and password-reset links go out through [Resend](https://resend.com): set
+`RESEND_API_KEY` and `EMAIL_FROM` (a sender on a domain verified in that Resend account). Without a key nothing is sent
+and development prints each email to the server log; `EMAIL_OUTBOX_DIR` writes them to a folder instead (the tests use
+it). Once email is set up, a new founder confirms their email before their invites go out.
+
 ## Environments
 
 `NEXT_PUBLIC_APP_ENV` = `dev` | `stg` | `prod` (see `.env.example`). dev and stg show a badge on every screen.
@@ -74,5 +81,4 @@ and sends the recorded steps to `POST /api/org/changes`. The server replays them
 (same rules, same permission checks), in one transaction, saves only the rows that changed, writes the audit log and
 tells everyone else's browser to refresh. Each browser only ever receives what its person may see.
 
-Not built yet: email (invites are copy-a-link; password resets go through an admin), file uploads, deployment,
-the WhatsApp brief and the MCP server — see the design's build order.
+Not built yet: file uploads, deployment, the WhatsApp brief and the MCP server — see the design's build order.

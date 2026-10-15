@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Forgot } from "@/features/auth/SignIn";
+import { Forgot } from "@/features/auth/EmailLinks";
 
 export const metadata: Metadata = { title: "Forgot password · 1Fold" };
 

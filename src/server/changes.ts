@@ -1,17 +1,18 @@
 // Changes. The browser records the steps it ran (named commands + their arguments) and sends them; the server replays
 // them on the real data as the signed-in person, in one transaction (all or nothing), saves only what changed, logs
 // every step and tells the company's other browsers. Also: each person's view, invites (the server makes the secret
-// links) and Undo (refused if anyone changed anything since).
+// links and emails them) and Undo (refused if anyone changed anything since).
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../data/db.ts";
-import { AccessError, commands, inviteMembers, ValidationError, type CommandName, type InviteInput } from "../domain/commands/index.ts";
+import { AccessError, commands, INVITE_DAYS, inviteMembers, ValidationError, type CommandName, type InviteInput } from "../domain/commands/index.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
 import type { Panel, Person } from "../domain/types.ts";
-import { personFor, type SessionRow } from "./accounts.ts";
+import { emailVerified, personFor, type SessionRow } from "./accounts.ts";
 import { newToken, sha256 } from "./auth/secrets.ts";
 import { loadCompany, saveCompany, type Loaded } from "./company/store.ts";
 import { inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
+import { emailEnabled, inviteEmail, sendEmail } from "./email.ts";
 import { journal, type Source } from "./journal.ts";
 
 export interface Step { name: string; args: unknown[] }
@@ -27,13 +28,20 @@ async function mustLoad(tx: Tx, who: SessionRow): Promise<Loaded> {
   return loaded;
 }
 
+export interface View {
+  db: Db; version: number; meId: string; panel: Panel; orgSlug: string;
+  /** Their email isn't confirmed yet (only when email is set up): they can't send invites until it is. */
+  emailUnverified: boolean;
+}
+
 /** What one person's browser gets: their view of the company, its version, and who they are. */
-export async function viewFor(who: SessionRow): Promise<{ db: Db; version: number; meId: string; panel: Panel; orgSlug: string }> {
-  return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+export async function viewFor(who: SessionRow): Promise<View> {
+  const view = await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
     return { db: snapshotFor(loaded.db, me), version: loaded.version, meId: me.id, panel: me.panel!, orgSlug: loaded.db.org.slug };
   });
+  return { ...view, emailUnverified: emailEnabled() && !(await emailVerified(who.userId)) };
 }
 
 export interface Applied { version: number; key?: unknown }
@@ -89,13 +97,18 @@ export async function undoLast(who: SessionRow): Promise<Applied> {
   });
 }
 
-export interface CreatedInvite { id: string; email: string; panel: Panel; role: string; token: string }
+export interface CreatedInvite { id: string; email: string; panel: Panel; role: string; link: string; emailed: boolean }
 
-/** Admins invite people: the server makes each link's secret token, stores only its hash, and returns the tokens once. */
-export async function createInvites(who: SessionRow, invites: InviteInput[]): Promise<{ version: number; invites: CreatedInvite[] }> {
+/**
+ * Admins invite people: the server makes each link's secret token, stores only its hash, emails each person their link
+ * and returns the links once (the copyable backup). Needs a confirmed email when email is set up, so nobody can send
+ * invites in the name of an address they don't own.
+ */
+export async function createInvites(who: SessionRow, invites: InviteInput[], appUrl: string): Promise<{ version: number; invites: CreatedInvite[] }> {
   if (!Array.isArray(invites)) throw new ValidationError("Add at least one email");
+  if (emailEnabled() && !(await emailVerified(who.userId))) throw new ValidationError("Confirm your email first — open the link we emailed you");
   const tokens = invites.map(() => newToken());
-  return inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
+  const made = await inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
     const next = inviteMembers(loaded.db, me, invites.map((inv, i) => ({
@@ -104,7 +117,15 @@ export async function createInvites(who: SessionRow, invites: InviteInput[]): Pr
     const version = await saveCompany(tx, loaded, next);
     await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source: "web" },
       [{ command: "inviteMembers", args: invites.map((i) => ({ email: i.email, panel: i.panel })) }], version);
-    const created = next.invites.slice(-invites.length);
-    return { version, invites: created.map((inv, i) => ({ id: inv.id, email: inv.email, panel: inv.panel, role: inv.role, token: tokens[i] })) };
+    const created = next.invites.slice(-invites.length).map((inv, i) => ({ id: inv.id, email: inv.email, panel: inv.panel, role: inv.role, link: `${appUrl}/invite/${tokens[i]}` }));
+    return { version, created, orgName: next.org.name, inviterName: me.name };
   });
+  // After the commit: an email that fails still leaves a working invite, and its link is shown to copy.
+  // One at a time — Resend limits requests per second, and a batch sent at once would bounce the extras.
+  const invitesOut: CreatedInvite[] = [];
+  for (const inv of made.created) {
+    const emailed = await sendEmail(inviteEmail({ to: inv.email, orgName: made.orgName, inviterName: made.inviterName, link: inv.link, days: INVITE_DAYS }));
+    invitesOut.push({ ...inv, emailed });
+  }
+  return { version: made.version, invites: invitesOut };
 }

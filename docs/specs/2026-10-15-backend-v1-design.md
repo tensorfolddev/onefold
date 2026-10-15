@@ -77,7 +77,7 @@ cross-company reads impossible even if a query forgets a filter. The app connect
 
 | Group | Tables |
 |---|---|
-| Accounts | `users` (email, password_hash, email_verified_at) · `members` (org, user, panel, job title, team, capacity, colour, active, whatsapp_number, whatsapp_verified_at, brief_opt_in) · `sessions` · `password_resets` · `email_verifications` · `api_tokens` · `invites` |
+| Accounts | `users` (email, password_hash, email_verified_at) · `members` (org, user, panel, job title, team, capacity, colour, active, whatsapp_number, whatsapp_verified_at, brief_opt_in) · `sessions` · `email_tokens` (reset-password and confirm-email links) · `api_tokens` · `invites` |
 | Company | `orgs` (slug, name, email_domain, domain_lock, timezone, version) · `teams` · `job_titles` · `product_groups` |
 | Products | `products` · `product_members` · `board_lists` · `requirements` · `decisions` · `milestones` · `docs` · `stage_requests` |
 | Tickets | `tickets` (PK org + key "AP-12"; `sections` JSONB) · `ticket_dependencies` · `attachments` (metadata; bytes on disk) · `comments` · `ticket_activity` · `notifications` |
