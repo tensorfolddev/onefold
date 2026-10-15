@@ -28,8 +28,8 @@ export async function sendEmail(msg: Email): Promise<boolean> {
     }
     const dir = process.env.EMAIL_OUTBOX_DIR;
     if (dir) {
-      await mkdir(dir, { recursive: true });
-      await writeFile(join(dir, `${Date.now()}-${randomBytes(4).toString("hex")}.json`), JSON.stringify(msg));
+      await mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
+      await writeFile(/*turbopackIgnore: true*/ join(dir, `${Date.now()}-${randomBytes(4).toString("hex")}.json`), JSON.stringify(msg));
       return true;
     }
     if (process.env.NEXT_PUBLIC_APP_ENV === "dev") console.info(`[email] (not sent — no RESEND_API_KEY) to ${msg.to}: ${msg.subject}\n${msg.text}`);

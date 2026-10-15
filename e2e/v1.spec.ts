@@ -147,6 +147,34 @@ test("a ticket made in one browser appears live in another, and survives a reloa
   await expect(page.getByRole("button", { name: "Build the cart" }).first()).toBeVisible();
 });
 
+const PNG_1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+const loaded = (img: ReturnType<Page["getByRole"]>) => expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+
+test("an image added to a ticket is kept on the server: it survives a reload and shows in another browser", async ({ page, browser }) => {
+  await signUp(page, "Epsilon", email("ed"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Pictures");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/PI$/);
+  await page.goto("/admin/products/PI/tickets");
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Design the hero");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Design the hero. Edit title" })).toBeVisible(); // a new ticket opens itself
+  await page.locator("#sec-images input[type=file]").setInputFiles({ name: "hero.png", mimeType: "image/png", buffer: PNG_1x1 });
+  await loaded(page.getByRole("img", { name: "hero.png" }));
+
+  await page.goto("/admin/t/PI-1"); // a fresh load: the image comes from the server, not this page's memory
+  await loaded(page.getByRole("img", { name: "hero.png" }));
+  const other = await freshPage(browser);
+  await signIn(other, email("ed"));
+  await expect(other).toHaveURL(/\/admin$/, { timeout: 20_000 });
+  await other.goto("/admin/t/PI-1");
+  await loaded(other.getByRole("img", { name: "hero.png" }));
+});
+
 test("sign-in refuses a wrong password and returns you to the page you asked for", async ({ page }) => {
   await signUp(page, "Gamma", email("gi"));
   await page.getByRole("button", { name: "Skip for now" }).click();
