@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Copy, Eye, EyeOff, RefreshCw, X } from "lucide-react";
-import { setPassword as setPasswordCmd, updatePerson } from "@/domain/commands";
-import { MIN_PASSWORD } from "@/domain/commands/shared";
-import { hashPassword } from "@/data/passwords";
+import { MIN_PASSWORD, updatePerson } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Panel, Person, Role } from "@/domain/types";
 import { IconButton, Tooltip } from "@/ui/primitives";
@@ -24,9 +22,8 @@ function generatePassword() {
 
 /** Slide-over to edit someone. New people join through an invite (InviteDialog), never with a password set for them. */
 export function PersonForm({ person, onClose }: { person: Person; onClose: () => void }) {
-  const { db, me, act, toast } = useMe();
+  const { db, me, act, toast, setPassword: savePassword } = useMe();
   const [name, setName] = useState(person.name);
-  const [email, setEmail] = useState(person.email);
   const [role, setRole] = useState<Role>(person.role);
   const [panel, setPanel] = useState<Panel | "">(person.panel ?? "");
   const [team, setTeam] = useState(person.team);
@@ -46,23 +43,17 @@ export function PersonForm({ person, onClose }: { person: Person; onClose: () =>
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password && password.length < MIN_PASSWORD) return setError(`Passwords need at least ${MIN_PASSWORD} characters`);
-    const patch = { name, email, role, panel: panel || undefined, team };
+    const patch = { name, role, panel: panel || undefined, team };
     const err = errorOf(() => updatePerson(db, me, person.id, patch));
     if (err) return setError(err);
+    if (!act((d, m) => updatePerson(d, m, person.id, patch), { success: `${name.trim()} updated` })) return;
+    if (!password) return onClose();
+    // The server hashes the new password (Argon2id) and signs them out everywhere else.
     setBusy(true);
-    // Hashing takes a moment on purpose (PBKDF2); only the hash is stored.
-    const credential = password ? await hashPassword(password) : null;
+    const problem = await savePassword(person.id, password);
     setBusy(false);
-    const ok = act(
-      (d, m) => {
-        const next = updatePerson(d, m, person.id, patch);
-        return credential ? setPasswordCmd(next, m, person.id, credential) : next;
-      },
-      { success: `${name.trim()} updated` },
-    );
-    if (!ok) return;
-    if (password) setSaved({ email: email.trim().toLowerCase(), password }); // show the new login to send
-    else onClose();
+    if (problem) return setError(problem);
+    setSaved({ email: person.email, password }); // show the new login to send
   };
 
   const copy = async () => {
@@ -105,7 +96,7 @@ export function PersonForm({ person, onClose }: { person: Person; onClose: () =>
               <input className="admin-input" value={name} onChange={(e) => setName(e.target.value)} autoFocus autoComplete="off" />
             </Field>
             <Field label="Email">
-              <input className="admin-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" spellCheck={false} />
+              <input className="admin-input" type="email" value={person.email} readOnly title="This is their login — they change it themselves" />
             </Field>
             <Field label="Job title">
               <select className="admin-input" value={role} onChange={(e) => setRole(e.target.value)}>

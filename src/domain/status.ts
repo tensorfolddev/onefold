@@ -43,7 +43,9 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 /** "2026-10-02" → "Oct 2" (no timezone drift: parse the parts, not Date). */
 export const shortDate = (iso?: string) => {
   if (!iso) return "";
-  const [, m, d] = iso.slice(0, 10).split("-").map(Number);
+  // A moment ("…T04:41:07Z") shows on the viewer's local day; a plain date ("2026-10-16") as written.
+  const day = iso.length > 10 ? new Date(iso).toLocaleDateString("en-CA") : iso;
+  const [, m, d] = day.split("-").map(Number);
   return `${MONTHS[m - 1]} ${d}`;
 };
 

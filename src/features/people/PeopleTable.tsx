@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Pencil, Search, UserPlus } from "lucide-react";
-import { updatePerson } from "@/domain/commands";
+import { updatePerson } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Person } from "@/domain/types";
 import { Avatar, EmptyState, Tooltip } from "@/ui/primitives";

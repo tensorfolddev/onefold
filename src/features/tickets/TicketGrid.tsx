@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Maximize2, Trash2 } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
-import { deleteTickets } from "@/domain/commands";
+import { deleteTickets } from "@/data/commands";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { CATEGORY_LABEL, CATEGORY_ORDER, CATEGORY_TONE, formatHours, shortDate, toneVar } from "@/domain/status";
 import type { StatusCategory, Ticket, Tone } from "@/domain/types";

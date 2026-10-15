@@ -8,7 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "db:up": "docker compose -f deploy/compose.dev.yml -p onefold-dev up -d --wait",
+    "db:down": "docker compose -f deploy/compose.dev.yml -p onefold-dev down",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=.env.local src/server/db/migrate.ts",
+    "test": "node --test --test-concurrency=1 \"src/**/*.test.ts\"",
     "e2e": "playwright test",
     "check": "npm run typecheck && npm run lint && npm test"
   },
@@ -16,19 +20,25 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@node-rs/argon2": "2.2.1",
+    "drizzle-orm": "0.45.3",
     "emojibase-data": "^17.0.0",
     "lucide-react": "^1.49.0",
     "next": "16.3.8",
+    "pg": "8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@types/node": "^20",
+    "@types/pg": "8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
     "typescript": "^5"
-  }
+  },
+  "type": "module"
 }

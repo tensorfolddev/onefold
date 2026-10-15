@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Lock, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
-import { addStatus, createTicket, deleteStatus, moveStatus, updateStatus } from "@/domain/commands";
+import { addStatus, createTicket, deleteStatus, moveStatus, updateStatus } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import { CATEGORY_LABEL, toneVar } from "@/domain/status";
 import type { Status, StatusCategory, Tone } from "@/domain/types";
