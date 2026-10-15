@@ -34,12 +34,16 @@ fix/<name>  ─┴─► dev ──► stg ──► prod
 
 1. Start from `dev`: `git switch dev && git pull && git switch -c feat/clock` (or `fix/clock`).
 2. Open a pull request **into `dev`**. CI must pass (`checks`, `e2e`, `branch-flow`). Squash-merge.
-3. To release, open a pull request **`dev` → `stg`**. It needs CI and one approval. Merge commit only. Test everything on staging.
-4. When staging is good, open a pull request **`stg` → `prod`**. Same rules.
+3. To release, open a pull request **`dev` → `stg`**. Wait for CI, get one approval (an admin may skip it), then add
+   the label **`promote`**. The promote bot moves `stg` to exactly that commit and GitHub marks the PR merged.
+   Test everything on staging.
+4. When staging is good, open a pull request **`stg` → `prod`** and do the same.
 
 Nobody pushes directly to `dev`, `stg` or `prod`, and they can't be force-pushed or deleted. The `branch-flow` check
-rejects pull requests that skip a step (e.g. `feat/*` → `stg`, or `dev` → `prod`). `stg` and `prod` only take merge
-commits, so promotions never rewrite history.
+rejects pull requests that skip a step (e.g. `feat/*` → `stg`, or `dev` → `prod`). `stg` and `prod` have no merge
+button: releases are fast-forwards done by the promote bot (`.github/workflows/promote.yml`), so `stg` and `prod` are
+always a commit on `dev`'s history — never ahead of it. The bot's deploy key lives in the `promote` environment,
+which only `stg` and `prod` can use.
 
 ## Where things live
 

@@ -1,0 +1,88 @@
+name: promote
+
+# Releases move stg / prod forward to exactly the commit being released (a fast-forward) — never a merge commit —
+# so stg and prod are always a point on dev's history and never "ahead" of it.
+#
+# How to release: open a PR dev → stg (or stg → prod), wait for CI, get it approved (an admin may skip the review),
+# then add the label "promote". This job checks everything and moves the branch; GitHub then marks the PR merged.
+#
+# Runs from the copy of this file on stg / prod (pull_request_target), so a feature branch can't change it.
+# The deploy key lives in the "promote" environment, which only stg and prod may use.
+on:
+  pull_request_target:
+    types: [labeled]
+    branches: [stg, prod]
+
+concurrency:
+  group: promote-${{ github.event.pull_request.base.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: write # to take the label off and say why when a release is refused
+
+jobs:
+  promote:
+    if: github.event.label.name == 'promote'
+    runs-on: ubuntu-latest
+    environment: promote
+    steps:
+      - name: Check this release is allowed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SENDER: ${{ github.event.sender.login }}
+        run: |
+          fail() {
+            echo "::error::$1"
+            gh pr edit "$PR" -R "$REPO" --remove-label promote > /dev/null || true
+            gh pr comment "$PR" -R "$REPO" --body "Not promoted: $1" > /dev/null || true
+            exit 1
+          }
+          case "$BASE" in
+            stg)  want=dev ;;
+            prod) want=stg ;;
+            *)    fail "only stg and prod are released with this label" ;;
+          esac
+          if [ "$HEAD" != "$want" ] || [ "$HEAD_REPO" != "$REPO" ]; then fail "$BASE only takes releases from $want (this PR is from $HEAD)"; fi
+
+          # Every required check passed on the exact commit being released.
+          for c in checks e2e branch-flow; do
+            ok=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=$c" --jq '[.check_runs[] | select(.conclusion == "success")] | length')
+            if [ "$ok" -lt 1 ]; then fail "check '$c' hasn't passed on ${HEAD_SHA:0:7} yet"; fi
+          done
+
+          # Approved by a reviewer (their latest decision), or labelled by an admin.
+          approved=$(gh api "repos/$REPO/pulls/$PR/reviews" --jq '[.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED")] | group_by(.user.login) | map(last) | map(select(.state == "APPROVED")) | length')
+          perm=$(gh api "repos/$REPO/collaborators/$SENDER/permission" --jq .permission)
+          if [ "$approved" -lt 1 ] && [ "$perm" != "admin" ]; then fail "needs an approving review (or an admin to add the label)"; fi
+
+          echo "OK: releasing $HEAD ${HEAD_SHA:0:7} to $BASE (approved: $approved, labelled by $SENDER as $perm)"
+
+      - name: Move the branch forward
+        env:
+          DEPLOY_KEY: ${{ secrets.PROMOTE_DEPLOY_KEY }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # GitHub's SSH host keys, from its API over HTTPS (no trust-on-first-use).
+          curl -fsSL https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > ~/.ssh/known_hosts
+          git init -q release && cd release
+          git remote add origin "git@github.com:$REPO.git"
+          git fetch -q origin "$HEAD_SHA" "refs/heads/$BASE:refs/remotes/origin/$BASE"
+          if ! git merge-base --is-ancestor "origin/$BASE" "$HEAD_SHA"; then
+            echo "::error::$BASE has commits that aren't in this release — it can't be fast-forwarded"
+            exit 1
+          fi
+          git push origin "$HEAD_SHA:refs/heads/$BASE" # no --force: git only accepts a fast-forward
+          echo "$BASE is now ${HEAD_SHA:0:7}"
