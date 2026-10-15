@@ -1,0 +1,73 @@
+/* Base: reset, typography, focus, motion. Values come from tokens.css (Vibe). */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; height: 100%; }
+
+body {
+  font-family: var(--font-family);
+  font-size: 15px;
+  line-height: 22.5px;
+  color: var(--primary-text-color);
+  background-color: var(--allgrey-background-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+svg { flex-shrink: 0; }
+
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-small);
+}
+
+::selection { background: var(--primary-selected-color); }
+
+.page-title {
+  font-family: var(--title-font-family);
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 40px;
+  letter-spacing: -0.5px;
+}
+.panel-title {
+  font-family: var(--title-font-family);
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 30px;
+  letter-spacing: -0.1px;
+}
+.board-title { font-size: 24px; font-weight: 500; line-height: 30px; }
+.section-title { font-size: 18px; font-weight: 500; line-height: 24px; }
+.muted { color: var(--secondary-text-color); }
+.label { font-size: 14px; line-height: 20px; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+}

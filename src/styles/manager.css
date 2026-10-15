@@ -1,0 +1,47 @@
+/* Manager panel: Manager home, Approvals; plus product Docs/Roadmap editing. CSS variables only. */
+
+/* ---------- Approvals ---------- */
+.approvals-list { display: flex; flex-direction: column; gap: 16px; max-width: 860px; }
+.approval-card { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; }
+.approval-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.approval-who { flex: 1; min-width: 160px; }
+.approval-name { font-size: 18px; font-weight: 500; line-height: 24px; }
+.approval-hours { display: flex; gap: 24px; }
+.approval-hours dt { font-size: 13px; color: var(--secondary-text-color); }
+.approval-hours dd { font-size: 20px; font-weight: 500; line-height: 28px; }
+.approval-hours dd { font-variant-numeric: tabular-nums; }
+.approval-hours small { font-size: 14px; color: var(--secondary-text-color); }
+/* per-day bars: the shape of the week at a glance */
+.approval-days { list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; padding: 12px; border-radius: var(--border-radius-medium); background: var(--allgrey-background-color); }
+.approval-days li { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.approval-bar { display: flex; align-items: flex-end; width: 100%; max-width: 44px; height: 56px; border-radius: 6px; background: color-mix(in srgb, var(--day, var(--primary-color)) 12%, var(--primary-background-color)); overflow: hidden; }
+.approval-bar span { display: block; width: 100%; border-radius: 6px; background: var(--day, var(--primary-color)); }
+.approval-day-h { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.approval-day-name { font-size: 12px; color: var(--secondary-text-color); }
+.approval-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.approval-actions .spacer { flex: 1; }
+.approval-actions .muted { font-size: 13px; }
+.approval-actions .btn svg { width: 15px; height: 15px; }
+@media (max-width: 767px) { .approval-card { padding: 16px; } .approval-hours { gap: 16px; } .approval-actions .btn { flex: 1; justify-content: center; } }
+
+/* ---------- Docs + roadmap inline forms ---------- */
+.mgr-form { margin: 8px 0 16px; }
+.mgr-form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.mgr-grow { flex: 1; min-width: 200px; }
+.mgr-pct { width: 110px; }
+.mgr-select {
+  height: 32px; padding: 0 8px; font-size: 14px;
+  background: var(--primary-background-color);
+  border: 1px solid var(--ui-border-color); border-radius: var(--border-radius-small);
+}
+.mgr-select:focus { border-color: var(--primary-color); outline: none; }
+.roadmap-list-row { display: flex; align-items: center; gap: 8px; }
+.roadmap-list-row .milestone-summary { flex: 1; min-width: 0; }
+
+@media (max-width: 767px) {
+  .approval-card { padding: 16px; }
+  .approval-hours { width: 100%; }
+  .approval-actions .btn { flex: 1; }
+  .mgr-form-row > .field { width: 100%; }
+  .mgr-select { width: 100%; }
+}

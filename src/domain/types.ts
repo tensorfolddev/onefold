@@ -1,0 +1,215 @@
+// The 1Fold domain model. Shared by the browser store today, and the backend + MCP server later.
+
+/** The company that signed up. It is the workspace: everything below belongs to one company. */
+export interface Org {
+  id: string;
+  slug: string; // URL-safe name, unique: "tensorfold"
+  name: string;
+  /** From the founder's email; invites are limited to it while domainLock is on. */
+  emailDomain: string;
+  domainLock: boolean;
+  createdAt: string; // ISO date
+  createdBy: string; // founder's person id
+}
+
+/** Someone invited to join. They accept at /invite/<token>, choosing their name and password. */
+export interface Invite {
+  token: string;
+  email: string;
+  panel: Panel;
+  role: Role;
+  invitedBy: string;
+  createdAt: string; // ISO datetime
+  acceptedAt?: string;
+  revokedAt?: string;
+}
+
+/** Job title. Admins manage the list in Settings (db.jobTitles). */
+export type Role = string;
+export type TeamId = string; // admins create teams
+export type Panel = "admin" | "manager" | "developer";
+
+export interface Person {
+  id: string;
+  name: string;
+  initials: string;
+  color: string; // CSS colour token, e.g. var(--color-sofia_pink)
+  role: Role;
+  team: TeamId;
+  capacityH: number; // hours per sprint (planning: estimates of open tickets vs this)
+  email: string;
+  /** Salted PBKDF2-SHA256 (see data/passwords.ts) — never the password itself. */
+  passwordHash: string;
+  passwordSalt: string;
+  panel?: Panel; // undefined = cannot sign in (client contacts)
+  active: boolean;
+}
+
+export interface Team {
+  id: TeamId;
+  name: string;
+  leadId: string;
+}
+
+export type Stage = "INTAKE" | "DEFINE" | "PLAN" | "BUILD" | "RELEASE";
+export type Health = "good" | "watch" | "risk";
+
+/** A product's tile: an emoji, or a lucide icon by its kebab-case name. Unset = the product's first letter. */
+export type ProductIcon = { type: "emoji"; value: string } | { type: "icon"; value: string };
+
+/** Any grouping of the company's products (client/internal, by team, by quarter…). */
+export interface ProductGroup { id: string; name: string }
+
+export interface Product {
+  key: string; // ticket prefix, e.g. "AP"
+  name: string;
+  type: "client" | "internal";
+  client?: string;
+  stage: Stage;
+  health: Health;
+  pmId: string;
+  projectManagerId: string;
+  color: string; // product avatar tile colour
+  description: string;
+  waitingApproval?: string; // e.g. "approve intake?"
+  memberIds: string[]; // besides PM + project manager, who can open this product
+  icon?: ProductIcon;
+  groupId?: string; // unset = "Ungrouped"
+  createdAt: string; // ISO date
+}
+
+export type StatusCategory = "backlog" | "todo" | "in_progress" | "done" | "cancelled";
+export type Tone = "backlog" | "todo" | "working" | "review" | "stuck" | "done" | "cancelled";
+
+export interface Status {
+  id: string;
+  name: string;
+  category: StatusCategory;
+  tone: Tone;
+  /** Fixed lists every product has, always first and second; they can't be renamed, moved or deleted. */
+  system?: "epic" | "backlog";
+}
+
+export type TicketType = "epic" | "task" | "bug";
+export type Priority = "critical" | "high" | "medium" | "low";
+
+export interface PullRequest {
+  number: number;
+  state: "open" | "approved" | "merged";
+}
+
+export interface Ticket {
+  key: string; // "AP-12"
+  productKey: string;
+  title: string;
+  type: TicketType;
+  statusId: string;
+  assigneeId?: string;
+  priority: Priority;
+  estimateH: number;
+  due?: string; // ISO date
+  requirementId?: string;
+  sprint?: string;
+  pr?: PullRequest;
+  createdBy?: string;
+  /** Epics only: epics have no status (they always sit in the Epic list) — they get a colour instead. */
+  color?: string;
+  /** Tasks and bugs: the epic they belong to (same product). */
+  epicKey?: string;
+  /** Filled-in template sections, by section id (see lib/templates.ts — the template itself is fixed in code). */
+  sections?: TicketSections;
+  /** Tickets that must be finished first ("blocked by"). */
+  dependsOn?: string[];
+  /** Images; the bytes live in the browser's file store (lib/files.ts), only metadata is here. */
+  attachments?: Attachment[];
+}
+
+/** One line of a list or checklist section. */
+export interface SectionItem { id: string; text: string; done?: boolean }
+export type SectionValue = string | SectionItem[];
+export type TicketSections = Record<string, SectionValue>;
+
+export interface Attachment {
+  id: string;
+  name: string;
+  type: string; // image/webp, image/png…
+  size: number; // bytes, after compression
+  width: number;
+  height: number;
+  addedBy: string;
+  addedAt: string;
+}
+
+export interface Requirement {
+  id: string; // "AP-R1"
+  productKey: string;
+  code: string; // "R1"
+  title: string;
+}
+
+export interface Decision {
+  id: string;
+  productKey: string;
+  title: string;
+  why: string;
+  byId: string;
+  date: string;
+}
+
+export interface Milestone {
+  id: string;
+  productKey: string;
+  name: string;
+  due: string;
+  pct: number;
+  lateDays: number;
+}
+
+export type DocKind = "Brief" | "Requirements" | "Design" | "Architecture" | "Meeting notes";
+
+export interface Doc {
+  id: string;
+  productKey: string;
+  kind: DocKind;
+  title: string;
+  updated: string;
+  authorId: string;
+}
+
+export interface StageRequest {
+  id: string;
+  productKey: string;
+  stage: Stage; // the stage being asked for
+  requestedBy: string;
+  at: string;
+}
+
+export interface Activity {
+  id: string;
+  ticketKey: string;
+  at: string; // ISO datetime
+  actorId: string;
+  field: "Status" | "Assignee" | "Due date" | "Estimate" | "Created" | "Title" | "Description" | "Priority" | "Requirement" | "Colour"
+    | "Type" | "Epic" | "Section" | "Dependency" | "Image";
+  from?: string;
+  to: string;
+}
+
+export interface Comment {
+  id: string;
+  ticketKey: string;
+  authorId: string;
+  at: string;
+  body: string; // plain text, @Name mentions are highlighted
+}
+
+export interface Notification {
+  id: string;
+  personId: string; // whose inbox
+  kind: "mention" | "assigned" | "approval" | "status" | "invite";
+  actorId: string;
+  text: string;
+  target: string; // ticket key, product key, or a page path ("/people")
+  at: string;
+  read: boolean;
+}

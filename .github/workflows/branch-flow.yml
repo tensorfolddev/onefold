@@ -1,0 +1,31 @@
+name: branch-flow
+
+# The release path is fixed: feat/* or fix/* → dev → stg → prod. A pull request from anywhere else fails here,
+# and this check is required on all three branches, so it can't be merged.
+on:
+  pull_request:
+    branches: [dev, stg, prod]
+
+permissions: {}
+
+jobs:
+  branch-flow:
+    name: branch-flow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check where this pull request comes from
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          case "$BASE" in
+            dev)  pattern='^(feat|fix|chore|docs|refactor|test|perf|ci)/[a-z0-9._-]+$'; want="feat/<name> or fix/<name> (also chore/ docs/ refactor/ test/ perf/ ci/)" ;;
+            stg)  pattern='^dev$'; want="dev" ;;
+            prod) pattern='^stg$'; want="stg" ;;
+            *)    exit 0 ;;
+          esac
+          if [[ ! "$HEAD" =~ $pattern ]]; then
+            echo "::error::$BASE only accepts pull requests from $want — this one is from '$HEAD'."
+            exit 1
+          fi
+          echo "OK: $HEAD → $BASE"
