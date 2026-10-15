@@ -30,7 +30,7 @@ export function CompanyHome() {
       <header className="page-header">
         <div>
           <h1 className="page-title">{panel === "admin" ? "Company home" : "My products"}</h1>
-          <p className="page-subtitle">{longDate(today())} · {db.org.name}</p>
+          <p className="page-subtitle">Welcome back, {me.name.split(" ")[0]} · {longDate(today())} · {db.org.name}</p>
         </div>
       </header>
 
