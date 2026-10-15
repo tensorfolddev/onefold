@@ -2,16 +2,16 @@
 //   POST /api/org/changes   { steps: [{ name, args }], undoable? }   — replay the browser's steps on the real data
 //   POST /api/org/undo                                                — put back your last undoable change
 //   POST /api/org/password  { personId, password }                    — your password, or (admins) a teammate's
-//   POST /api/org/invites   { invites: [{ email, panel, role? }] }    — make invite links (shown once)
+//   POST /api/org/invites   { invites: [{ email, panel, role? }] }    — make invite links (emailed, and shown once)
+//   POST /api/org/verify-email                                        — email me a new "confirm your email" link
 //   GET  /api/org/events                                              — live updates (server-sent events)
 import type { NextRequest } from "next/server";
 import type { InviteInput } from "@/domain/commands";
-import { setPassword } from "@/server/accounts";
+import { sendVerification, setPassword } from "@/server/accounts";
+import { limit, MINUTE } from "@/server/auth/rateLimit";
 import { applySteps, createInvites, undoLast, type Step } from "@/server/changes";
 import { subscribe } from "@/server/events";
-import { handle, ok, readBody, refuse, requireSession, str } from "@/server/http";
-
-const appUrl = (req: NextRequest) => (process.env.APP_URL ?? req.nextUrl.origin).replace(/\/$/, "");
+import { appUrl, handle, ok, readBody, refuse, requireSession, str } from "@/server/http";
 
 export async function POST(req: NextRequest, ctx: RouteContext<"/api/org/[action]">) {
   const { action } = await ctx.params;
@@ -29,8 +29,12 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/org/[action
     }
     if (action === "invites") {
       const b = await readBody(req, 64 * 1024);
-      const { version, invites } = await createInvites(who, b.invites as InviteInput[]);
-      return ok({ version, invites: invites.map(({ token, ...i }) => ({ ...i, link: `${appUrl(req)}/invite/${token}` })) });
+      return ok(await createInvites(who, b.invites as InviteInput[], appUrl(req)));
+    }
+    if (action === "verify-email") {
+      limit(`verify-email:${who.userId}`, 3, 15 * MINUTE);
+      if (!(await sendVerification(who.userId, appUrl(req)))) return refuse("Couldn't send the email — please try again later", 503);
+      return ok({});
     }
     return refuse("Not found", 404);
   });

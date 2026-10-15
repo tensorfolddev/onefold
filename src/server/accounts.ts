@@ -1,5 +1,5 @@
-// Accounts: sign-up, sign-in, sessions, invite links and password resets. Server only — passwords and tokens never
-// reach a browser; it gets an httpOnly session cookie and its own view of the company.
+// Accounts: sign-up, sign-in, sessions, invite links, password resets and confirming emails. Server only — passwords
+// and tokens never reach a browser; it gets an httpOnly session cookie and its own view of the company.
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { AccessError, acceptInvite, inviteProblem, signUp, ValidationError } from "../domain/commands/index.ts";
 import { can } from "../domain/permissions.ts";
@@ -9,13 +9,14 @@ import { loadCompany, saveCompany, type Loaded } from "./company/store.ts";
 import { instant } from "./company/rows.ts";
 import { database, inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
+import { resetEmail, sendEmail, verifyEmail } from "./email.ts";
 import { journal } from "./journal.ts";
 
 const DAY_MS = 86_400_000;
 const SESSION_MS = 30 * DAY_MS; // sliding: renewed when fewer than 15 days are left
 const RENEW_MS = 15 * DAY_MS;
 
-export interface SignedIn { token: string; orgId: string; orgSlug: string; personId: string; panel: Panel }
+export interface SignedIn { token: string; userId: string; orgId: string; orgSlug: string; personId: string; panel: Panel }
 export type SignInResult = { kind: "signed-in"; session: SignedIn } | { kind: "choose"; companies: { slug: string; name: string }[] };
 /** A valid session, as the API sees it: which login, which company. */
 export interface SessionRow { sessionId: string; userId: string; orgId: string }
@@ -65,7 +66,7 @@ export async function signUpCompany(input: { name: string; email: string; passwo
       if (passwordHash) await tx.insert(s.users).values({ id: userId, email, passwordHash });
       const version = await saveCompany(tx, null, db, { [founder.id]: userId });
       await journal(tx, { orgId: db.org.id, userId, actorId: founder.id, source: "web" }, [{ command: "signUp", args: { company: db.org.name, slug: db.org.slug } }], version);
-      return { token: await openSession(tx, userId, db.org.id), orgId: db.org.id, orgSlug: db.org.slug, personId: founder.id, panel: "admin" as const };
+      return { token: await openSession(tx, userId, db.org.id), userId, orgId: db.org.id, orgSlug: db.org.slug, personId: founder.id, panel: "admin" as const };
     });
   } catch (e) {
     if (pgCode(e) === "23505") throw new ValidationError("That address or email was just taken — try again");
@@ -89,7 +90,7 @@ export async function signIn(emailInput: string, password: string, slug?: string
   if (chosen.length > 1) return { kind: "choose", companies: usable.map((m) => ({ slug: m.slug, name: m.name })) };
   const m = chosen[0];
   const token = await inScope({ orgId: m.orgId }, (tx) => openSession(tx, user.id, m.orgId));
-  return { kind: "signed-in", session: { token, orgId: m.orgId, orgSlug: m.slug, personId: m.personId, panel: m.panel as Panel } };
+  return { kind: "signed-in", session: { token, userId: user.id, orgId: m.orgId, orgSlug: m.slug, personId: m.personId, panel: m.panel as Panel } };
 }
 
 /** The session behind a cookie's token, or null (unknown, revoked or expired). Renews it when it's halfway through. */
@@ -156,7 +157,7 @@ export async function acceptInvitation(token: string, input: { name: string; pas
     }
     const version = await saveCompany(tx, loaded, db, { [person.id]: userId });
     await journal(tx, { orgId, userId, actorId: person.id, source: "web" }, [{ command: "acceptInvite", args: { email: person.email } }], version);
-    return { token: await openSession(tx, userId, orgId), orgId, orgSlug: db.org.slug, personId: person.id, panel: person.panel! };
+    return { token: await openSession(tx, userId, orgId), userId, orgId, orgSlug: db.org.slug, personId: person.id, panel: person.panel! };
   });
 }
 
@@ -185,5 +186,82 @@ export async function setPassword(who: SessionRow, personId: string, password: s
     await tx.update(s.sessions).set({ revokedAt: sql`now()` })
       .where(and(eq(s.sessions.userId, userId), isNull(s.sessions.revokedAt), ne(s.sessions.id, who.sessionId)));
     await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source: "web" }, [{ command: "setPassword", args: { personId } }], loaded.version);
+  });
+}
+
+// ---------- emailed links: reset a password, confirm an email ----------
+
+type LinkPurpose = "reset" | "verify";
+export const RESET_MINUTES = 60;
+const VERIFY_MS = 7 * DAY_MS;
+const LINK_GONE = "This link has expired or was already used — ask for a new one.";
+
+async function issueLink(userId: string, purpose: LinkPurpose, ttlMs: number): Promise<string> {
+  const token = newToken();
+  await database().insert(s.emailTokens).values({ id: sha256(token), userId, purpose, expiresAt: new Date(Date.now() + ttlMs).toISOString() });
+  return token;
+}
+
+const liveLink = (token: string, purpose: LinkPurpose) => and(
+  eq(s.emailTokens.id, sha256(token)), eq(s.emailTokens.purpose, purpose), gt(s.emailTokens.expiresAt, sql`now()`));
+
+/** "Forgot password": emails a reset link if the address has a login. The caller answers the same either way. */
+export async function requestPasswordReset(emailInput: string, appUrl: string): Promise<void> {
+  const user = await findUser(emailInput);
+  if (!user) return;
+  const token = await issueLink(user.id, "reset", RESET_MINUTES * 60_000);
+  await sendEmail(resetEmail({ to: user.email, link: `${appUrl}/reset/${token}`, minutes: RESET_MINUTES }));
+}
+
+/** Why a reset link can't be used, or null — so the page can say so before anyone types a new password. */
+export async function resetLinkProblem(token: string): Promise<string | null> {
+  if (!token || token.length > 100) return LINK_GONE;
+  const [row] = await database().select({ id: s.emailTokens.id }).from(s.emailTokens)
+    .where(and(liveLink(token, "reset"), isNull(s.emailTokens.usedAt)));
+  return row ? null : LINK_GONE;
+}
+
+/**
+ * Sets a new password from a reset link. The link works once (and every other reset link for that login dies with it);
+ * every session of that login is signed out; and the email counts as confirmed — the link reached that inbox.
+ */
+export async function resetPassword(token: string, password: string): Promise<void> {
+  const problem = passwordError(password);
+  if (problem) throw new ValidationError(problem);
+  if (!token || token.length > 100) throw new ValidationError(LINK_GONE);
+  const passwordHash = await hashPassword(password);
+  await database().transaction(async (tx) => {
+    const [used] = await tx.update(s.emailTokens).set({ usedAt: sql`now()` })
+      .where(and(liveLink(token, "reset"), isNull(s.emailTokens.usedAt))).returning({ userId: s.emailTokens.userId });
+    if (!used) throw new ValidationError(LINK_GONE);
+    await tx.update(s.users).set({ passwordHash, emailVerifiedAt: sql`coalesce(${s.users.emailVerifiedAt}, now())` }).where(eq(s.users.id, used.userId));
+    await tx.update(s.sessions).set({ revokedAt: sql`now()` }).where(and(eq(s.sessions.userId, used.userId), isNull(s.sessions.revokedAt)));
+    await tx.update(s.emailTokens).set({ usedAt: sql`now()` })
+      .where(and(eq(s.emailTokens.userId, used.userId), eq(s.emailTokens.purpose, "reset"), isNull(s.emailTokens.usedAt)));
+  });
+}
+
+/** Whether this login's email is confirmed. */
+export async function emailVerified(userId: string): Promise<boolean> {
+  const [row] = await database().select({ at: s.users.emailVerifiedAt }).from(s.users).where(eq(s.users.id, userId));
+  return !!row?.at;
+}
+
+/** Emails a "confirm your email" link (nothing to do if it's already confirmed). False if the email couldn't be sent. */
+export async function sendVerification(userId: string, appUrl: string): Promise<boolean> {
+  const [user] = await database().select().from(s.users).where(eq(s.users.id, userId));
+  if (!user || user.emailVerifiedAt) return true;
+  const token = await issueLink(user.id, "verify", VERIFY_MS);
+  return sendEmail(verifyEmail({ to: user.email, link: `${appUrl}/verify/${token}` }));
+}
+
+/** Confirms the email a link was sent to. Opening the link twice is fine (it only ever confirms). */
+export async function confirmEmail(token: string): Promise<void> {
+  if (!token || token.length > 100) throw new ValidationError(LINK_GONE);
+  await database().transaction(async (tx) => {
+    const [link] = await tx.update(s.emailTokens).set({ usedAt: sql`coalesce(${s.emailTokens.usedAt}, now())` })
+      .where(liveLink(token, "verify")).returning({ userId: s.emailTokens.userId });
+    if (!link) throw new ValidationError(LINK_GONE);
+    await tx.update(s.users).set({ emailVerifiedAt: sql`coalesce(${s.users.emailVerifiedAt}, now())` }).where(eq(s.users.id, link.userId));
   });
 }

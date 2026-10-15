@@ -1,9 +1,9 @@
 "use client";
 
 // Inviting teammates: emails + a role → one-time links, made by the server (it stores only each link's hash, so a
-// link is shown once). Until email sending is set up, admins copy the links and send them.
+// link is shown once). The server emails each person their link; the links are also shown once to copy, as a backup.
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Plus, Send, Undo2, X } from "lucide-react";
+import { Check, Copy, MailCheck, MailWarning, Plus, Send, Undo2, X } from "lucide-react";
 import { addDays } from "@/domain/clock";
 import { INVITE_DAYS, inviteMembers, inviteState, revokeInvite, type InviteInput } from "@/data/commands";
 import { ApiError } from "@/data/api";
@@ -41,11 +41,32 @@ function useCopy() {
 
 interface Row { id: number; email: string; panel: Panel }
 
+/** Invites wait for a confirmed email (so nobody invites people in the name of an address they don't own). */
+function ConfirmEmailFirst() {
+  const { me, sendVerification, toast } = useMe();
+  const [busy, setBusy] = useState(false);
+  const resend = async () => {
+    setBusy(true);
+    const problem = await sendVerification();
+    setBusy(false);
+    toast(problem ?? `Sent — check ${me.email}`);
+  };
+  return (
+    <div className="auth-note inv-confirm" role="status">
+      <MailWarning aria-hidden />
+      <span>
+        <strong>Confirm your email to send invites.</strong> We emailed a link to {me.email} — open it, then come back here.{" "}
+        <button type="button" className="btn-link" onClick={resend} disabled={busy}>{busy ? "Sending…" : "Send it again"}</button>
+      </span>
+    </div>
+  );
+}
+
 /** One row per person. Pasting a list ("a@x.io, b@x.io") splits it into rows. Hands back the invites it created. */
 export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
   onInvited: (invites: CreatedInvite[]) => void; onCancel?: () => void; cancelLabel?: string;
 }) {
-  const { db, me, createInvites, toast } = useMe();
+  const { db, me, createInvites, toast, emailUnverified } = useMe();
   const nextId = useRef(1);
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<Row[]>([{ id: 0, email: "", panel: "developer" }]);
@@ -73,7 +94,9 @@ export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
     setBusy(true);
     try {
       const created = await createInvites(list);
-      toast(created.length === 1 ? "Invite ready — copy the link" : `${created.length} invites ready — copy the links`);
+      const allEmailed = created.every((i) => i.emailed);
+      toast(created.length === 1 ? (allEmailed ? "Invite sent" : "Invite ready — copy the link")
+        : allEmailed ? `${created.length} invites sent` : `${created.length} invites ready — copy the links`);
       onInvited(created);
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : "Couldn't create the invites — please try again");
@@ -84,6 +107,7 @@ export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
 
   return (
     <form className="inv-form" onSubmit={submit} noValidate>
+      {emailUnverified && <ConfirmEmailFirst />}
       <div className="inv-rows">
         {rows.map((r, i) => (
           <div key={r.id} className="inv-row">
@@ -121,13 +145,15 @@ export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
   );
 }
 
-/** The links to send after inviting. */
+/** After inviting: who got their link by email, and every link to copy (shown this once). */
 export function InviteLinks({ invites }: { invites: CreatedInvite[] }) {
   const { copied, copy } = useCopy();
+  const allEmailed = invites.every((i) => i.emailed);
   return (
     <div className="inv-links">
       <p className="inv-hint">
-        Send each person their link now — for security it isn&apos;t shown again. It works once, for that email, for {INVITE_DAYS} days.
+        {allEmailed ? "We emailed each person their link. You can also copy it below — " : "Send each person their link now — "}
+        for security it isn&apos;t shown again. It works once, for that email, for {INVITE_DAYS} days.
       </p>
       <ul className="inv-link-list">
         {invites.map((i) => (
@@ -135,6 +161,9 @@ export function InviteLinks({ invites }: { invites: CreatedInvite[] }) {
             <span className="inv-link-who">
               <strong>{i.email}</strong>
               <span className="chip sm admin-panel-chip" data-panel={i.panel}>{PANEL_LABEL[i.panel]}</span>
+              {i.emailed
+                ? <span className="inv-sent"><MailCheck aria-hidden /> Emailed</span>
+                : <span className="inv-sent is-off"><MailWarning aria-hidden /> Not emailed — copy the link</span>}
             </span>
             <code className="inv-link-url">{i.link}</code>
             <button type="button" className="btn btn-secondary" onClick={() => copy(i.link, i.id)}>

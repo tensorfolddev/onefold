@@ -1,10 +1,10 @@
 "use client";
 
-// Sign in (with "which company?" when one email is in several) and "forgot password".
+// Sign in (with "which company?" when one email is in several). "Forgot password" lives in EmailLinks.tsx.
 import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Building2, KeyRound } from "lucide-react";
+import { ArrowRight, Building2 } from "lucide-react";
 import { EMAIL_RE } from "@/data/commands";
 import { panelFromSlug, safeNext } from "@/data/session";
 import { useAuth } from "@/data/StoreProvider";
@@ -82,53 +82,6 @@ export function SignIn() {
           </form>
         )}
 
-      </div>
-    </AuthShell>
-  );
-}
-
-/** No email service yet, so a reset is done by an admin (People → Edit → New password). Says so plainly. */
-export function Forgot() {
-  const uid = useId();
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
-
-  return (
-    <AuthShell aside={<>Remembered it? <Link href="/signin">Sign in</Link></>}>
-      <div className="auth-panel">
-        {sent ? (
-          <div className="auth-form">
-            <span className="auth-badge-icon"><KeyRound aria-hidden /></span>
-            <div className="auth-heading">
-              <h1 className="auth-title">Ask your admin for a new password</h1>
-              <p className="auth-sub">
-                Self-serve reset emails are on the way. For now, an admin of your company can set a new password for
-                <strong> {email.trim()}</strong> from <strong>People → Edit</strong>, and send it to you.
-              </p>
-            </div>
-            <Link href="/signin" className="btn btn-primary btn-lg auth-submit">Back to sign in</Link>
-          </div>
-        ) : (
-          <form className="auth-form" noValidate onSubmit={(e) => {
-            e.preventDefault();
-            if (!EMAIL_RE.test(email.trim())) { setError("Enter a valid email address"); return; }
-            setSent(true);
-          }}>
-            <div className="auth-heading">
-              <h1 className="auth-title">Forgot your password?</h1>
-              <p className="auth-sub">Enter the email you sign in with.</p>
-            </div>
-            <AuthField id={`${uid}-email`} label="Email" error={error}>
-              <span className="auth-input">
-                <input id={`${uid}-email`} type="email" inputMode="email" value={email} autoComplete="username" spellCheck={false} autoFocus
-                  aria-invalid={!!error || undefined} aria-describedby={`${uid}-email-msg`}
-                  onChange={(e) => { setEmail(e.target.value); setError(null); }} />
-              </span>
-            </AuthField>
-            <button type="submit" className="btn btn-primary btn-lg auth-submit">Continue <ArrowRight aria-hidden /></button>
-          </form>
-        )}
       </div>
     </AuthShell>
   );

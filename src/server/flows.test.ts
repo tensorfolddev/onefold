@@ -27,6 +27,7 @@ test("sign-up creates the company and a working session; nothing secret reaches 
   const view = await viewFor(admin);
   assert.deepEqual([view.db.org.name, view.db.people.length, view.version, view.panel], ["Acme Labs", 1, 1, "admin"]);
   assert.ok(!/password|\$argon2/i.test(JSON.stringify(view)));
+  assert.equal(view.emailUnverified, false); // email isn't set up here, so nothing waits for a confirmed email
   await assert.rejects(signUpCompany({ name: "X", email: "x@other.example", password: PASSWORD, company: "Acme 2", slug: "acme-labs" }), /taken/);
 });
 
@@ -38,8 +39,9 @@ test("sign-in: wrong password refused the same way as an unknown email; right pa
 });
 
 test("invites: the link opens once, for that email, and the new person lands with the invited role", async () => {
-  const { invites } = await createInvites(admin, [{ email: "sam@acme.example", panel: "developer" }]);
-  const token = invites[0].token;
+  const { invites } = await createInvites(admin, [{ email: "sam@acme.example", panel: "developer" }], "https://1fold.test");
+  assert.equal(invites[0].emailed, false); // no email set up here: the admin copies the link
+  const token = invites[0].link.split("/invite/")[1];
   const view = await lookupInvite(token);
   assert.deepEqual([view.problem, view.orgName, view.inviterName, view.email, view.panel, view.hasLogin], [null, "Acme Labs", "Ayla Khan", "sam@acme.example", "developer", false]);
   const joined = await acceptInvitation(token, { name: "Sam Dev", password: PASSWORD });

@@ -33,6 +33,16 @@ export const sessions = pgTable("sessions", {
   revokedAt: ts("revoked_at"),
 }, (t) => [index("sessions_user").on(t.userId)]);
 
+/** Links we email: "reset your password" (an hour, once) and "confirm your email" (a week). Only token hashes. */
+export const emailTokens = pgTable("email_tokens", {
+  id: text("id").primaryKey(), // SHA-256 of the emailed token
+  userId: text("user_id").notNull().references(() => users.id),
+  purpose: text("purpose").notNull(), // reset | verify
+  createdAt: ts("created_at").notNull().defaultNow(),
+  expiresAt: ts("expires_at").notNull(),
+  usedAt: ts("used_at"),
+}, (t) => [index("email_tokens_user").on(t.userId)]);
+
 // ---------- company ----------
 
 export const orgs = pgTable("orgs", {

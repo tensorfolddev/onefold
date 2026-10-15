@@ -54,6 +54,7 @@ export function safeNext(next: string | null, panel: Panel) {
   return next && (next === home || next.startsWith(`${home}/`)) ? next : home;
 }
 
-/** Pages anyone can open without signing in. */
+/** Pages anyone can open without signing in (plus the emailed links below). */
 export const PUBLIC_PATHS = ["/signin", "/signup", "/forgot"];
-export const isPublicPath = (p: string) => PUBLIC_PATHS.includes(p) || p.startsWith("/invite/");
+const LINK_PAGES = ["/invite/", "/reset/", "/verify/"];
+export const isPublicPath = (p: string) => PUBLIC_PATHS.includes(p) || LINK_PAGES.some((prefix) => p.startsWith(prefix));
