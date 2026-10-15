@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
-import { setSection } from "@/domain/commands";
+import { setSection } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import {
   isFilled, itemsOf, sectionRef, TEMPLATE_NAME, TEMPLATE_VERSION, TEMPLATES, textOf, ticketToMarkdown, type SectionDef,

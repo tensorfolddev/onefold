@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { FileText, Plus, Trash2 } from "lucide-react";
-import { deleteDoc } from "@/domain/commands";
+import { deleteDoc } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
 import { Avatar, EmptyState, IconButton } from "@/ui/primitives";

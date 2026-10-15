@@ -2,7 +2,7 @@
 
 import { notFound } from "next/navigation";
 import { Clock } from "lucide-react";
-import { approveStage, requestStage } from "@/domain/commands";
+import { approveStage, requestStage } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate, STAGES } from "@/domain/status";
 import type { Product } from "@/domain/types";

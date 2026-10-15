@@ -254,7 +254,13 @@
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center;
   padding: 10px 12px; border: 1px solid var(--layout-border-color); border-radius: var(--border-radius-medium);
 }
-.inv-link-who { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.inv-link-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.inv-sent { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--positive-color); }
+.inv-sent.is-off { color: var(--secondary-text-color); }
+.inv-sent svg { width: 14px; height: 14px; }
+.inv-confirm { border-radius: var(--border-radius-medium); }
+.inv-confirm .btn-link { font: inherit; font-weight: 500; color: var(--primary-color); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.inv-confirm .btn-link:disabled { color: var(--disabled-text-color, var(--secondary-text-color)); cursor: default; }
 .inv-link-url { grid-column: 1; font-size: 12px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-link-row .btn { grid-column: 2; grid-row: 1 / span 2; }
 .inv-pending { margin-top: 32px; }
@@ -283,3 +289,32 @@
 .settings-toggle input:checked::after { transform: translateX(16px); }
 .settings-toggle input:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .settings-toggle input, .settings-toggle input::after { transition: none; } }
+
+/* ---------- WhatsApp: the brief dialog and the bot in Settings ---------- */
+.wa-dialog { width: min(520px, 100vw); }
+.wa-linked { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.wa-linked svg { width: 16px; height: 16px; color: var(--positive-color); }
+.wa-steps { display: flex; flex-direction: column; gap: 12px; padding-left: 20px; font-size: 14px; line-height: 21px; }
+.wa-steps li > .btn { margin-right: 10px; }
+.wa-code { padding: 2px 6px; border-radius: 6px; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; background: var(--allgrey-background-color); }
+.wa-intro { max-width: 640px; margin: 4px 0 14px; font-size: 13px; }
+.wa-pairing { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+.wa-qr { width: 256px; height: 256px; border-radius: var(--border-radius-medium); background: #fff; padding: 8px; box-shadow: 0 0 0 1px var(--layout-border-color); }
+.wa-qr.is-loading { background: var(--allgrey-background-color); }
+.wa-foot { justify-content: flex-start; align-items: center; flex-wrap: wrap; }
+.wa-state[data-state="connected"] { color: var(--positive-color); }
+.wa-state[data-state="logged_out"] { color: var(--negative-color); }
+
+/* ---------- Claude & MCP: personal API tokens ---------- */
+.mcp-dialog { width: min(640px, 100vw); }
+.mcp-form { display: flex; gap: 8px; align-items: center; }
+.mcp-name { flex: 1; height: 40px; }
+.mcp-made { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--border-radius-medium); background: color-mix(in srgb, var(--positive-color) 8%, transparent); font-size: 14px; line-height: 20px; }
+.mcp-command { display: block; padding: 10px 12px; border-radius: var(--border-radius-medium); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; background: var(--primary-background-color); box-shadow: 0 0 0 1px var(--layout-border-color); user-select: all; }
+.mcp-heading { margin-top: 4px; font-size: 14px; font-weight: 500; }
+.mcp-tokens { display: flex; flex-direction: column; gap: 6px; list-style: none; margin-top: 8px; }
+.mcp-tokens li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--layout-border-color); border-radius: var(--border-radius-medium); }
+.mcp-tokens li > svg { width: 16px; height: 16px; color: var(--secondary-text-color); }
+.mcp-token-text { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
+.mcp-token-text .muted { font-size: 12px; overflow-wrap: anywhere; }
+

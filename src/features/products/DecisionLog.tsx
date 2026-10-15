@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Scale } from "lucide-react";
-import { addDecision } from "@/domain/commands";
+import { addDecision } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
 import { Avatar, EmptyState } from "@/ui/primitives";

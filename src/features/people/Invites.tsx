@@ -1,13 +1,15 @@
 "use client";
 
-// Inviting teammates: emails + a role → one-time links. Until there's an email service (backend), admins copy and send them.
+// Inviting teammates: emails + a role → one-time links, made by the server (it stores only each link's hash, so a
+// link is shown once). The server emails each person their link; the links are also shown once to copy, as a backup.
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Plus, Send, Undo2, X } from "lucide-react";
+import { Check, Copy, MailCheck, MailWarning, Plus, Send, Undo2, X } from "lucide-react";
 import { addDays } from "@/domain/clock";
-import { INVITE_DAYS, inviteMembers, inviteState, revokeInvite, type InviteInput } from "@/domain/commands";
+import { INVITE_DAYS, inviteMembers, inviteState, revokeInvite, type InviteInput } from "@/data/commands";
+import { ApiError } from "@/data/api";
 import { relativeTime, shortDate } from "@/domain/status";
-import { useMe } from "@/data/StoreProvider";
-import type { Invite, Panel } from "@/domain/types";
+import { useMe, type CreatedInvite } from "@/data/StoreProvider";
+import type { Panel } from "@/domain/types";
 import { IconButton } from "@/ui/primitives";
 import { errorOf, FormError } from "@/ui/fields";
 import { PANEL_LABEL } from "@/features/shell/AppShell";
@@ -19,7 +21,8 @@ const PANEL_HINT: Record<Panel, string> = {
   admin: "everything, including people and settings",
 };
 
-export const inviteLink = (token: string) => `${typeof window === "undefined" ? "" : window.location.origin}/invite/${token}`;
+/** Stands in for a link's hash when checking the form here; the server makes the real one. */
+const CHECK_ONLY_HASH = "0".repeat(64);
 
 function useCopy() {
   const { toast } = useMe();
@@ -38,12 +41,34 @@ function useCopy() {
 
 interface Row { id: number; email: string; panel: Panel }
 
+/** Invites wait for a confirmed email (so nobody invites people in the name of an address they don't own). */
+function ConfirmEmailFirst() {
+  const { me, sendVerification, toast } = useMe();
+  const [busy, setBusy] = useState(false);
+  const resend = async () => {
+    setBusy(true);
+    const problem = await sendVerification();
+    setBusy(false);
+    toast(problem ?? `Sent — check ${me.email}`);
+  };
+  return (
+    <div className="auth-note inv-confirm" role="status">
+      <MailWarning aria-hidden />
+      <span>
+        <strong>Confirm your email to send invites.</strong> We emailed a link to {me.email} — open it, then come back here.{" "}
+        <button type="button" className="btn-link" onClick={resend} disabled={busy}>{busy ? "Sending…" : "Send it again"}</button>
+      </span>
+    </div>
+  );
+}
+
 /** One row per person. Pasting a list ("a@x.io, b@x.io") splits it into rows. Hands back the invites it created. */
 export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
-  onInvited: (invites: Invite[]) => void; onCancel?: () => void; cancelLabel?: string;
+  onInvited: (invites: CreatedInvite[]) => void; onCancel?: () => void; cancelLabel?: string;
 }) {
-  const { db, me, act } = useMe();
+  const { db, me, createInvites, toast, emailUnverified } = useMe();
   const nextId = useRef(1);
+  const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<Row[]>([{ id: 0, email: "", panel: "developer" }]);
   const [error, setError] = useState<string | null>(null);
   const domain = db.org.domainLock ? db.org.emailDomain : null;
@@ -60,23 +85,29 @@ export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
     add(parts.slice(1), row.panel);
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const list: InviteInput[] = rows.filter((r) => r.email.trim()).map((r) => ({ email: r.email, panel: r.panel }));
-    const err = errorOf(() => inviteMembers(db, me, list));
+    // Same checks as the server, right away; the server checks again and makes the links.
+    const err = errorOf(() => inviteMembers(db, me, list.map((i) => ({ ...i, tokenHash: CHECK_ONLY_HASH }))));
     if (err) return setError(err);
-    const created = act(
-      (d, m) => {
-        const next = inviteMembers(d, m, list);
-        return { db: next, key: next.invites.slice(-list.length) };
-      },
-      { success: list.length === 1 ? "Invite ready — copy the link" : `${list.length} invites ready — copy the links` },
-    );
-    if (Array.isArray(created)) onInvited(created);
+    setBusy(true);
+    try {
+      const created = await createInvites(list);
+      const allEmailed = created.every((i) => i.emailed);
+      toast(created.length === 1 ? (allEmailed ? "Invite sent" : "Invite ready — copy the link")
+        : allEmailed ? `${created.length} invites sent` : `${created.length} invites ready — copy the links`);
+      onInvited(created);
+    } catch (problem) {
+      setError(problem instanceof ApiError ? problem.message : "Couldn't create the invites — please try again");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <form className="inv-form" onSubmit={submit} noValidate>
+      {emailUnverified && <ConfirmEmailFirst />}
       <div className="inv-rows">
         {rows.map((r, i) => (
           <div key={r.id} className="inv-row">
@@ -108,36 +139,41 @@ export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
       <FormError message={error} />
       <div className="inv-foot">
         {onCancel && <button type="button" className="btn btn-tertiary" onClick={onCancel}>{cancelLabel}</button>}
-        <button type="submit" className="btn btn-primary"><Send aria-hidden /> Create invite links</button>
+        <button type="submit" className="btn btn-primary" disabled={busy} aria-busy={busy}><Send aria-hidden /> {busy ? "Creating…" : "Create invite links"}</button>
       </div>
     </form>
   );
 }
 
-/** The links to send after inviting. */
-export function InviteLinks({ invites }: { invites: Invite[] }) {
+/** After inviting: who got their link by email, and every link to copy (shown this once). */
+export function InviteLinks({ invites }: { invites: CreatedInvite[] }) {
   const { copied, copy } = useCopy();
+  const allEmailed = invites.every((i) => i.emailed);
   return (
     <div className="inv-links">
       <p className="inv-hint">
-        Send each person their link. It works once, for that email, for {INVITE_DAYS} days. (Email delivery arrives with the backend.)
+        {allEmailed ? "We emailed each person their link. You can also copy it below — " : "Send each person their link now — "}
+        for security it isn&apos;t shown again. It works once, for that email, for {INVITE_DAYS} days.
       </p>
       <ul className="inv-link-list">
         {invites.map((i) => (
-          <li key={i.token} className="inv-link-row">
+          <li key={i.id} className="inv-link-row">
             <span className="inv-link-who">
               <strong>{i.email}</strong>
               <span className="chip sm admin-panel-chip" data-panel={i.panel}>{PANEL_LABEL[i.panel]}</span>
+              {i.emailed
+                ? <span className="inv-sent"><MailCheck aria-hidden /> Emailed</span>
+                : <span className="inv-sent is-off"><MailWarning aria-hidden /> Not emailed — copy the link</span>}
             </span>
-            <code className="inv-link-url">{inviteLink(i.token)}</code>
-            <button type="button" className="btn btn-secondary" onClick={() => copy(inviteLink(i.token), i.token)}>
-              {copied === i.token ? <Check aria-hidden /> : <Copy aria-hidden />} {copied === i.token ? "Copied" : "Copy link"}
+            <code className="inv-link-url">{i.link}</code>
+            <button type="button" className="btn btn-secondary" onClick={() => copy(i.link, i.id)}>
+              {copied === i.id ? <Check aria-hidden /> : <Copy aria-hidden />} {copied === i.id ? "Copied" : "Copy link"}
             </button>
           </li>
         ))}
       </ul>
       {invites.length > 1 && (
-        <button type="button" className="btn btn-tertiary" onClick={() => copy(invites.map((i) => `${i.email}: ${inviteLink(i.token)}`).join("\n"), "all")}>
+        <button type="button" className="btn btn-tertiary" onClick={() => copy(invites.map((i) => `${i.email}: ${i.link}`).join("\n"), "all")}>
           {copied === "all" ? <Check aria-hidden /> : <Copy aria-hidden />} Copy all links
         </button>
       )}
@@ -149,7 +185,7 @@ export function InviteLinks({ invites }: { invites: Invite[] }) {
 export function InviteDialog({ onClose }: { onClose: () => void }) {
   const { db } = useMe();
   const ref = useRef<HTMLDialogElement>(null);
-  const [created, setCreated] = useState<Invite[] | null>(null);
+  const [created, setCreated] = useState<CreatedInvite[] | null>(null);
 
   useEffect(() => {
     const d = ref.current;
@@ -183,10 +219,9 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Invites nobody has used yet: copy the link again, or cancel it. */
+/** Invites nobody has used yet. A lost link can't be shown again (only its hash is kept): cancel and invite again. */
 export function PendingInvites() {
   const { db, act, can, personById } = useMe();
-  const { copied, copy } = useCopy();
   const pending = db.invites.filter((i) => inviteState(i) === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   if (!pending.length) return null;
   const canManage = can("people.manage");
@@ -206,19 +241,16 @@ export function PendingInvites() {
         </thead>
         <tbody>
           {pending.map((i) => (
-            <tr key={i.token} className="dash-row">
+            <tr key={i.id} className="dash-row">
               <th scope="row" className="dash-name admin-email">{i.email}</th>
               <td data-label="Role"><span className="chip sm admin-panel-chip" data-panel={i.panel}>{PANEL_LABEL[i.panel]}</span> {i.role}</td>
               <td data-label="Invited">{relativeTime(i.createdAt)} · {personById(i.invitedBy)?.name ?? "—"}</td>
               <td data-label="Expires">{shortDate(addDays(i.createdAt, INVITE_DAYS).slice(0, 10))}</td>
               {canManage && (
                 <td data-label="Actions" className="admin-actions">
-                  <button type="button" className="btn btn-tertiary" onClick={() => copy(inviteLink(i.token), i.token)}>
-                    {copied === i.token ? <Check aria-hidden /> : <Copy aria-hidden />} Copy link
-                  </button>
                   <button
                     type="button" className="btn btn-tertiary"
-                    onClick={() => act((d, m) => revokeInvite(d, m, i.token), { success: `Invite for ${i.email} cancelled`, undoable: true })}
+                    onClick={() => act((d, m) => revokeInvite(d, m, i.id), { success: `Invite for ${i.email} cancelled`, undoable: true })}
                   >
                     <Undo2 aria-hidden /> Cancel invite
                   </button>

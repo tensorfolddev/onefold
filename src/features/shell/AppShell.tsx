@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, Moon,
-  RotateCcw, Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
+  Bell, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon,
+  Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { visibleProducts } from "@/domain/permissions";
 import { isSoundOn, playSound, setSoundOn } from "@/features/tickets/sounds";
@@ -17,6 +17,8 @@ import { Popover } from "@/ui/Popover";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { ProductsSidebar } from "./ProductsSidebar";
 import { TicketPanelHost } from "@/features/tickets/TicketPanel";
+import { WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
+import { McpDialog } from "@/features/mcp/McpDialog";
 
 interface NavItem { path: string; label: string; icon: LucideIcon }
 
@@ -156,9 +158,14 @@ const THEMES: { id: Theme; label: string; icon: React.ReactNode }[] = [
 
 function UserMenu() {
   const { theme, setTheme } = useAppState();
-  const { db, me, panel, isDemo, signOut, resetDemo } = useMe();
+  const { db, me, panel, signOut } = useMe();
   const [sound, setSound] = useState(isSoundOn);
+  const [whatsApp, setWhatsApp] = useState(false);
+  const [mcp, setMcp] = useState(false);
   return (
+    <>
+    {whatsApp && <WhatsAppDialog onClose={() => setWhatsApp(false)} />}
+    {mcp && <McpDialog onClose={() => setMcp(false)} />}
     <Popover
       align="right"
       width={260}
@@ -202,24 +209,20 @@ function UserMenu() {
             {sound ? <Volume2 /> : <VolumeX />} Sounds
             <span className="menu-item-end">{sound ? "On" : "Off"}</span>
           </button>
+          <button type="button" className="menu-item" onClick={() => { close(); setWhatsApp(true); }}>
+            <MessageCircle /> WhatsApp
+          </button>
+          <button type="button" className="menu-item" onClick={() => { close(); setMcp(true); }}>
+            <Bot /> Claude &amp; MCP
+          </button>
           <div className="menu-divider" />
-          {isDemo && (
-            <button
-              type="button" className="menu-item"
-              onClick={() => {
-                close();
-                if (window.confirm("Reset the demo? Everything you changed in it on this browser is lost.")) void resetDemo();
-              }}
-            >
-              <RotateCcw /> Reset demo data
-            </button>
-          )}
           <button type="button" className="menu-item" onClick={() => { close(); signOut(); }}>
             <LogOut /> Sign out
           </button>
         </>
       )}
     </Popover>
+    </>
   );
 }
 

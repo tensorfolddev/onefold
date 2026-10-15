@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AtSign, Bold, ChevronRight, Clock, History, Italic, LayoutList, Link2, List, MessageSquare } from "lucide-react";
-import { addComment } from "@/domain/commands";
+import { addComment } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import { useAppState } from "@/features/shell/state";
 import { relativeTime } from "@/domain/status";

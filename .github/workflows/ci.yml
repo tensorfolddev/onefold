@@ -14,10 +14,23 @@ concurrency:
 permissions:
   contents: read
 
+# Each job gets a throwaway Postgres (CI-only credentials; it's gone when the job ends).
 jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: onefold_admin
+          POSTGRES_PASSWORD: ci-only-admin-password
+          POSTGRES_DB: onefold
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U onefold_admin -d onefold" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_ADMIN_URL: postgres://onefold_admin:ci-only-admin-password@127.0.0.1:5433/onefold
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,12 +38,27 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run check # type check + lint + unit tests
+      - run: npm run check # type check + lint + all tests (unit and real-database)
       - run: npm run build
 
   e2e:
     name: e2e
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: onefold_admin
+          POSTGRES_PASSWORD: ci-only-admin-password
+          POSTGRES_DB: onefold
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U onefold_admin -d onefold" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      NEXT_PUBLIC_APP_ENV: dev
+      APP_URL: http://localhost:3100
+      DATABASE_ADMIN_URL: postgres://onefold_admin:ci-only-admin-password@127.0.0.1:5433/onefold
+      DATABASE_URL: postgres://onefold_web:ci-only-web-password@127.0.0.1:5433/onefold
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,6 +66,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: echo "SESSION_SECRET=$(openssl rand -base64 36)" >> "$GITHUB_ENV" # fresh each run
+      - run: npm run db:migrate
       - run: npm run build
       - run: npx playwright test # uses the runner's installed Chrome
       - if: failure()
@@ -46,3 +76,53 @@ jobs:
           name: playwright-traces
           path: test-results
           retention-days: 7
+
+  # Design §12.4: build the database the way the base branch leaves it (its migrations + sample data), apply this
+  # change's migrations on top, and prove nothing was lost and every company still loads with the new code.
+  upgrade:
+    name: upgrade-test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: onefold_admin
+          POSTGRES_PASSWORD: ci-only-admin-password
+          POSTGRES_DB: onefold
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U onefold_admin -d onefold" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      DATABASE_ADMIN_URL: postgres://onefold_admin:ci-only-admin-password@127.0.0.1:5433/onefold
+      DATABASE_URL: postgres://onefold_web:ci-only-web-password@127.0.0.1:5433/onefold
+      BASE: ${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: The database as the base branch leaves it
+        run: |
+          git worktree add ../base "origin/$BASE"
+          cd ../base
+          if [ ! -f src/server/db/migrate.ts ]; then # the first release with a backend: no database before it
+            echo "::notice::$BASE has no database yet — nothing to upgrade; checking this change's migrations from scratch"
+            exit 0
+          fi
+          npm ci --no-audit --no-fund
+          node src/server/db/migrate.ts
+          if [ -f src/server/db/upgradeCheck.ts ]; then
+            node src/server/db/upgradeCheck.ts seed
+          else
+            echo "::notice::$BASE has no sample data yet — checking the migrations on an empty database"
+          fi
+      - run: npm ci --no-audit --no-fund
+      - run: node src/server/db/upgradeCheck.ts count > before.json
+      - name: This change's migrations on top
+        run: node src/server/db/migrate.ts
+      - run: node src/server/db/upgradeCheck.ts verify before.json
+

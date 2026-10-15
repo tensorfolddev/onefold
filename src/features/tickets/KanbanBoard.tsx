@@ -9,7 +9,7 @@ import {
 import { arrayMove, horizontalListSortingStrategy, SortableContext, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { playSound } from "@/features/tickets/sounds";
 import { useAppState } from "@/features/shell/state";
-import { moveStatus, moveTicket } from "@/domain/commands";
+import { moveStatus, moveTicket } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import type { Status, Ticket } from "@/domain/types";
 import { AddList } from "./KanbanLists";

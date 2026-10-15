@@ -1,5 +1,5 @@
-// The demo company ("Explore the demo" on sign-in). Dates are written against SEED_TODAY and shifted to the real today
-// when the demo starts (data/demo.ts), so it always looks current. Real companies start empty at sign-up.
+// Test fixture only: a sample company the automated tests run against (see data/demo.ts). It is never shown in the
+// product, nor loaded into staging or production — every real company starts empty at sign-up.
 import type {
   Activity, Comment, Decision, Doc, Milestone, Notification, Org, Person, Product,
   ProductGroup, Requirement, StageRequest, Status, Team, Ticket,
@@ -7,11 +7,6 @@ import type {
 
 /** The day the demo data was written against. */
 export const SEED_TODAY = "2026-10-01";
-/** Every demo account signs in with this password. */
-export const DEMO_PASSWORD = "demo1234";
-
-/** People before their password is hashed (the demo hashes DEMO_PASSWORD for each when it starts). */
-export type SeedPerson = Omit<Person, "passwordHash" | "passwordSalt">;
 
 export const org: Org = {
   id: "org-tensorfold", slug: "tensorfold", name: "TensorFold", emailDomain: "tensorfold.example", domainLock: true,
@@ -25,7 +20,7 @@ export const productGroups: ProductGroup[] = [
 
 export const jobTitles: string[] = ["CEO", "CTO", "Product Manager", "Project Manager", "Team Lead", "Engineer", "Designer", "QA Engineer", "Client"];
 
-export const people: SeedPerson[] = [
+export const people: Person[] = [
   { id: "u-omar", name: "Omar Siddiqui", initials: "OS", color: "var(--color-dark_indigo)", role: "CEO", team: "leadership", capacityH: 20, email: "omar@tensorfold.example", active: true, panel: "admin" },
   { id: "u-tayyab", name: "Muhammad Tayyab", initials: "MT", color: "var(--color-sofia_pink)", role: "CTO", team: "leadership", capacityH: 30, email: "tayyab@tensorfold.example", active: true, panel: "admin" },
   { id: "u-hina", name: "Hina Raza", initials: "HR", color: "var(--color-purple)", role: "Product Manager", team: "leadership", capacityH: 40, email: "hina@tensorfold.example", active: true, panel: "manager" },

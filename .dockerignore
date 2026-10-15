@@ -1,0 +1,15 @@
+# Only what the image needs: sources, migrations, config. Never secrets or local data.
+.git
+.github
+node_modules
+.next
+.env*
+!.env.example
+data
+test-results
+playwright-report
+e2e
+docs
+deploy
+*.tsbuildinfo
+.DS_Store

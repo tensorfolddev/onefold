@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { createTicket, updateTicket as updateTicketAction, type TicketPatch } from "@/domain/commands";
+import { createTicket, updateTicket as updateTicketAction, type TicketPatch } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import type { Activity, Ticket } from "@/domain/types";
 

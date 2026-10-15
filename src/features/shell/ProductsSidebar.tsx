@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Check, ChevronDown, FolderInput, FolderMinus, LayoutGrid, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { visibleProducts } from "@/domain/permissions";
-import { addGroup, deleteGroup, renameGroup, updateProduct } from "@/domain/commands";
+import { addGroup, deleteGroup, renameGroup, updateProduct } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Product, ProductGroup } from "@/domain/types";
 import { Popover } from "@/ui/Popover";

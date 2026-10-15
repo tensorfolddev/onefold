@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { notFound } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } from "@/domain/commands";
+import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { IconButton } from "@/ui/primitives";
 import { TeamsManager } from "@/features/people/TeamsManager";
+import { WhatsAppBotSettings } from "@/features/whatsapp/WhatsApp";
 import { errorOf, Field, FormError } from "@/ui/fields";
 
 /** Admin Settings: the company itself, and the company-wide lists every picker in the app uses. */
@@ -24,6 +25,7 @@ export default function SettingsPage() {
       <Company />
       <JobTitles />
       <TeamsManager />
+      <WhatsAppBotSettings />
     </div>
   );
 }

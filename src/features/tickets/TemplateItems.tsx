@@ -3,7 +3,7 @@
 // List-shaped sections: bullets, numbered steps, checklists, and the fixed Definition of done.
 import { useState } from "react";
 import { LockKeyhole, Plus, X } from "lucide-react";
-import { setSection } from "@/domain/commands";
+import { setSection } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import { DEFINITION_OF_DONE, itemsOf, type SectionDef } from "@/domain/templates";
 import type { SectionItem, Ticket } from "@/domain/types";

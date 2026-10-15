@@ -1,0 +1,50 @@
+name: migrations
+
+# Releases never lose data (docs/specs/2026-10-15-backend-v1-design.md §12):
+#   - a released migration is history — it's never edited or deleted, and the journal only grows at its end
+#   - a new one that drops, renames or retypes something, or deletes rows, needs the label "destructive-migration"
+#     (and the old code must already have stopped using what it removes)
+on:
+  pull_request:
+    branches: [dev, stg, prod]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    name: migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check the migrations
+        env:
+          BASE: origin/${{ github.base_ref }}
+          ALLOW_DESTRUCTIVE: ${{ contains(github.event.pull_request.labels.*.name, 'destructive-migration') }}
+        run: |
+          changed=$(git diff --name-status "$BASE"...HEAD -- 'drizzle/*.sql' | awk '$1 != "A" { print $NF }')
+          if [ -n "$changed" ]; then
+            echo "::error::Released migrations can't be edited or deleted — add a new one instead: $changed"
+            exit 1
+          fi
+          # The journal (the order migrations run in) only ever gains entries at its end.
+          node -e '
+            const [base, head] = process.argv.slice(1).map((t) => JSON.parse(t || "{\"entries\":[]}").entries);
+            const changed = base.find((e, i) => JSON.stringify(e) !== JSON.stringify(head[i]));
+            if (changed) { console.log(`::error::drizzle/meta/_journal.json changed released entry ${changed.tag}`); process.exit(1); }
+          ' "$(git show "$BASE:drizzle/meta/_journal.json" 2>/dev/null)" "$(cat drizzle/meta/_journal.json)"
+          added=$(git diff --name-only --diff-filter=A "$BASE"...HEAD -- 'drizzle/*.sql')
+          [ -n "$added" ] || { echo "No new migrations."; exit 0; }
+          echo "New migrations: $added"
+          pattern='DROP[[:space:]]+(TABLE|COLUMN|SCHEMA|TYPE|VIEW|FUNCTION)|RENAME[[:space:]]+(TO|COLUMN)|ALTER[[:space:]]+COLUMN[[:space:]]+[^[:space:]]+[[:space:]]+(SET[[:space:]]+DATA[[:space:]]+)?TYPE|SET[[:space:]]+NOT[[:space:]]+NULL|TRUNCATE|DELETE[[:space:]]+FROM'
+          if grep -n -i -E "$pattern" $added; then
+            if [ "$ALLOW_DESTRUCTIVE" = "true" ]; then
+              echo "::warning::Destructive migration allowed by the 'destructive-migration' label."
+            else
+              echo "::error::These lines can lose data or break the running version. Split it into expand → switch → clean up (§12), or add the 'destructive-migration' label once the old code no longer uses it."
+              exit 1
+            fi
+          fi

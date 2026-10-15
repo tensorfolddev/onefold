@@ -1,10 +1,10 @@
 "use client";
 
-// The Images section: paste, drop or pick; thumbnails open full size. Bytes go to the browser file store.
+// The Images section: paste, drop or pick; thumbnails open full size. Images are uploaded to the server.
 import { useEffect, useRef, useState } from "react";
 import { Download, ImageOff, ImagePlus, Trash2, X } from "lucide-react";
-import { IMAGE_TYPES, prepareImage, putFile, useFileUrl } from "@/features/tickets/files";
-import { addAttachment, removeAttachment } from "@/domain/commands";
+import { fileUrl, IMAGE_TYPES, prepareImage } from "@/features/tickets/files";
+import { removeAttachment } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import type { SectionDef } from "@/domain/templates";
 import type { Attachment, Ticket } from "@/domain/types";
@@ -13,7 +13,7 @@ import { IconButton } from "@/ui/primitives";
 const kb = (bytes: number) => (bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
 export function ImagesSection({ def, ticket, editable }: { def: SectionDef; ticket: Ticket; editable: boolean }) {
-  const { act, toast } = useDb();
+  const { act, toast, uploadImage } = useDb();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(0);
   const [over, setOver] = useState(false);
@@ -27,10 +27,9 @@ export function ImagesSection({ def, ticket, editable }: { def: SectionDef; tick
     for (const f of ok) {
       setBusy((n) => n + 1);
       try {
-        const { blob, width, height } = await prepareImage(f);
-        const id = `img-${crypto.randomUUID().slice(0, 8)}`;
-        await putFile(id, blob);
-        act((d, m) => addAttachment(d, m, ticket.key, { id, name: f.name || "pasted-image.png", type: blob.type, size: blob.size, width, height }));
+        const { blob } = await prepareImage(f);
+        const problem = await uploadImage(ticket.key, blob, f.name || "pasted-image.png");
+        if (problem) toast(`Couldn't add ${f.name || "that image"}: ${problem}`);
       } catch (e) {
         toast(e instanceof Error && e.message.startsWith("Only") ? e.message : `Couldn't add ${f.name || "that image"}`);
       } finally {
@@ -80,13 +79,12 @@ export function ImagesSection({ def, ticket, editable }: { def: SectionDef; tick
 }
 
 function Thumb({ att, onOpen }: { att: Attachment; onOpen: () => void }) {
-  const url = useFileUrl(att.id);
+  const [failed, setFailed] = useState(false);
   return (
     <button type="button" className="tpl-thumb" onClick={onOpen} title={`${att.name} · ${att.width}×${att.height} · ${kb(att.size)}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- local blob: URL, nothing for next/image to optimise */}
-      {url ? <img src={url} alt={att.name} width={att.width} height={att.height} loading="lazy" decoding="async" />
-        : url === null ? <span className="tpl-thumb-missing"><ImageOff aria-hidden />Not on this device</span>
-        : <span className="tpl-thumb-loading" aria-label="Loading" />}
+      {failed ? <span className="tpl-thumb-missing"><ImageOff aria-hidden />Couldn&apos;t load</span>
+        // eslint-disable-next-line @next/next/no-img-element -- served by our own API with a permission check; next/image would bypass it
+        : <img src={fileUrl(att.id)} alt={att.name} width={att.width} height={att.height} loading="lazy" decoding="async" onError={() => setFailed(true)} />}
       <span className="tpl-thumb-name">{att.name}</span>
     </button>
   );
@@ -95,7 +93,7 @@ function Thumb({ att, onOpen }: { att: Attachment; onOpen: () => void }) {
 /** Full-size view. Native <dialog>: focus stays inside, Esc closes. */
 function Lightbox({ att, onClose, onRemove }: { att: Attachment; onClose: () => void; onRemove?: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const url = useFileUrl(att.id);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     const d = ref.current;
     if (d && !d.open) d.showModal();
@@ -110,14 +108,14 @@ function Lightbox({ att, onClose, onRemove }: { att: Attachment; onClose: () => 
         <strong>{att.name}</strong>
         <span className="muted">{att.width}×{att.height} · {kb(att.size)}</span>
         <span className="spacer" />
-        {url && <a className="btn btn-tertiary" href={url} download={att.name}><Download aria-hidden /> Download</a>}
+        <a className="btn btn-tertiary" href={fileUrl(att.id, true)} download={att.name}><Download aria-hidden /> Download</a>
         {onRemove && <button type="button" className="btn btn-tertiary is-danger" onClick={onRemove}><Trash2 aria-hidden /> Remove</button>}
         <IconButton label="Close" onClick={onClose}><X /></IconButton>
       </header>
       <div className="tpl-lightbox-body">
-        {/* eslint-disable-next-line @next/next/no-img-element -- local blob: URL */}
-        {url ? <img src={url} alt={att.name} width={att.width} height={att.height} />
-          : <p className="tpl-empty">{url === null ? "This image isn't stored in this browser." : "Loading…"}</p>}
+        {failed ? <p className="tpl-empty">This image couldn&apos;t be loaded.</p>
+          // eslint-disable-next-line @next/next/no-img-element -- served by our own API with a permission check
+          : <img src={fileUrl(att.id)} alt={att.name} width={att.width} height={att.height} onError={() => setFailed(true)} />}
       </div>
     </dialog>
   );

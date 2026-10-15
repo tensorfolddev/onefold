@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { addDoc, ValidationError } from "@/domain/commands";
+import { addDoc, ValidationError } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { DocKind } from "@/domain/types";
 

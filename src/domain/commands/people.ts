@@ -1,12 +1,13 @@
 import type { Person } from "../types.ts";
 import type { Db } from "../../data/db.ts";
-import { check, emailError, fail, id, initialsOf, personOf, replace, requiredError, ValidationError } from "./shared.ts";
+import { check, fail, id, initialsOf, personOf, replace, requiredError, ValidationError } from "./shared.ts";
 
 // ---------- people + teams ----------
 // People join by invite (org.ts) or by creating the company. Admins edit access, roles and teams here.
+// A person's email is their login, so it changes on the server (with verification), not here.
 const jobTitleError = (db: Db, role: string) => (db.jobTitles.includes(role) ? null : "Pick a job title from the list");
 
-export type PersonPatch = Partial<Pick<Person, "name" | "email" | "role" | "panel" | "team" | "active">>;
+export type PersonPatch = Partial<Pick<Person, "name" | "role" | "panel" | "team" | "active">>;
 
 export function updatePerson(db: Db, me: Person, pid: string, patch: PersonPatch): Db {
   check(me, "people.manage", {});
@@ -15,22 +16,12 @@ export function updatePerson(db: Db, me: Person, pid: string, patch: PersonPatch
     throw new ValidationError("You can't change your own access");
   }
   if (patch.name !== undefined) fail(requiredError("Name", patch.name));
-  if (patch.email !== undefined && patch.email.trim().toLowerCase() !== personOf(db, pid).email) fail(emailError(patch.email, db, pid));
   if (patch.role !== undefined) fail(jobTitleError(db, patch.role));
   const clean = {
     ...patch,
     ...(patch.name !== undefined && { name: patch.name.trim(), initials: initialsOf(patch.name) }),
-    ...(patch.email !== undefined && { email: patch.email.trim().toLowerCase() }),
   };
   return { ...db, people: replace(db.people, (p) => p.id === pid, (p) => ({ ...p, ...clean })) };
-}
-
-/** Admin resets someone's password. The caller hashes it first (data/passwords.ts); the store never sees it. */
-export function setPassword(db: Db, me: Person, pid: string, credential: { hash: string; salt: string }): Db {
-  if (pid !== me.id) check(me, "people.manage", {});
-  personOf(db, pid);
-  if (!credential.hash || !credential.salt) throw new ValidationError("Choose a new password");
-  return { ...db, people: replace(db.people, (p) => p.id === pid, (p) => ({ ...p, passwordHash: credential.hash, passwordSalt: credential.salt })) };
 }
 
 // ---------- job titles (admin-managed list used by every job-title picker) ----------
