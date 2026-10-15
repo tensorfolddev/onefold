@@ -109,6 +109,10 @@ jobs:
         run: |
           git worktree add ../base "origin/$BASE"
           cd ../base
+          if [ ! -f src/server/db/migrate.ts ]; then # the first release with a backend: no database before it
+            echo "::notice::$BASE has no database yet — nothing to upgrade; checking this change's migrations from scratch"
+            exit 0
+          fi
           npm ci --no-audit --no-fund
           node src/server/db/migrate.ts
           if [ -f src/server/db/upgradeCheck.ts ]; then
