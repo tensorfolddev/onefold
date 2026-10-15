@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Bell, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, Moon,
-  RotateCcw, Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
+  Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { visibleProducts } from "@/domain/permissions";
 import { isSoundOn, playSound, setSoundOn } from "@/features/tickets/sounds";
@@ -156,7 +156,7 @@ const THEMES: { id: Theme; label: string; icon: React.ReactNode }[] = [
 
 function UserMenu() {
   const { theme, setTheme } = useAppState();
-  const { db, me, panel, isDemo, signOut, resetDemo } = useMe();
+  const { db, me, panel, signOut } = useMe();
   const [sound, setSound] = useState(isSoundOn);
   return (
     <Popover
@@ -203,17 +203,6 @@ function UserMenu() {
             <span className="menu-item-end">{sound ? "On" : "Off"}</span>
           </button>
           <div className="menu-divider" />
-          {isDemo && (
-            <button
-              type="button" className="menu-item"
-              onClick={() => {
-                close();
-                if (window.confirm("Reset the demo? Everything you changed in it on this browser is lost.")) void resetDemo();
-              }}
-            >
-              <RotateCcw /> Reset demo data
-            </button>
-          )}
           <button type="button" className="menu-item" onClick={() => { close(); signOut(); }}>
             <LogOut /> Sign out
           </button>

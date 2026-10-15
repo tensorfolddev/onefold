@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Ellipsis, Trash2, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
-import { deleteTickets } from "@/domain/commands";
+import { deleteTickets } from "@/data/commands";
 import type { Product, Ticket } from "@/domain/types";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { Popover } from "@/ui/Popover";

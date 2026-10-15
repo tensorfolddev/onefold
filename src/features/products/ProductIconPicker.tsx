@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { DynamicIcon, iconNames, type IconName } from "lucide-react/dynamic";
-import { setProductLook } from "@/domain/commands";
+import { setProductLook } from "@/data/commands";
 import { PRODUCT_COLORS } from "@/data/db";
 import { useDb } from "@/data/StoreProvider";
 import type { Product } from "@/domain/types";

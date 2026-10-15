@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { CalendarClock, CircleHelp, OctagonAlert } from "lucide-react";
 import { visibleProducts } from "@/domain/permissions";
-import { approveStage } from "@/domain/commands";
+import { approveStage } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { isBlocked, lateMilestones } from "@/domain/selectors/dashboard";
 

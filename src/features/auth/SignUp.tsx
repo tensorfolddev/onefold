@@ -2,13 +2,12 @@
 
 // Company sign-up (you → your company → your team) and joining by invite link.
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, Info, LogOut } from "lucide-react";
-import { domainOf, EMAIL_RE, isFreeMail, MIN_PASSWORD, slugError, slugify } from "@/domain/commands";
+import { domainOf, EMAIL_RE, isFreeMail, MIN_PASSWORD, slugError, slugify } from "@/data/commands";
 import { passwordStrength } from "@/data/passwords";
-import { useAuth } from "@/data/StoreProvider";
-import type { Invite } from "@/domain/types";
+import { useAuth, type CreatedInvite, type InviteView } from "@/data/StoreProvider";
 import { InviteForm, InviteLinks } from "@/features/people/Invites";
 import { PANEL_LABEL } from "@/features/shell/AppShell";
 import { AuthField, AuthShell, PasswordField, Steps } from "./AuthShell";
@@ -52,11 +51,22 @@ export function SignUp() {
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [home, setHome] = useState("/admin");
-  const [invited, setInvited] = useState<Invite[] | null>(null);
+  const [invited, setInvited] = useState<CreatedInvite[] | null>(null);
+  const [checked, setChecked] = useState<{ slug: string; problem: string | null } | null>(null);
   const heading = useStepFocus(step);
 
   const shownSlug = slugEdited ? slug : slugify(company);
-  const slugProblem = shownSlug ? slugError(shownSlug, auth.slugTaken) : null;
+  const formatProblem = shownSlug ? slugError(shownSlug, () => false) : null;
+  const slugChecked = checked?.slug === shownSlug;
+  const slugProblem = formatProblem ?? (slugChecked ? checked.problem : null);
+  // Ask the server whether the short name is free, once typing pauses.
+  const { checkSlug } = auth;
+  useEffect(() => {
+    if (!shownSlug || formatProblem) return;
+    let alive = true;
+    const timer = setTimeout(() => { void checkSlug(shownSlug).then((problem) => { if (alive) setChecked({ slug: shownSlug, problem }); }); }, 300);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [shownSlug, formatProblem, checkSlug]);
   const domain = domainOf(email);
   const clear = (k: keyof Errors) => errors[k] && setErrors((e) => ({ ...e, [k]: null, form: null }));
 
@@ -109,7 +119,6 @@ export function SignUp() {
             </AuthField>
             <PasswordField id={`${uid}-password`} value={password} error={errors.password} onChange={(v) => { setPassword(v); clear("password"); }} />
             <button type="submit" className="btn btn-primary btn-lg auth-submit">Continue <ArrowRight aria-hidden /></button>
-            <p className="auth-alt">Just looking? <Link href="/signin#demo">Explore the demo company</Link></p>
           </form>
         )}
 
@@ -128,7 +137,8 @@ export function SignUp() {
             </AuthField>
             <AuthField
               id={`${uid}-slug`} label="Short name" error={errors.slug ?? (shownSlug && slugProblem ? slugProblem : null)}
-              hint={shownSlug ? <><Check aria-hidden className="auth-ok" /> <strong>{shownSlug}</strong> is free</> : "Lowercase letters, numbers and dashes. Tells your company apart if you're in more than one."}
+              hint={!shownSlug ? "Lowercase letters, numbers and dashes. Tells your company apart if you're in more than one."
+                : slugChecked ? <><Check aria-hidden className="auth-ok" /> <strong>{shownSlug}</strong> is free</> : "Checking…"}
             >
               <span className="auth-input has-prefix">
                 <span className="auth-prefix" aria-hidden>1fold /</span>
@@ -189,17 +199,19 @@ export function AcceptInvite({ token }: { token: string }) {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
-  const { ready, lookupInvite } = auth;
-  // The invite lives in this browser's storage until the backend ships, so look it up after mount.
-  const found = useMemo(() => (ready ? lookupInvite(token) : null), [ready, lookupInvite, token]);
-  const invite = found?.db?.invites.find((i) => i.token === token);
-  const org = found?.db?.org;
-  const inviter = invite && found?.db?.people.find((p) => p.id === invite.invitedBy);
+  const [found, setFound] = useState<InviteView | null>(null);
+  const { lookupInvite } = auth;
+  useEffect(() => {
+    let alive = true;
+    void lookupInvite(token).then((view) => { if (alive) setFound(view); });
+    return () => { alive = false; };
+  }, [lookupInvite, token]);
+  const hasLogin = !!found?.hasLogin; // the email already has a 1Fold login: confirm with that password
 
   const join = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
-    const errs: Errors = { name: nameError(name), password: newPasswordError(password) };
+    const errs: Errors = { name: nameError(name), password: hasLogin ? (password ? null : "Enter your password") : newPasswordError(password) };
     setErrors(errs);
     if (hasErrors(errs)) { requestAnimationFrame(() => focusFirstInvalid(form)); return; }
     setBusy(true);
@@ -212,7 +224,7 @@ export function AcceptInvite({ token }: { token: string }) {
   let body: React.ReactNode;
   if (!found) {
     body = <div className="auth-loading" aria-busy="true"><span className="auth-spinner" /> Checking your invite…</div>;
-  } else if (found.problem || !invite || !org) {
+  } else if (found.problem || !found.email || !found.panel) {
     body = (
       <div className="auth-form">
         <div className="auth-heading">
@@ -227,7 +239,7 @@ export function AcceptInvite({ token }: { token: string }) {
       <div className="auth-form">
         <div className="auth-heading">
           <h1 className="auth-title">You&apos;re already signed in</h1>
-          <p className="auth-sub">To join {org.name} as {invite.email}, sign out first, then open this invite link again.</p>
+          <p className="auth-sub">To join {found.orgName} as {found.email}, sign out first, then open this invite link again.</p>
         </div>
         <button type="button" className="btn btn-secondary btn-lg auth-submit" onClick={auth.signOut}><LogOut aria-hidden /> Sign out</button>
       </div>
@@ -236,13 +248,16 @@ export function AcceptInvite({ token }: { token: string }) {
     body = (
       <form className="auth-form" onSubmit={join} noValidate aria-busy={busy}>
         <div className="auth-heading">
-          <p className="auth-kicker-inline">{inviter ? `${inviter.name} invited you` : "You're invited"}</p>
-          <h1 className="auth-title">Join {org.name}</h1>
-          <p className="auth-sub">You&apos;ll join as <strong>{PANEL_LABEL[invite.panel]}</strong> · {invite.role}. Choose your name and a password.</p>
+          <p className="auth-kicker-inline">{found.inviterName ? `${found.inviterName} invited you` : "You're invited"}</p>
+          <h1 className="auth-title">Join {found.orgName}</h1>
+          <p className="auth-sub">
+            You&apos;ll join as <strong>{PANEL_LABEL[found.panel]}</strong> · {found.role}.{" "}
+            {hasLogin ? "This email already has a 1Fold login — use its password." : "Choose your name and a password."}
+          </p>
         </div>
         <div className="auth-field">
           <span className="auth-label">Email</span>
-          <span className="auth-input is-readonly"><span className="auth-static">{invite.email}</span></span>
+          <span className="auth-input is-readonly"><span className="auth-static">{found.email}</span></span>
         </div>
         <AuthField id={`${uid}-name`} label="Full name" error={errors.name}>
           <span className="auth-input">
@@ -251,18 +266,19 @@ export function AcceptInvite({ token }: { token: string }) {
               onChange={(e) => { setName(e.target.value); setErrors((x) => ({ ...x, name: null })); }} />
           </span>
         </AuthField>
-        <PasswordField id={`${uid}-password`} value={password} error={errors.password}
+        <PasswordField id={`${uid}-password`} value={password} error={errors.password} meter={!hasLogin}
+          label={hasLogin ? "Your 1Fold password" : "Password"} autoComplete={hasLogin ? "current-password" : "new-password"}
           onChange={(v) => { setPassword(v); setErrors((x) => ({ ...x, password: null })); }} />
         {errors.form && <p className="auth-error auth-form-error" role="alert">{errors.form}</p>}
         <button type="submit" className="btn btn-primary btn-lg auth-submit" disabled={busy}>
-          {busy ? <><span className="auth-spinner" aria-hidden /> Joining…</> : <>Join {org.name} <ArrowRight aria-hidden /></>}
+          {busy ? <><span className="auth-spinner" aria-hidden /> Joining…</> : <>Join {found.orgName} <ArrowRight aria-hidden /></>}
         </button>
       </form>
     );
   }
 
   return (
-    <AuthShell company={org?.name} aside={<>Have an account? <Link href="/signin">Sign in</Link></>}>
+    <AuthShell company={found?.orgName} aside={<>Have an account? <Link href="/signin">Sign in</Link></>}>
       <div className="auth-panel">{body}</div>
     </AuthShell>
   );

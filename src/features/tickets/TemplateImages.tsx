@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, ImageOff, ImagePlus, Trash2, X } from "lucide-react";
 import { IMAGE_TYPES, prepareImage, putFile, useFileUrl } from "@/features/tickets/files";
-import { addAttachment, removeAttachment } from "@/domain/commands";
+import { addAttachment, removeAttachment } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import type { SectionDef } from "@/domain/templates";
 import type { Attachment, Ticket } from "@/domain/types";

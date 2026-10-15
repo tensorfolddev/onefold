@@ -1,4 +1,4 @@
-import { AccessError, ValidationError } from "@/domain/commands";
+import { AccessError, ValidationError } from "@/data/commands";
 
 /** Dry-runs a pure store action to read its message for an inline error (act() would only toast it). */
 export function errorOf(run: () => unknown): string | null {

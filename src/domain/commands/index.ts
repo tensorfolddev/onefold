@@ -4,7 +4,7 @@ import { addDecision, addDoc, deleteDoc, upsertMilestone } from "./docs.ts";
 import { addStatus, deleteStatus, moveStatus, updateStatus } from "./lists.ts";
 import { inviteMembers, revokeInvite, updateOrg } from "./org.ts";
 import {
-  addJobTitle, addTeam, deleteJobTitle, deleteTeam, renameJobTitle, setPassword, updatePerson, updateTeam,
+  addJobTitle, addTeam, deleteJobTitle, deleteTeam, renameJobTitle, updatePerson, updateTeam,
 } from "./people.ts";
 import {
   addGroup, approveStage, createProduct, deleteGroup, renameGroup, requestStage, setMember, setProductLook, updateProduct,
@@ -23,7 +23,7 @@ export const commands = {
   // product docs
   addDoc, deleteDoc, addDecision, upsertMilestone,
   // people + company
-  updatePerson, setPassword, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
+  updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
 };
 
@@ -34,7 +34,7 @@ export {
   addStatus, updateStatus, moveStatus, deleteStatus,
   createProduct, updateProduct, setProductLook, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   addDoc, deleteDoc, addDecision, upsertMilestone,
-  updatePerson, setPassword, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
+  updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
 };
 
@@ -44,7 +44,7 @@ export type CommandName = keyof Commands;
 export { AccessError, ValidationError } from "./shared.ts";
 export { acceptInvite, inviteProblem, inviteState, isFreeMail, signUp, slugError, slugify, INVITE_DAYS } from "./org.ts";
 export { EMAIL_RE, MIN_PASSWORD, domainOf } from "./shared.ts";
-export type { Credential, InviteInput, SignUpInput } from "./org.ts";
+export type { InviteInput, NewInvite, SignUpInput } from "./org.ts";
 export type { TicketPatch } from "./tickets.ts";
 export type { StatusPatch } from "./lists.ts";
 export type { PersonPatch } from "./people.ts";

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { membersOf } from "@/domain/selectors/dashboard";
-import { addTeam, deleteTeam, updatePerson, updateTeam } from "@/domain/commands";
+import { addTeam, deleteTeam, updatePerson, updateTeam } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Team } from "@/domain/types";
 import { Avatar, IconButton } from "@/ui/primitives";

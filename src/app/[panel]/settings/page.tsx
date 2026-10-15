@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { notFound } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } from "@/domain/commands";
+import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { IconButton } from "@/ui/primitives";
 import { TeamsManager } from "@/features/people/TeamsManager";

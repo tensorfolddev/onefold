@@ -1,21 +1,14 @@
 "use client";
 
-// Sign in (with "which company?" when one email is in several), the demo company, and "forgot password".
+// Sign in (with "which company?" when one email is in several) and "forgot password".
 import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Building2, Code2, KeyRound, LayoutDashboard, Users } from "lucide-react";
-import { EMAIL_RE } from "@/domain/commands";
+import { ArrowRight, Building2, KeyRound } from "lucide-react";
+import { EMAIL_RE } from "@/data/commands";
 import { panelFromSlug, safeNext } from "@/data/session";
 import { useAuth } from "@/data/StoreProvider";
-import type { Panel } from "@/domain/types";
 import { AuthField, AuthShell, PasswordField } from "./AuthShell";
-
-const DEMO: { panel: Panel; title: string; text: string; icon: React.ReactNode }[] = [
-  { panel: "admin", title: "Admin", text: "The whole company: people, products, settings", icon: <LayoutDashboard aria-hidden /> },
-  { panel: "manager", title: "Manager", text: "Runs products, plans the board, approves work", icon: <Users aria-hidden /> },
-  { panel: "developer", title: "Developer", text: "My Work and the boards they're on", icon: <Code2 aria-hidden /> },
-];
 
 export function SignIn() {
   const auth = useAuth();
@@ -25,7 +18,7 @@ export function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"signin" | Panel | null>(null);
+  const [busy, setBusy] = useState(false);
   const [companies, setCompanies] = useState<{ slug: string; name: string }[] | null>(null);
 
   // ?next= only survives inside your own panel (no open redirects).
@@ -36,18 +29,13 @@ export function SignIn() {
 
   const signIn = async (slug?: string) => {
     if (!EMAIL_RE.test(email.trim()) || !password) { setError("Enter your email and password"); return; }
-    setBusy("signin");
+    setBusy(true);
     setError(null);
     const res = await auth.signIn(email, password, slug);
     if (res.ok === true) { go(res.home); return; } // stay busy while the next page loads
-    setBusy(null);
+    setBusy(false);
     if (res.ok === "choose") setCompanies(res.companies);
     else setError(res.error);
-  };
-
-  const demo = async (panel: Panel) => {
-    setBusy(panel);
-    go(await auth.startDemo(panel));
   };
 
   return (
@@ -62,7 +50,7 @@ export function SignIn() {
             <ul className="auth-choices">
               {companies.map((c) => (
                 <li key={c.slug}>
-                  <button type="button" className="auth-choice" disabled={!!busy} onClick={() => signIn(c.slug)}>
+                  <button type="button" className="auth-choice" disabled={busy} onClick={() => signIn(c.slug)}>
                     <span className="auth-choice-icon"><Building2 aria-hidden /></span>
                     <span className="auth-choice-text"><strong>{c.name}</strong><span>{c.slug}</span></span>
                     <ArrowRight aria-hidden className="auth-choice-go" />
@@ -73,7 +61,7 @@ export function SignIn() {
             <button type="button" className="btn btn-tertiary" onClick={() => { setCompanies(null); setPassword(""); }}>Use a different account</button>
           </div>
         ) : (
-          <form className="auth-form" onSubmit={(e) => { e.preventDefault(); void signIn(); }} noValidate aria-busy={busy === "signin"}>
+          <form className="auth-form" onSubmit={(e) => { e.preventDefault(); void signIn(); }} noValidate aria-busy={busy}>
             <div className="auth-heading">
               <h1 className="auth-title">Welcome back</h1>
               <p className="auth-sub">Sign in to your company on 1Fold.</p>
@@ -88,28 +76,12 @@ export function SignIn() {
               onChange={(v) => { setPassword(v); setError(null); }} />
             <Link href="/forgot" className="auth-forgot">Forgot password?</Link>
             {error && <p className="auth-error auth-form-error" role="alert">{error}</p>}
-            <button type="submit" className="btn btn-primary btn-lg auth-submit" disabled={!!busy}>
-              {busy === "signin" ? <><span className="auth-spinner" aria-hidden /> Signing in…</> : <>Sign in <ArrowRight aria-hidden /></>}
+            <button type="submit" className="btn btn-primary btn-lg auth-submit" disabled={busy}>
+              {busy ? <><span className="auth-spinner" aria-hidden /> Signing in…</> : <>Sign in <ArrowRight aria-hidden /></>}
             </button>
           </form>
         )}
 
-        <section className="auth-demo" id="demo" aria-labelledby={`${uid}-demo`}>
-          <div className="auth-divider"><span>or</span></div>
-          <h2 id={`${uid}-demo`} className="auth-demo-title">Explore the demo company</h2>
-          <p className="auth-sub">TensorFold — sample products, tickets and a team. Pick a role; changes stay in this browser.</p>
-          <ul className="auth-demo-grid">
-            {DEMO.map((d) => (
-              <li key={d.panel}>
-                <button type="button" className="auth-demo-card" data-panel={d.panel} disabled={!!busy} aria-busy={busy === d.panel} onClick={() => demo(d.panel)}>
-                  <span className="auth-demo-icon">{busy === d.panel ? <span className="auth-spinner" /> : d.icon}</span>
-                  <strong>{d.title}</strong>
-                  <span>{d.text}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
       </div>
     </AuthShell>
   );

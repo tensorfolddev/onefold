@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { UserMinus, UserPlus } from "lucide-react";
 import { isOnProduct } from "@/domain/permissions";
-import { setMember } from "@/domain/commands";
+import { setMember } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Person } from "@/domain/types";
 import { Avatar } from "@/ui/primitives";

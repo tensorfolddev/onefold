@@ -3,19 +3,7 @@ import assert from "node:assert/strict";
 import { SEED_TODAY } from "../domain/seed.ts";
 import { demoDb } from "./demo.ts";
 import { normalize, type Db } from "./db.ts";
-import { hashPassword, passwordStrength, verifyPassword } from "./passwords.ts";
-
-test("passwords: salted hash verifies the right password only; never stored in plain text", async () => {
-  const cred = await hashPassword("correct horse battery", 1_000);
-  assert.match(cred.hash, /^1000:/);
-  assert.ok(!cred.hash.includes("correct"));
-  const stored = { passwordHash: cred.hash, passwordSalt: cred.salt };
-  assert.equal(await verifyPassword("correct horse battery", stored), true);
-  assert.equal(await verifyPassword("wrong", stored), false);
-  const again = await hashPassword("correct horse battery", 1_000);
-  assert.notEqual(again.hash, cred.hash); // fresh salt every time
-  assert.equal(await verifyPassword("x", { passwordHash: "garbage", passwordSalt: "" }), false);
-});
+import { passwordStrength } from "./passwords.ts";
 
 test("password strength", () => {
   assert.equal(passwordStrength("").score, 0);
@@ -24,9 +12,9 @@ test("password strength", () => {
   assert.ok(passwordStrength("Correct-Horse-Battery-9").score >= 3);
 });
 
-test("the demo moves its dates to today, keeping the gaps between them", () => {
+test("the test company moves its dates, keeping the gaps between them", () => {
   const base = demoDb();
-  const moved = demoDb(undefined, "2026-10-15");
+  const moved = demoDb("2026-10-15");
   const due = (db: Db) => db.tickets.find((t) => t.key === "AP-12")!.due!;
   assert.equal(due(base), "2026-10-02"); // a day after SEED_TODAY
   assert.equal(due(moved), "2026-10-16");

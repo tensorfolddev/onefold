@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
-import { addDependency, createTicket, removeDependency, updateTicket } from "@/domain/commands";
+import { addDependency, createTicket, removeDependency, updateTicket } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import type { Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";

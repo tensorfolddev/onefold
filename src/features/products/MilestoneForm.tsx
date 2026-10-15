@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { upsertMilestone, ValidationError } from "@/domain/commands";
+import { upsertMilestone, ValidationError } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Milestone } from "@/domain/types";
 

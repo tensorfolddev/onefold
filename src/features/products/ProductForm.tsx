@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Building2, Check, Pencil, Sparkles, X } from "lucide-react";
 import { today } from "@/domain/clock";
-import { addGroup, createProduct, setProductLook, updateProduct, type ProductInput } from "@/domain/commands";
+import { addGroup, createProduct, setProductLook, updateProduct, type ProductInput } from "@/data/commands";
 import { PRODUCT_COLORS, type Db } from "@/data/db";
 import { useMe } from "@/data/StoreProvider";
 import type { Person, Product, ProductIcon } from "@/domain/types";

@@ -1,4 +1,5 @@
-// One company's data. In the browser today (data/storage.ts); the backend keeps the same shape per organisation.
+// One company's data, as the domain commands see it. The server stores it in Postgres (src/server/company) and sends
+// each person their own view of it (domain/snapshot.ts).
 import { TEMPLATES } from "../domain/templates.ts";
 import type {
   Activity, Comment, Decision, Doc, Invite, Milestone, Notification, Org, Person, Product, ProductGroup, Requirement,

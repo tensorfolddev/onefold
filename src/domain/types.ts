@@ -12,9 +12,11 @@ export interface Org {
   createdBy: string; // founder's person id
 }
 
-/** Someone invited to join. They accept at /invite/<token>, choosing their name and password. */
+/** Someone invited to join. They accept at /invite/<token>, choosing their name and password.
+ *  The token itself is a secret: only its SHA-256 hash is stored, and the server never sends it to browsers. */
 export interface Invite {
-  token: string;
+  id: string;
+  tokenHash: string;
   email: string;
   panel: Panel;
   role: Role;
@@ -37,10 +39,7 @@ export interface Person {
   role: Role;
   team: TeamId;
   capacityH: number; // hours per sprint (planning: estimates of open tickets vs this)
-  email: string;
-  /** Salted PBKDF2-SHA256 (see data/passwords.ts) — never the password itself. */
-  passwordHash: string;
-  passwordSalt: string;
+  email: string; // the login email; the login itself (password) lives on the server only
   panel?: Panel; // undefined = cannot sign in (client contacts)
   active: boolean;
 }

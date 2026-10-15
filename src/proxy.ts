@@ -1,13 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isPublicPath, PANEL_SLUG, panelHome, parseSession, SESSION_COOKIE } from "./data/session";
+import { isPublicPath, PANEL_SLUG, panelHome, readRoute, ROUTE_COOKIE } from "./data/session";
 
 const SLUGS = new Set<string>(Object.values(PANEL_SLUG));
 /** Public pages a signed-in person has no reason to see (invite links stay open: the page explains). */
 const SIGNED_OUT_ONLY = new Set(["/signin", "/signup", "/forgot"]);
 
-/** Runs before every page: signed-out → /signin, wrong panel → own panel, panel-less links (/t/AP-12) → own panel. */
-export function proxy(req: NextRequest) {
-  const session = parseSession(req.cookies.get(SESSION_COOKIE)?.value);
+/**
+ * Runs before every page: signed-out → /signin, wrong panel → own panel, panel-less links (/t/AP-12) → own panel.
+ * It reads only the signed route cookie, so routing needs no database. The API checks the real session on every call.
+ */
+export async function proxy(req: NextRequest) {
+  const session = await readRoute(req.cookies.get(ROUTE_COOKIE)?.value, process.env.SESSION_SECRET);
   const { pathname, search } = req.nextUrl;
   const to = (path: string) => NextResponse.redirect(new URL(path, req.url));
 
@@ -21,6 +24,6 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // Pages only: skip Next internals and any file with an extension (favicon, images, fonts).
-  matcher: ["/((?!_next/|.*\\.[a-zA-Z0-9]+$).*)"],
+  // Pages only: skip the API (it checks sessions itself), Next internals and any file with an extension.
+  matcher: ["/((?!api/|_next/|.*\\.[a-zA-Z0-9]+$).*)"],
 };

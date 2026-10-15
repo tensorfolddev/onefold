@@ -117,9 +117,9 @@
 .auth-step[data-state="current"] .auth-step-dot { color: #fff; background: var(--primary-color); }
 .auth-step[data-state="done"] .auth-step-dot { color: var(--primary-color); background: var(--primary-selected-color); }
 
-/* sign-in: "which company?" and the demo */
+/* sign-in: "which company?" */
 .auth-choices { display: flex; flex-direction: column; gap: 8px; list-style: none; }
-.auth-choice, .auth-demo-card { transition: border-color 150ms, box-shadow 200ms, transform 200ms var(--auth-ease); }
+.auth-choice { transition: border-color 150ms, box-shadow 200ms, transform 200ms var(--auth-ease); }
 .auth-choice {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: left;
   border: 1px solid var(--ui-border-color); border-radius: 12px;
@@ -130,25 +130,8 @@
 .auth-choice-text { flex: 1; display: flex; flex-direction: column; min-width: 0; font-size: 13px; color: var(--secondary-text-color); }
 .auth-choice-text strong { font-size: 15px; font-weight: 500; color: var(--primary-text-color); }
 .auth-choice-go { width: 18px; height: 18px; color: var(--secondary-text-color); }
-.auth-divider { display: flex; align-items: center; gap: 12px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary-text-color); }
-.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--layout-border-color); }
-.auth-demo { display: flex; flex-direction: column; gap: 10px; scroll-margin-top: 24px; }
-.auth-demo-title { margin-top: 8px; font-size: 16px; font-weight: 600; }
-.auth-demo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 4px; list-style: none; }
-.auth-demo-card {
-  --accent: var(--primary-color);
-  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; height: 100%; padding: 14px 12px;
-  font-size: 12px; line-height: 16px; text-align: left; color: var(--secondary-text-color);
-  border: 1px solid var(--ui-border-color); border-radius: 12px;
-}
-.auth-demo-card[data-panel="manager"] { --accent: var(--color-purple); }
-.auth-demo-card[data-panel="developer"] { --accent: var(--color-done-green); }
-.auth-demo-card strong { font-size: 14px; font-weight: 600; color: var(--primary-text-color); }
-.auth-demo-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.auth-demo-icon svg { width: 16px; height: 16px; }
-.auth-demo-card:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 14px 28px -18px var(--accent); }
-.auth-choice:focus-visible, .auth-demo-card:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
-.auth-choice:disabled, .auth-demo-card:disabled { opacity: 0.6; cursor: progress; }
+.auth-choice:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.auth-choice:disabled { opacity: 0.6; cursor: progress; }
 
 /* invites inside sign-up step 3 sit on the page, not in a dialog */
 .auth-panel .inv-foot { padding-top: 4px; }
@@ -257,7 +240,7 @@
   .auth-form, .bp-mover, .bp-pill i, .bp-toast, .auth-spinner { animation: none; }
   .bp-mover { transform: translate3d(var(--bp-step), 0, 0); }
   .bp-pill .is-working { opacity: 1; }
-  .auth-choice:hover:not(:disabled), .auth-demo-card:hover:not(:disabled) { transform: none; }
+  .auth-choice:hover:not(:disabled) { transform: none; }
 }
 
 /* ---------- Tablet and phone: the form only ---------- */
@@ -270,9 +253,6 @@
   .auth-body { place-items: start center; padding: 32px 0; }
   .auth-top-aside { font-size: 13px; }
   .auth-panel { gap: 26px; }
-  .auth-demo-grid { grid-template-columns: 1fr; }
-  .auth-demo-card { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 10px; }
-  .auth-demo-card > span:last-child { flex-basis: 100%; }
   .auth-step-name { display: none; }
   .auth-step[data-state="current"] .auth-step-name { display: inline; }
 }
