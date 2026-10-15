@@ -6,7 +6,7 @@
 import { randomInt } from "node:crypto";
 import { and, eq, gt, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { AccessError, ValidationError } from "../../domain/commands/index.ts";
-import type { SessionRow } from "../accounts.ts";
+import { activeMemberId as memberOf, type SessionRow } from "../accounts.ts";
 import { sha256 } from "../auth/secrets.ts";
 import { database, inScope } from "../db/client.ts";
 import * as s from "../db/schema.ts";
@@ -76,14 +76,6 @@ export async function setBotState(state: BotState, extra: { qr?: string | null; 
 }
 
 // ---------- a teammate's link ----------
-
-/** The signed-in person's member id in their company (only active people with a panel). */
-async function memberOf(who: SessionRow): Promise<string> {
-  const [m] = await inScope({ orgId: who.orgId }, (tx) => tx.select({ id: s.members.id, active: s.members.active, panel: s.members.panel })
-    .from(s.members).where(and(eq(s.members.orgId, who.orgId), eq(s.members.userId, who.userId))));
-  if (!m || !m.active || !m.panel) throw new AccessError();
-  return m.id;
-}
 
 export interface MyWhatsApp {
   /** Whether the bot is there to link to right now. */

@@ -60,6 +60,20 @@ day at 9:00 in the company's time zone they get what's overdue, due today, in pr
 TODAY, STOP, START. When WhatsApp is down the brief goes by email. Platform admins (`PLATFORM_ADMIN_EMAILS`) pair the
 bot in Settings → WhatsApp. Locally: `npm run worker` next to `npm run dev`.
 
+## Claude & MCP
+
+`/api/mcp` is an MCP server (Streamable HTTP, the official TypeScript SDK). Each person makes a personal API token
+(their name → Claude & MCP — shown once, stored hashed, revocable) and connects Claude Code with the command shown:
+
+```bash
+claude mcp add --transport http onefold https://1fold.tensorfold.ai/api/mcp --header "Authorization: Bearer 1fold_…"
+```
+
+Tools: `list_products`, `list_tickets`, `get_ticket`, `create_ticket`, `update_ticket`, `move_ticket`, `add_comment`,
+`set_section`, `add_dependency`. They run as the token's owner — same permissions, same commands, audit log source
+`mcp`, live in everyone's browser. Tool names and required inputs never change (design §12.8): only new tools and
+optional inputs are added.
+
 ## Environments
 
 `NEXT_PUBLIC_APP_ENV` = `dev` | `stg` | `prod` (see `.env.example`). dev and stg show a badge on every screen.
@@ -105,4 +119,4 @@ and sends the recorded steps to `POST /api/org/changes`. The server replays them
 (same rules, same permission checks), in one transaction, saves only the rows that changed, writes the audit log and
 tells everyone else's browser to refresh. Each browser only ever receives what its person may see.
 
-Not built yet: the MCP server — see the design's build order.
+Everything in the design's v1 build order is built; see "Not in v1" there for what comes later.

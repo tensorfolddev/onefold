@@ -131,7 +131,9 @@ number**, **deny by default**, and **never message someone who hasn't messaged t
 profile (shown once, stored hashed, revocable) and gives it to Claude Code. Tools map to commands and reads:
 `list_products`, `list_tickets` (filters), `get_ticket` (with template sections), `create_ticket`, `update_ticket`,
 `move_ticket`, `add_comment`, `set_section`, `add_dependency`. They run as the token's owner, with the same
-permissions and audit log as the website.
+permissions and audit log as the website. Tokens live in `api_tokens` (SHA-256 only, last 4 characters to tell them
+apart, revocable); people make them from their name → Claude & MCP, which also shows the `claude mcp add` command.
+Stateless: each request authenticates on its own; 120 requests a minute per token.
 
 ## 10. Files
 

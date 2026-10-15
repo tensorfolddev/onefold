@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon,
+  Bell, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon,
   Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { visibleProducts } from "@/domain/permissions";
@@ -18,6 +18,7 @@ import { NotificationsPanel } from "./NotificationsPanel";
 import { ProductsSidebar } from "./ProductsSidebar";
 import { TicketPanelHost } from "@/features/tickets/TicketPanel";
 import { WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
+import { McpDialog } from "@/features/mcp/McpDialog";
 
 interface NavItem { path: string; label: string; icon: LucideIcon }
 
@@ -160,9 +161,11 @@ function UserMenu() {
   const { db, me, panel, signOut } = useMe();
   const [sound, setSound] = useState(isSoundOn);
   const [whatsApp, setWhatsApp] = useState(false);
+  const [mcp, setMcp] = useState(false);
   return (
     <>
     {whatsApp && <WhatsAppDialog onClose={() => setWhatsApp(false)} />}
+    {mcp && <McpDialog onClose={() => setMcp(false)} />}
     <Popover
       align="right"
       width={260}
@@ -208,6 +211,9 @@ function UserMenu() {
           </button>
           <button type="button" className="menu-item" onClick={() => { close(); setWhatsApp(true); }}>
             <MessageCircle /> WhatsApp
+          </button>
+          <button type="button" className="menu-item" onClick={() => { close(); setMcp(true); }}>
+            <Bot /> Claude &amp; MCP
           </button>
           <div className="menu-divider" />
           <button type="button" className="menu-item" onClick={() => { close(); signOut(); }}>

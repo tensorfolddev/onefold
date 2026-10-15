@@ -47,6 +47,14 @@ export function personFor(loaded: Loaded, userId: string): Person {
   return me;
 }
 
+/** The signed-in person's member id in their company — refused if they're turned off or can't sign in. */
+export async function activeMemberId(who: { userId: string; orgId: string }): Promise<string> {
+  const [m] = await inScope({ orgId: who.orgId }, (tx) => tx.select({ id: s.members.id, active: s.members.active, panel: s.members.panel })
+    .from(s.members).where(and(eq(s.members.orgId, who.orgId), eq(s.members.userId, who.userId))));
+  if (!m || !m.active || !m.panel) throw new AccessError();
+  return m.id;
+}
+
 // ---------- sign-up ----------
 
 export async function signUpCompany(input: { name: string; email: string; password: string; company: string; slug: string }): Promise<SignedIn> {
@@ -165,7 +173,8 @@ export async function acceptInvitation(token: string, input: { name: string; pas
 
 /**
  * Sets a new password: your own, or (admins) a teammate's. A login shared with other companies can only be changed by
- * its owner — one company's admin must never take over someone's access to another. Other sessions are signed out.
+ * its owner — one company's admin must never take over someone's access to another. Other sessions are signed out,
+ * and the login's API tokens stop working.
  */
 export async function setPassword(who: SessionRow, personId: string, password: string) {
   const problem = passwordError(password);
@@ -185,6 +194,7 @@ export async function setPassword(who: SessionRow, personId: string, password: s
     await tx.update(s.users).set({ passwordHash }).where(eq(s.users.id, userId));
     await tx.update(s.sessions).set({ revokedAt: sql`now()` })
       .where(and(eq(s.sessions.userId, userId), isNull(s.sessions.revokedAt), ne(s.sessions.id, who.sessionId)));
+    await tx.update(s.apiTokens).set({ revokedAt: sql`now()` }).where(and(eq(s.apiTokens.userId, userId), isNull(s.apiTokens.revokedAt)));
     await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source: "web" }, [{ command: "setPassword", args: { personId } }], loaded.version);
   });
 }
@@ -236,6 +246,7 @@ export async function resetPassword(token: string, password: string): Promise<vo
     if (!used) throw new ValidationError(LINK_GONE);
     await tx.update(s.users).set({ passwordHash, emailVerifiedAt: sql`coalesce(${s.users.emailVerifiedAt}, now())` }).where(eq(s.users.id, used.userId));
     await tx.update(s.sessions).set({ revokedAt: sql`now()` }).where(and(eq(s.sessions.userId, used.userId), isNull(s.sessions.revokedAt)));
+    await tx.update(s.apiTokens).set({ revokedAt: sql`now()` }).where(and(eq(s.apiTokens.userId, used.userId), isNull(s.apiTokens.revokedAt)));
     await tx.update(s.emailTokens).set({ usedAt: sql`now()` })
       .where(and(eq(s.emailTokens.userId, used.userId), eq(s.emailTokens.purpose, "reset"), isNull(s.emailTokens.usedAt)));
   });

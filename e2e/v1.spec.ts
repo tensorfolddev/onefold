@@ -241,6 +241,43 @@ test("WhatsApp: a teammate is told when the bot isn't connected; only a platform
   await expect(other.getByRole("heading", { name: "WhatsApp" })).toHaveCount(0); // an ordinary admin doesn't manage the bot
 });
 
+test("Claude connects with a personal token: an MCP tool makes a ticket that shows up in the app; revoked, it's refused", async ({ page, request }) => {
+  await signUp(page, "Iota", email("io"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Mobile");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/MO$/);
+
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: "Claude & MCP" }).click();
+  await page.getByLabel("Token name").fill("Claude Code (e2e)");
+  await page.getByRole("button", { name: "Create token" }).click();
+  const command = (await page.locator(".mcp-command").textContent())!;
+  expect(command).toMatch(/^claude mcp add --transport http onefold http:\/\/localhost:\d+\/api\/mcp --header "Authorization: Bearer 1fold_[\w-]{43}"$/);
+  const token = command.match(/Bearer (1fold_[\w-]+)/)![1];
+
+  const mcp = (method: string, params: unknown) => request.post("/api/mcp", {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json, text/event-stream" },
+    data: { jsonrpc: "2.0", id: 1, method, params },
+  });
+  const tools = await (await mcp("tools/list", {})).json();
+  expect(tools.result.tools.map((t: { name: string }) => t.name)).toContain("create_ticket");
+  const made = await (await mcp("tools/call", { name: "create_ticket", arguments: { product: "MO", title: "Made by Claude", assignee: "me" } })).json();
+  expect(JSON.parse(made.result.content[0].text)).toMatchObject({ key: "MO-1", assignee: "Ayla Khan" });
+
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByText("Claude Code (e2e)")).toBeVisible(); // listed, with when it was last used
+  await page.getByRole("button", { name: "Revoke Claude Code (e2e)" }).click();
+  await expect(page.getByText("None yet.")).toBeVisible();
+  expect((await mcp("tools/list", {})).status()).toBe(401);
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await page.goto("/admin/products/MO/tickets");
+  await expect(page.getByRole("button", { name: "Made by Claude" }).first()).toBeVisible();
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
