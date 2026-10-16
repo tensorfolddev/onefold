@@ -115,6 +115,8 @@ export const products = pgTable("products", {
   icon: jsonb("icon"),
   groupId: text("group_id"),
   createdAt: day("created_at").notNull(),
+  archivedAt: ts("archived_at"), // set = archived: read-only, hidden from developers
+  archivedBy: text("archived_by"),
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 

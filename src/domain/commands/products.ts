@@ -15,8 +15,8 @@ export interface ProductInput {
 
 const isoDateError = (v?: string) =>
   v === undefined || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))) ? null : "Pick a valid date";
-const groupError = (db: Db, groupId?: string) =>
-  groupId === undefined || db.productGroups.some((g) => g.id === groupId) ? null : "That group doesn't exist";
+const groupError = (db: Db, groupId?: string | null) =>
+  groupId == null || db.productGroups.some((g) => g.id === groupId) ? null : "That group doesn't exist";
 
 export function createProduct(db: Db, me: Person, input: ProductInput): Db {
   check(me, "product.create", {});
@@ -69,14 +69,14 @@ export function setProductLook(db: Db, me: Person, key: string, look: { icon?: P
 const nameTaken = (names: string[], name: string) => names.some((n) => n.toLowerCase() === name.trim().toLowerCase());
 
 export function addGroup(db: Db, me: Person, name: string, groupId = `grp-${id().slice(0, 8)}`): Db {
-  check(me, "org.manage", {});
+  check(me, "groups.manage", {});
   fail(requiredError("Group name", name));
   if (nameTaken(db.productGroups.map((g) => g.name), name)) throw new ValidationError("There's already a group with that name");
   return { ...db, productGroups: [...db.productGroups, { id: groupId, name: name.trim() }] };
 }
 
 export function renameGroup(db: Db, me: Person, groupId: string, name: string): Db {
-  check(me, "org.manage", {});
+  check(me, "groups.manage", {});
   fail(requiredError("Group name", name));
   if (!db.productGroups.some((x) => x.id === groupId)) throw new ValidationError("Group not found");
   if (nameTaken(db.productGroups.filter((x) => x.id !== groupId).map((x) => x.name), name)) throw new ValidationError("There's already a group with that name");
@@ -85,11 +85,77 @@ export function renameGroup(db: Db, me: Person, groupId: string, name: string): 
 
 /** Deleting a group never deletes products: they become "Ungrouped". */
 export function deleteGroup(db: Db, me: Person, groupId: string): Db {
-  check(me, "org.manage", {});
+  check(me, "groups.manage", {});
   return {
     ...db,
     productGroups: db.productGroups.filter((g) => g.id !== groupId),
     products: db.products.map((p) => (p.groupId === groupId ? { ...p, groupId: undefined } : p)),
+  };
+}
+
+/** Into a group, or (no group) out of any. Admins, and the product's managers. */
+export function moveProduct(db: Db, me: Person, key: string, groupId: string | undefined | null): Db {
+  check(me, "product.group", { product: productOf(db, key) });
+  fail(groupError(db, groupId));
+  // "No group" arrives as null once a change has been through JSON.
+  return { ...db, products: replace(db.products, (p) => p.key === key, (p) => ({ ...p, groupId: groupId ?? undefined })) };
+}
+
+// ---------- archive ----------
+
+/** Archives a product, everything in it included: it turns read-only and leaves every list and everyone's work. */
+export function archiveProduct(db: Db, me: Person, key: string): Db {
+  const product = productOf(db, key);
+  check(me, "product.archive", { product });
+  if (product.archivedAt) throw new ValidationError(`${product.name} is already archived`);
+  return { ...db, products: replace(db.products, (p) => p.key === key, (p) => ({ ...p, archivedAt: now(), archivedBy: me.id })) };
+}
+
+/** Brings an archived product back exactly as it was. */
+export function restoreProduct(db: Db, me: Person, key: string): Db {
+  const product = productOf(db, key);
+  check(me, "product.archive", { product });
+  if (!product.archivedAt) throw new ValidationError(`${product.name} isn't archived`);
+  return {
+    ...db,
+    products: replace(db.products, (p) => p.key === key, (p) => {
+      const back = { ...p }; // a copy, so the fields are gone, not merely undefined
+      delete back.archivedAt;
+      delete back.archivedBy;
+      return back;
+    }),
+  };
+}
+
+/** What an admin types to delete a product for good. */
+export const deletePhrase = (p: Pick<Product, "name">) => `Delete ${p.name}`;
+
+/**
+ * Deletes an archived product and everything in it, for good. Only admins, only once it's archived, and only when
+ * they've typed deletePhrase — checked here too, so no client can skip it.
+ */
+export function deleteProduct(db: Db, me: Person, key: string, typed: string): Db {
+  const product = productOf(db, key);
+  check(me, "product.delete", { product });
+  if (!product.archivedAt) throw new ValidationError(`Archive ${product.name} before deleting it`);
+  if (typed.trim() !== deletePhrase(product)) throw new ValidationError(`Type "${deletePhrase(product)}" to delete it`);
+  const gone = new Set(db.tickets.filter((t) => t.productKey === key).map((t) => t.key));
+  const elsewhere = <T extends { productKey: string }>(list: T[]) => list.filter((x) => x.productKey !== key);
+  return {
+    ...db,
+    products: db.products.filter((p) => p.key !== key),
+    statusesByProduct: Object.fromEntries(Object.entries(db.statusesByProduct).filter(([k]) => k !== key)),
+    // Another product's ticket that waited on one of these doesn't any more.
+    tickets: db.tickets.filter((t) => !gone.has(t.key))
+      .map((t) => (t.dependsOn?.some((k) => gone.has(k)) ? { ...t, dependsOn: t.dependsOn.filter((k) => !gone.has(k)) } : t)),
+    requirements: elsewhere(db.requirements),
+    decisions: elsewhere(db.decisions),
+    milestones: elsewhere(db.milestones),
+    docs: elsewhere(db.docs),
+    stageRequests: elsewhere(db.stageRequests),
+    activity: db.activity.filter((a) => !gone.has(a.ticketKey)),
+    comments: db.comments.filter((c) => !gone.has(c.ticketKey)),
+    notifications: db.notifications.filter((n) => n.target !== key && !gone.has(n.target)),
   };
 }
 

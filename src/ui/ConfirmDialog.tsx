@@ -7,12 +7,14 @@ import { useEffect, useId, useRef } from "react";
  * Render it only while open: {confirming && <ConfirmDialog … />}.
  */
 export function ConfirmDialog({
-  title, body, confirmLabel = "Delete", tone = "danger", onConfirm, onCancel,
+  title, body, confirmLabel = "Delete", tone = "danger", confirmDisabled = false, onConfirm, onCancel,
 }: {
   title: string;
   body?: React.ReactNode;
   confirmLabel?: string;
   tone?: "danger" | "primary";
+  /** Until the body's own check passes (e.g. typing a name to confirm). */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -39,7 +41,7 @@ export function ConfirmDialog({
       {body && <div id={`${id}-body`} className="confirm-body">{body}</div>}
       <div className="confirm-actions">
         <button ref={cancelRef} type="button" className="btn btn-tertiary" onClick={onCancel}>Cancel</button>
-        <button type="button" className={`btn ${tone === "danger" ? "btn-danger" : "btn-primary"}`} onClick={onConfirm}>
+        <button type="button" className={`btn ${tone === "danger" ? "btn-danger" : "btn-primary"}`} disabled={confirmDisabled} onClick={onConfirm}>
           {confirmLabel}
         </button>
       </div>

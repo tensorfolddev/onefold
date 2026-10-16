@@ -5,7 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "../../data/db.ts";
 import { PANEL_SLUG } from "../../data/session.ts";
 import { statusOf } from "../../domain/selectors/product.ts";
-import { snapshotFor } from "../../domain/snapshot.ts";
+import { snapshotFor, withoutArchived } from "../../domain/snapshot.ts";
 import type { Person, Ticket } from "../../domain/types.ts";
 import { loadCompany } from "../company/store.ts";
 import { database, inScope } from "../db/client.ts";
@@ -72,7 +72,7 @@ export function pendingByProject(db: Db, personId: string): ProjectTasks[] {
  * (someone asked for it), which says so instead.
  */
 export function briefText(company: Db, person: Person, clock: { day: string; hour: number }, appUrl: string, opts: { whenEmpty?: boolean } = {}): string | null {
-  const db = snapshotFor(company, person);
+  const db = withoutArchived(snapshotFor(company, person)); // never an archived product's tickets
   const projects = pendingByProject(db, person.id);
   const total = projects.reduce((n, p) => n + p.tickets.length, 0);
   if ((!total && !opts.whenEmpty) || !person.panel) return null;

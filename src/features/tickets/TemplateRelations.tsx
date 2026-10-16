@@ -85,7 +85,7 @@ export function DependenciesSection({ ticket, editable }: { ticket: Ticket; edit
   const { db, act, can, productByKey } = useDb();
   const deps = (ticket.dependsOn ?? []).map((k) => db.tickets.find((t) => t.key === k)).filter((t): t is Ticket => !!t);
   const blocks = db.tickets.filter((t) => t.dependsOn?.includes(ticket.key));
-  const visible = (t: Ticket) => { const p = productByKey(t.productKey); return !!p && can("product.view", { product: p }); };
+  const visible = (t: Ticket) => { const p = productByKey(t.productKey); return !!p && !p.archivedAt && can("product.view", { product: p }); };
   // This product first; anything you can see is allowed. The store refuses loops with a clear message.
   const candidates = db.tickets
     .filter((t) => t.key !== ticket.key && !ticket.dependsOn?.includes(t.key) && visible(t))
