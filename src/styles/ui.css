@@ -267,3 +267,23 @@ button.chip.is-selected { background: var(--primary-selected-color); }
 .confirm-body { margin-top: 8px; font-size: 14px; line-height: 20px; color: var(--secondary-text-color); }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .status-cell.is-readonly { cursor: default; }
+
+/* ---------- Celebrations: a ticket reached Done, or a whole epic did (src/ui/celebrate.ts) ---------- */
+.confetti { position: fixed; inset: 0; z-index: 80; width: 100vw; height: 100vh; pointer-events: none; }
+.celebrate-badge {
+  position: fixed; z-index: 81; left: 50%; top: 40%; display: grid; justify-items: center; gap: 4px;
+  max-width: min(360px, calc(100vw - 32px)); padding: 20px 32px; border-radius: 16px; text-align: center; pointer-events: none;
+  background: var(--primary-background-color); box-shadow: var(--box-shadow-large);
+  animation: celebrate-pop 3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.celebrate-emoji { font-size: 52px; line-height: 1.1; animation: celebrate-bounce 900ms ease-in-out 2; }
+.celebrate-title { font-size: 22px; font-weight: 700; color: var(--primary-text-color); }
+.celebrate-sub { font-size: 14px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+@keyframes celebrate-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  20%, 85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+}
+@keyframes celebrate-bounce { 50% { transform: translateY(-8px) rotate(-6deg); } }
+@media (prefers-reduced-motion: reduce) { .celebrate-badge, .celebrate-emoji { animation: none; } }

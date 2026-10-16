@@ -147,6 +147,27 @@ test("a ticket made in one browser appears live in another, and survives a reloa
   await expect(page.getByRole("button", { name: "Build the cart" }).first()).toBeVisible();
 });
 
+test("moving a ticket to Done cheers: a toast and a burst of confetti", async ({ page }) => {
+  await signUp(page, "Lambda", email("la"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Launch");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/LA$/);
+  await page.goto("/admin/products/LA/tickets");
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Ship it");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+
+  // A new ticket opens in its panel; change its status there.
+  await page.getByRole("dialog").getByRole("button", { name: /^Status: .+ Change status$/ }).click();
+  await page.getByRole("menuitemradio", { name: "Done" }).click();
+  await expect(page.getByText("🎉 LA-1 is done — nice work!")).toBeVisible();
+  await expect(page.locator("canvas.confetti")).toHaveCount(1); // and it cleans up after itself
+  await expect(page.locator("canvas.confetti")).toHaveCount(0, { timeout: 6000 });
+});
+
 const PNG_1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 const loaded = (img: ReturnType<Page["getByRole"]>) => expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
 
