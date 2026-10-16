@@ -1,5 +1,5 @@
 // Shared by every command: errors, validation, small helpers. Commands are pure: (db, me, …) → new db.
-import { can, type Action, type Ctx } from "../permissions.ts";
+import { can, WHILE_ARCHIVED, type Action, type Ctx } from "../permissions.ts";
 import { now } from "../clock.ts";
 import type { Activity, Person, Stage } from "../types.ts";
 import type { Db } from "../../data/db.ts";
@@ -15,6 +15,10 @@ export const COLORS = ["var(--color-bright-blue)", "var(--color-grass_green)", "
 export const id = () => crypto.randomUUID();
 
 export function check(me: Person, action: Action, ctx: Ctx) {
+  // Whoever may open it is told why; anyone else (any developer, a manager not on it) isn't told it's there.
+  if (ctx.product?.archivedAt && !WHILE_ARCHIVED.has(action) && can(me, "product.view", ctx)) {
+    throw new ValidationError(`${ctx.product.name} is archived — restore it first`);
+  }
   if (!can(me, action, ctx)) throw new AccessError();
 }
 export function fail(msg: string | null): void {

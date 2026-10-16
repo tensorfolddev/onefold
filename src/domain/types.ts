@@ -75,6 +75,9 @@ export interface Product {
   icon?: ProductIcon;
   groupId?: string; // unset = "Ungrouped"
   createdAt: string; // ISO date
+  // Archived: read-only, out of every list and everyone's work, invisible to developers — until it's restored.
+  archivedAt?: string; // ISO time
+  archivedBy?: string; // person id
 }
 
 export type StatusCategory = "backlog" | "todo" | "in_progress" | "done" | "cancelled";

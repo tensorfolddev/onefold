@@ -268,7 +268,7 @@ test("groups: any grouping; deleting one leaves its products ungrouped", () => {
   assert.equal(gone.productGroups.some((g) => g.id === ai.id), false);
   assert.equal(gone.products.find((p) => p.key === "NV")!.groupId, undefined);
   assert.equal(A.renameGroup(db, admin, ai.id, "Machine learning").productGroups.find((g) => g.id === ai.id)!.name, "Machine learning");
-  assert.throws(() => A.addGroup(db0, lead, "X"), A.AccessError);
+  assert.throws(() => A.addGroup(db0, sara, "X"), A.AccessError); // managers may (archive.test.ts); developers may not
 });
 
 test("createProduct takes group, created date, icon and colour", () => {

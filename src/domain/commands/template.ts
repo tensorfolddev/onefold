@@ -61,7 +61,9 @@ export function addDependency(db: Db, me: Person, key: string, depKey: string): 
   const t = editTicket(db, me, key);
   const dep = db.tickets.find((x) => x.key === depKey);
   if (!dep) throw new ValidationError(`${depKey} doesn't exist`);
-  check(me, "product.view", { product: productOf(db, dep.productKey) });
+  const depProduct = productOf(db, dep.productKey);
+  check(me, "product.view", { product: depProduct });
+  if (depProduct.archivedAt) throw new ValidationError(`${depKey} is in ${depProduct.name}, which is archived`);
   if (depKey === key) throw new ValidationError("A ticket can't depend on itself");
   if (t.dependsOn?.includes(depKey)) throw new ValidationError(`${key} already depends on ${depKey}`);
   if ((t.dependsOn?.length ?? 0) >= MAX_DEPENDENCIES) throw new ValidationError(`At most ${MAX_DEPENDENCIES} dependencies`);

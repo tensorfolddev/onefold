@@ -59,9 +59,10 @@ export function CompanyHome() {
 
 /** A new company's first steps; disappears once they're all done. */
 function GetStarted() {
-  const { db, href } = useMe();
+  const { db, me, href } = useMe();
   const [inviting, setInviting] = useState(false);
-  const first = db.products[0];
+  const live = visibleProducts(me, db.products); // archived ones don't count
+  const first = live[0];
   const steps = [
     { title: "Create your company", text: `${db.org.name} is set up, with you as its admin.`, done: true },
     {
@@ -71,12 +72,12 @@ function GetStarted() {
     },
     {
       title: "Create your first product", text: "A product gets its own board, docs and roadmap.",
-      done: db.products.length > 0,
+      done: live.length > 0,
       action: <Link href={href("/products?new=1")} className="btn btn-secondary">New product</Link>,
     },
     {
       title: "Add your first ticket", text: "Every ticket follows the same clear template.",
-      done: db.tickets.length > 0,
+      done: db.tickets.some((t) => live.some((p) => p.key === t.productKey)),
       action: first && <Link href={href(`/products/${first.key}/tickets`)} className="btn btn-secondary">Open {first.name}</Link>,
     },
   ];

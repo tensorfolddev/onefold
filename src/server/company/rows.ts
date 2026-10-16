@@ -54,6 +54,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
       name: p.name, type: p.type, client: opt(p.client), stage: p.stage, health: p.health, pmId: p.pmId,
       projectManagerId: p.projectManagerId, color: p.color, description: p.description, waitingApproval: opt(p.waitingApproval),
       icon: opt(p.icon), groupId: opt(p.groupId), createdAt: p.createdAt,
+      archivedAt: instantOrNull(p.archivedAt), archivedBy: opt(p.archivedBy),
     })),
     productMembers: db.products.flatMap((p) => p.memberIds.map((m) => r(`${p.key}:${m}`, { productId: p.key, memberId: m }))),
     boardLists: productKeys.flatMap((key) => (db.statusesByProduct[key] ?? []).map((s) => r(s.id, {
@@ -122,6 +123,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     description: str(p.description), waitingApproval: und(p.waitingApproval),
     memberIds: (membersOf.get(p.id) ?? []).map((m) => str(m.memberId)), icon: und<ProductIcon>(p.icon), groupId: und(p.groupId),
     createdAt: str(p.createdAt),
+    ...(p.archivedAt ? { archivedAt: instant(str(p.archivedAt)), archivedBy: und<string>(p.archivedBy) } : {}),
   }));
   const statusesByProduct: Record<string, Status[]> = Object.fromEntries(products.map((p) => [p.key, (listsOf.get(p.key) ?? []).map((s) => ({
     id: s.id, name: str(s.name), category: s.category as Status["category"], tone: s.tone as Status["tone"], system: und<Status["system"]>(s.system),
