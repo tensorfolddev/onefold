@@ -280,3 +280,42 @@
   .tpl-sec-body { padding-left: 0; }
   .tpl-sec-ref { display: none; }
 }
+
+/* ---------- Held up: waiting on something, or stuck — the card strains now and then (domain/selectors/blocked.ts) ---------- */
+.kanban-card.is-held { position: relative; border-color: color-mix(in srgb, var(--negative-color) 45%, var(--layout-border-color)); }
+.kanban-card.is-held::before {
+  content: ""; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--negative-color); animation: held-pulse 1.8s ease-in-out infinite;
+}
+/* Only the card in its list: the copy that follows the pointer while dragging stays still. */
+.kanban-card-slot > .kanban-card.is-held { animation: held-strain 4s ease-in-out infinite; }
+.kanban-card.is-held:hover, .kanban-card.is-held:focus-visible, .kanban-card.is-held:hover .blocked-face,
+.kanban-card.is-held:hover .blocked-face::after { animation-play-state: paused; }
+.blocked-face { position: relative; display: inline-block; font-size: 12px; line-height: 1; animation: held-face 4s ease-in-out infinite; }
+.blocked-face::after {
+  content: "💧"; position: absolute; right: -5px; top: -4px; font-size: 8px; opacity: 0;
+  animation: held-sweat 4s ease-in infinite;
+}
+@keyframes held-strain {
+  0%, 78%, 100% { transform: none; }
+  80% { transform: translateX(-2px) rotate(-0.6deg); }
+  83% { transform: translateX(2px) rotate(0.6deg); }
+  86% { transform: translateX(-2px) rotate(-0.4deg); }
+  89% { transform: translateX(1px) rotate(0.3deg); }
+  92% { transform: translateX(-1px); }
+}
+@keyframes held-pulse { 50% { opacity: 0.35; } }
+@keyframes held-face {
+  0%, 78%, 100% { transform: none; }
+  82% { transform: scale(1.15) rotate(-8deg); }
+  88% { transform: scale(1.1) rotate(8deg); }
+  94% { transform: none; }
+}
+@keyframes held-sweat {
+  0%, 60% { opacity: 0; transform: translateY(0); }
+  66% { opacity: 1; }
+  90%, 100% { opacity: 0; transform: translateY(9px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kanban-card.is-held, .kanban-card.is-held::before, .blocked-face, .blocked-face::after { animation: none; }
+}
