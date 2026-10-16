@@ -48,9 +48,16 @@ export async function readRoute(value: string | undefined, secret: string | unde
   }
 }
 
-/** Only same-panel paths survive a ?next= redirect; everything else (other panels, //evil.com) goes home. */
+/** Short links (WhatsApp briefs) that work for every panel: /t/AP-12 → /dev/t/AP-12. */
+const PANEL_LESS = /^\/(t\/[A-Za-z0-9-]+|my-work)$/;
+
+/**
+ * Only same-panel paths survive a ?next= redirect, plus the short panel-less links (put inside your own panel);
+ * everything else (other panels, //evil.com) goes home.
+ */
 export function safeNext(next: string | null, panel: Panel) {
   const home = panelHome(panel);
+  if (next && PANEL_LESS.test(next)) return `${home}${next}`;
   return next && (next === home || next.startsWith(`${home}/`)) ? next : home;
 }
 

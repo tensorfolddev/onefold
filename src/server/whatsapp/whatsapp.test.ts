@@ -1,5 +1,5 @@
 // The WhatsApp bot and the daily brief on a real Postgres, with a fake WhatsApp (the real one needs a phone) and
-// emails caught in an outbox: pairing rights, linking by code, deny-by-default, STOP/START/TODAY, the brief's content,
+// emails caught in an outbox: pairing rights, linking by code, deny-by-default, 1FOLD replies, the brief's template,
 // once a day at 9:00 on working days, the email fallback, and the logged-out alert.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,6 +13,7 @@ import type { Email } from "../email.ts";
 import { freshDatabase } from "../testing/db.ts";
 import { botStatus, createLinkCode, handleMessage, isPlatformAdmin, myWhatsApp, requestBot, setBotState, takeBotRequest } from "./bot.ts";
 import { localClock, sendDueBriefs } from "./brief.ts";
+import { textOf } from "./bridge.ts";
 
 const outbox = await mkdtemp(join(tmpdir(), "onefold-wa-outbox-"));
 process.env.EMAIL_OUTBOX_DIR = outbox;
@@ -53,6 +54,15 @@ let dev: SessionRow;
 let aylaId = "";
 let samId = "";
 
+test("a message's text is found inside WhatsApp's envelopes (disappearing, view once, edited)", () => {
+  assert.equal(textOf({ conversation: "1FOLD-ABC234" }), "1FOLD-ABC234");
+  assert.equal(textOf({ extendedTextMessage: { text: "hi https://x" } }), "hi https://x");
+  assert.equal(textOf({ ephemeralMessage: { message: { conversation: "1FOLD-ABC234" } } }), "1FOLD-ABC234");
+  assert.equal(textOf({ ephemeralMessage: { message: { viewOnceMessageV2: { message: { extendedTextMessage: { text: "today" } } } } } }), "today");
+  assert.equal(textOf({ imageMessage: {} }), "");
+  assert.equal(textOf(null), "");
+});
+
 test("the time of day is the company's: 04:00 UTC is 9:00 on a Friday in Pakistan", () => {
   assert.deepEqual(localClock("Asia/Karachi", new Date("2026-10-16T04:00:00Z")), { day: "2026-10-16", weekday: 5, hour: 9 });
   assert.deepEqual(localClock("Not/A_Zone", new Date("2026-10-16T04:00:00Z")), { day: "2026-10-16", weekday: 5, hour: 9 });
@@ -90,7 +100,7 @@ test("a teammate links their number by sending the code; strangers are ignored",
   assert.equal(whatsapp.sent.length, 0); // deny by default: not a word to anyone who hasn't linked
 
   await fromSam(`hi! ${code.toLowerCase()}`);
-  assert.match(lastSent(), /Connected to Acme on 1Fold/);
+  assert.equal(lastSent().split("\n").slice(0, 2).join("\n"), "✅ *You're connected to 1FOLD*\n_Acme_");
   const mine = await myWhatsApp(dev);
   assert.deepEqual([mine.available, mine.linked?.phone, mine.linked?.briefs], [true, "923001112222", true]);
   assert.equal((await myWhatsApp(admin)).linked, null);
@@ -98,10 +108,10 @@ test("a teammate links their number by sending the code; strangers are ignored",
   await handleMessage({ jid: STRANGER, phone: "92399", text: code }, whatsapp, APP);
   assert.match(lastSent(), /didn't work/); // a code works once
   await fromSam("what can you do?");
-  assert.match(lastSent(), /Reply TODAY/);
+  assert.match(lastSent(), /Reply \*1FOLD\* anytime for your pending tasks/);
 });
 
-test("the brief: Sam's open tickets — overdue, due today, in progress, in review — each once, with links", async () => {
+test("the brief is the team's template: Sam's pending tickets by project, soonest due first, with links", async () => {
   await applySteps(admin, [
     { name: "createProduct", args: [{ key: "CH", name: "Checkout", type: "internal", pmId: aylaId, projectManagerId: aylaId }] },
     { name: "setMember", args: ["CH", samId, true] },
@@ -122,13 +132,47 @@ test("the brief: Sam's open tickets — overdue, due today, in progress, in revi
   assert.deepEqual(await briefsAt("2026-10-16T04:05:00Z"), { ...NONE, whatsapp: 1 }); // Friday 9:05 in Pakistan
   const brief = lastSent();
   assert.equal(whatsapp.sent.at(-1)!.jid, SAM);
-  assert.match(brief, /^Good morning Sam — your 1Fold tasks at Acme for Friday 16 October:/);
-  assert.match(brief, /\*Overdue\* \(1\)\n• CH-1 Fix the total — due 15 Oct\n {2}https:\/\/1fold\.test\/dev\/t\/CH-1/);
-  assert.match(brief, /\*Due today\* \(1\)\n• CH-2 Ship the cart\n/);
-  assert.match(brief, /\*In progress\* \(1\)\n• CH-3 Build the cart/);
-  assert.match(brief, /\*In review\* \(1\)\n• CH-4 Check the copy/);
-  assert.ok(!brief.includes("CH-5") && !brief.includes("CH-6"));
-  assert.match(brief, /My Work: https:\/\/1fold\.test\/dev\/my-work/);
+  // The team's template, exactly: every pending ticket by project, soonest due first (CH-5 is done, CH-6 is Ayla's).
+  assert.equal(brief, [
+    "━━━━━━━━━━━━━━",
+    "        *Acme*",
+    "  16-October-2026 | Friday",
+    "━━━━━━━━━━━━━━",
+    "",
+    "",
+    "*Good Morning, Sam,*",
+    "",
+    "You have total *4 tasks* pending",
+    "",
+    "🧩🧩  *Checkout* : 4 Tasks pending",
+    "",
+    "",
+    "",
+    "",
+    "🧩🧩  *Checkout*",
+    "━━━━━━━━━━",
+    "*1. CH-1* Fix the total",
+    "   • *Due:* 15-October-2026",
+    "   • *Link:* https://1fold.test/t/CH-1",
+    "",
+    "*2. CH-2* Ship the cart",
+    "   • *Due:* 16-October-2026",
+    "   • *Link:* https://1fold.test/t/CH-2",
+    "",
+    "*3. CH-3* Build the cart",
+    "   • *Due:* No due date",
+    "   • *Link:* https://1fold.test/t/CH-3",
+    "",
+    "*4. CH-4* Check the copy",
+    "   • *Due:* No due date",
+    "   • *Link:* https://1fold.test/t/CH-4",
+    "━━━━━━━━━━━━━━",
+    "📋 All your work: https://1fold.test/my-work",
+    "",
+    "Reply *1FOLD* anytime for updates.",
+    "",
+    "🤍 *1FOLD By TensorFold* 🤍",
+  ].join("\n"));
 });
 
 test("one brief a day, only on working days from 9:00 to 18:00; by email when WhatsApp is down", async () => {
@@ -143,20 +187,19 @@ test("one brief a day, only on working days from 9:00 to 18:00; by email when Wh
   assert.deepEqual(await briefsAt("2026-10-20T04:10:00Z"), { ...NONE, email: 1 }); // Tuesday, WhatsApp down
   const mail = (await emailsTo("sam@acme.example")).at(-1)!;
   assert.equal(mail.subject, "Your tasks today at Acme");
-  assert.ok(mail.text.includes("CH-3 Build the cart") && !mail.text.includes("*"));
+  assert.ok(mail.text.includes("3. CH-3 Build the cart") && !/[*━🤍]/u.test(mail.text));
   assert.ok(mail.text.includes(`${APP}/dev/my-work`));
   whatsapp.up = true;
 });
 
-test("STOP pauses the brief, START brings it back, TODAY sends it now", async () => {
+test("replying 1FOLD (or TODAY) sends the brief now; there's no STOP — the brief can't be switched off", async () => {
+  await fromSam("1FOLD");
+  assert.match(lastSent(), /\*Good (Morning|Afternoon|Evening), Sam,\*[\s\S]*\*3\. CH-3\* Build the cart/);
+  await fromSam("today");
+  assert.match(lastSent(), /You have total \*4 tasks\* pending/);
   await fromSam("STOP");
-  assert.match(lastSent(), /Paused/);
-  assert.equal((await myWhatsApp(dev)).linked!.briefs, false);
-  assert.deepEqual(await briefsAt("2026-10-21T04:10:00Z"), NONE);
-  await fromSam("start");
+  assert.match(lastSent(), /This is 1FOLD/); // just the help
   assert.equal((await myWhatsApp(dev)).linked!.briefs, true);
-  await fromSam("Today");
-  assert.match(lastSent(), /Good morning Sam[\s\S]*CH-3 Build the cart/);
 });
 
 test("a brief waits for a reconnecting WhatsApp until 11:00, then goes by email; a stuck one is tried again", async () => {
@@ -176,11 +219,11 @@ test("a brief waits for a reconnecting WhatsApp until 11:00, then goes by email;
 test("the other form of a WhatsApp id is the same person; a recycled number moves to its new owner", async () => {
   await handleMessage({ jid: "123456789@lid", phone: "923001112222", text: "help" }, whatsapp, APP);
   assert.equal(whatsapp.sent.at(-1)!.jid, "123456789@lid"); // recognised by the number behind the private id
-  assert.match(lastSent(), /Reply TODAY/);
+  assert.match(lastSent(), /This is 1FOLD/);
 
   const { code } = await createLinkCode(admin); // Ayla now links the very same number
   await handleMessage({ jid: SAM, phone: "923001112222", text: code }, whatsapp, APP);
-  assert.match(lastSent(), /Connected to Acme/);
+  assert.match(lastSent(), /You're connected to 1FOLD\*\n_Acme_/);
   assert.equal((await myWhatsApp(dev)).linked, null); // Sam's briefs can never reach this phone again
   assert.equal((await myWhatsApp(admin)).linked!.phone, "923001112222");
 });
@@ -189,8 +232,8 @@ test("a brief only shows what the person may see; an unconfirmed email can't man
   const { code } = await createLinkCode(dev);
   await handleMessage({ jid: "923005556666@s.whatsapp.net", phone: "923005556666", text: code }, whatsapp, APP);
   await applySteps(admin, [{ name: "setMember", args: ["CH", samId, false] }]); // Sam leaves Checkout; CH-3 is still his
-  await handleMessage({ jid: "923005556666@s.whatsapp.net", phone: "923005556666", text: "today" }, whatsapp, APP);
-  assert.match(lastSent(), /Nothing on your plate today/);
+  await handleMessage({ jid: "923005556666@s.whatsapp.net", phone: "923005556666", text: "1fold" }, whatsapp, APP);
+  assert.match(lastSent(), /You have no pending tasks 🎉/);
 
   process.env.PLATFORM_ADMIN_EMAILS = "ayla@acme.example,eve@other.example";
   const eve = await signUpCompany({ name: "Eve", email: "eve@other.example", password: PASSWORD, company: "Other", slug: "other-wa" });

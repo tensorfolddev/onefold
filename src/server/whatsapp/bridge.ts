@@ -14,6 +14,23 @@ import type { BotState, Inbound } from "./bot.ts";
 const SEND_TIMEOUT_MS = 60_000; // Baileys can hang on a send; give up and let the caller fall back
 const VERSION_TIMEOUT_MS = 15_000;
 
+type Message = NonNullable<import("@whiskeysockets/baileys").proto.IWebMessageInfo["message"]>;
+
+/** A message's text, from inside the envelopes WhatsApp may wrap it in (disappearing messages, view once, edits…). */
+export function textOf(message: Message | null | undefined): string {
+  let m = message;
+  for (let depth = 0; m && depth < 5; depth++) {
+    const inner = m.ephemeralMessage?.message ?? m.viewOnceMessage?.message ?? m.viewOnceMessageV2?.message
+      ?? m.documentWithCaptionMessage?.message ?? m.editedMessage?.message;
+    if (!inner) break;
+    m = inner;
+  }
+  return m?.conversation ?? m?.extendedTextMessage?.text ?? "";
+}
+
+/** "…4476@lid" — enough to tell chats apart in a log without writing down anyone's number. */
+const redacted = (jid: string) => jid ? `…${jid.replace(/@.*/, "").slice(-4)}@${jid.split("@")[1] ?? ""}` : "(none)";
+
 export interface Bridge extends Sender {
   /** Connects with the saved session, or starts pairing (a QR) when there isn't one. */
   start: () => Promise<void>;
@@ -115,12 +132,20 @@ export function createBridge(dir: string, events: {
     });
 
     me.ev.on("messages.upsert", async ({ messages, type }) => {
-      if (type !== "notify") return;
+      if (type !== "notify") return; // history sync and the like, not new messages
       for (const m of messages) {
         const chat = m.key.remoteJid ?? "";
-        if (!m.message || m.key.fromMe || !chat || chat.endsWith("@g.us") || chat.endsWith("@broadcast") || chat.endsWith("@newsletter")) continue;
-        const text = m.message.conversation ?? m.message.extendedTextMessage?.text ?? "";
-        if (!text.trim()) continue;
+        if (m.key.fromMe) { // the bot's own replies — or someone typing on the bot's phone, worth one hint if it's a code
+          if (/1FOLD-/i.test(textOf(m.message))) console.log(`[whatsapp] a code was sent from the bot's own number — send it from your own phone instead`);
+          continue;
+        }
+        const skip = !chat || chat.endsWith("@g.us") || chat.endsWith("@broadcast") || chat.endsWith("@newsletter") ? "it isn't a one-to-one chat"
+          : !m.message ? "WhatsApp hasn't decrypted it yet" : null;
+        const text = skip ? "" : textOf(m.message);
+        if (skip || !text.trim()) {
+          console.log(`[whatsapp] ignored a message from ${redacted(chat)}: ${skip ?? `no text in it (${Object.keys(m.message ?? {}).join(", ")})`}`);
+          continue;
+        }
         // WhatsApp may hide the number behind a private id (…@lid); the phone form, when given, is in remoteJidAlt.
         const phoneJid = [chat, m.key.remoteJidAlt ?? ""].find((j) => j.endsWith("@s.whatsapp.net")) ?? "";
         try {

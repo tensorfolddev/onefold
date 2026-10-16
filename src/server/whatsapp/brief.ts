@@ -1,6 +1,6 @@
 // The daily brief: at 9:00 in each company's time zone, on working days (Monday–Friday), every teammate who linked
-// WhatsApp (and didn't reply STOP) gets what's on their plate — overdue, due today, in progress, in review — with
-// links. When WhatsApp is down it goes by email instead. Each person gets at most one a day, whatever happens.
+// WhatsApp gets their pending tickets, project by project, with due dates and links (the template the team chose).
+// When WhatsApp is down it goes by email instead. Each person gets at most one a day, whatever happens.
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "../../data/db.ts";
 import { PANEL_SLUG } from "../../data/session.ts";
@@ -17,7 +17,6 @@ const LAST_HOUR = 18; // a brief that couldn't go out by then waits for the next
 const WAIT_FOR_WHATSAPP_UNTIL = 11; // while WhatsApp is reconnecting, hold briefs until then — after that, email
 const RETRY_AFTER = "10 minutes"; // a brief stuck "pending" (the worker died mid-send) or "failed" is tried again
 const DEFAULT_TIME_ZONE = "Asia/Karachi";
-const MAX_PER_SECTION = 10;
 const SEND_GAP_MS = 4000; // a few seconds between messages, like a person would
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -39,52 +38,64 @@ export function localClock(timeZone: string, at: Date): { day: string; weekday: 
   return { day: `${parts.year}-${parts.month}-${parts.day}`, weekday: WEEKDAYS.indexOf(parts.weekday), hour: Number(parts.hour) };
 }
 
+const MAX_PER_PROJECT = 10;
+const LINE = "━━━━━━━━━━━━━━";
+const PROJECT_LINE = "━━━━━━━━━━";
+const SIGN_OFF = "🤍 *1FOLD By TensorFold* 🤍";
+
 const utcDate = (day: string) => new Date(`${day}T00:00:00Z`);
-const longDay = (day: string) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(utcDate(day));
-const shortDay = (day: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(utcDate(day));
+const part = (day: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(utcDate(day));
+/** "16-October-2026" */
+const fullDate = (day: string) => `${Number(day.slice(8, 10))}-${part(day, { month: "long" })}-${day.slice(0, 4)}`;
+const greeting = (hour: number) => (hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening");
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export interface BriefSection { title: string; tickets: Ticket[] }
+export interface ProjectTasks { name: string; tickets: Ticket[] }
 
-/** Someone's open tickets on `day`, each once, in the first section it fits: overdue, due today, in progress, in review. */
-export function briefSections(db: Db, personId: string, day: string): BriefSection[] {
-  const open = db.tickets.filter((t) => {
+/** Someone's pending tickets (anything not done or cancelled), by project; soonest due first, undated last. */
+export function pendingByProject(db: Db, personId: string): ProjectTasks[] {
+  const pending = db.tickets.filter((t) => {
     const category = statusOf(db, t)?.category;
     return t.assigneeId === personId && t.type !== "epic" && !!category && category !== "done" && category !== "cancelled";
   });
-  const review = (t: Ticket) => statusOf(db, t)?.tone === "review";
-  const sections: { title: string; fits: (t: Ticket) => boolean }[] = [
-    { title: "Overdue", fits: (t) => !!t.due && t.due < day },
-    { title: "Due today", fits: (t) => t.due === day },
-    { title: "In progress", fits: (t) => statusOf(db, t)?.category === "in_progress" && !review(t) },
-    { title: "In review", fits: review },
-  ];
-  const placed = new Set<string>();
-  return sections.map(({ title, fits }) => {
-    const tickets = open.filter((t) => !placed.has(t.key) && fits(t)).sort((a, b) => (a.due ?? "~").localeCompare(b.due ?? "~"));
-    tickets.forEach((t) => placed.add(t.key));
-    return { title, tickets };
-  }).filter((section) => section.tickets.length > 0);
+  const number = (t: Ticket) => Number(t.key.split("-").pop());
+  const due = (t: Ticket) => t.due ?? "9999-12-31"; // undated last
+  const byDue = (a: Ticket, b: Ticket) => due(a).localeCompare(due(b)) || number(a) - number(b);
+  return [...new Set(pending.map((t) => t.productKey))]
+    .map((key) => ({ name: db.products.find((p) => p.key === key)?.name ?? key, tickets: pending.filter((t) => t.productKey === key).sort(byDue) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
- * The brief as a WhatsApp message, or null when there's nothing to tell (then nothing is sent). Built from what this
- * person may see in the app — never a ticket on a product they're no longer on.
+ * The brief as a WhatsApp message, built from what this person may see in the app (never a ticket on a product
+ * they're no longer on). With nothing pending it's null — the 9:00 brief is then skipped — unless `whenEmpty`
+ * (someone asked for it), which says so instead.
  */
-export function briefText(company: Db, person: Person, day: string, appUrl: string): string | null {
+export function briefText(company: Db, person: Person, clock: { day: string; hour: number }, appUrl: string, opts: { whenEmpty?: boolean } = {}): string | null {
   const db = snapshotFor(company, person);
-  const sections = briefSections(db, person.id, day);
-  if (!sections.length || !person.panel) return null;
-  const home = `${appUrl}/${PANEL_SLUG[person.panel]}`;
-  const lines = [`Good morning ${person.name.split(" ")[0]} — your 1Fold tasks at ${db.org.name} for ${longDay(day)}:`];
-  for (const { title, tickets } of sections) {
-    lines.push("", `*${title}* (${tickets.length})`);
-    for (const t of tickets.slice(0, MAX_PER_SECTION)) {
-      const due = t.due && t.due !== day ? ` — due ${shortDay(t.due)}` : "";
-      lines.push(`• ${t.key} ${t.title}${due}`, `  ${home}/t/${t.key}`);
-    }
-    if (tickets.length > MAX_PER_SECTION) lines.push(`…and ${tickets.length - MAX_PER_SECTION} more`);
+  const projects = pendingByProject(db, person.id);
+  const total = projects.reduce((n, p) => n + p.tickets.length, 0);
+  if ((!total && !opts.whenEmpty) || !person.panel) return null;
+  const lines = [
+    LINE, `        *${db.org.name}*`, `  ${fullDate(clock.day)} | ${part(clock.day, { weekday: "long" })}`, LINE, "", "",
+    `*${greeting(clock.hour)}, ${person.name.split(" ")[0]},*`, "",
+  ];
+  if (!total) lines.push("You have no pending tasks 🎉");
+  else {
+    lines.push(`You have total *${plural(total, "task")}* pending`, "");
+    for (const p of projects) lines.push(`🧩🧩  *${p.name}* : ${plural(p.tickets.length, "Task")} pending`);
+    lines.push("", "", "", "");
+    projects.forEach((p, i) => {
+      if (i > 0) lines.push("");
+      lines.push(`🧩🧩  *${p.name}*`, PROJECT_LINE);
+      p.tickets.slice(0, MAX_PER_PROJECT).forEach((t, n) => {
+        if (n > 0) lines.push("");
+        lines.push(`*${n + 1}. ${t.key}* ${t.title}`, `   • *Due:* ${t.due ? fullDate(t.due) : "No due date"}`, `   • *Link:* ${appUrl}/t/${t.key}`);
+      });
+      if (p.tickets.length > MAX_PER_PROJECT) lines.push("", `_…and ${p.tickets.length - MAX_PER_PROJECT} more — see All your work_`);
+    });
   }
-  lines.push("", `My Work: ${home}/my-work`, "Reply TODAY to get this again, STOP to pause these messages.");
+  lines.push(LINE, `📋 All your work: ${appUrl}/my-work`, "", "Reply *1FOLD* anytime for updates.", "", SIGN_OFF);
   return lines.join("\n");
 }
 
@@ -99,12 +110,12 @@ async function companyOf(orgId: string): Promise<Company | null> {
   });
 }
 
-/** Today's brief for one member of one company, right now (the TODAY reply). Null when there's nothing to tell. */
+/** The brief for one member of one company, right now (someone replied 1FOLD). Says so when nothing is pending. */
 export async function briefFor(orgId: string, memberId: string, appUrl: string, at = new Date()): Promise<string | null> {
   const company = await companyOf(orgId);
   const person = company?.db.people.find((p) => p.id === memberId);
   if (!company || !person?.active) return null;
-  return briefText(company.db, person, localClock(company.timeZone, at).day, appUrl);
+  return briefText(company.db, person, localClock(company.timeZone, at), appUrl, { whenEmpty: true });
 }
 
 export interface BriefRun { whatsapp: number; email: number; none: number; failed: number }
@@ -137,7 +148,7 @@ export async function sendDueBriefs(opts: { whatsapp: Sender | null; appUrl: str
         })
         .returning();
       if (!claimed.length) continue;
-      const text = briefText(company.db, person, clock.day, opts.appUrl);
+      const text = briefText(company.db, person, clock, opts.appUrl);
       const channel = text === null ? "none" : await deliver(opts, link.jid, person, company.db.org.name, text);
       run[channel] += 1;
       await database().update(s.briefDeliveries).set({ channel })
