@@ -3,12 +3,11 @@
 //                                         itself (state, its number, and the QR code while it's pairing)
 //   POST /api/whatsapp/connect         — a one-time code, and a wa.me link that sends it to the bot
 //   POST /api/whatsapp/unlink          — forget their number
-//   POST /api/whatsapp/briefs { on }   — the daily brief on or off
 //   POST /api/whatsapp/pair | logout   — platform admins: pair the bot (a QR appears in status) or log it out
 import type { NextRequest } from "next/server";
 import { limit, MINUTE } from "@/server/auth/rateLimit";
-import { handle, ok, readBody, refuse, requireSession } from "@/server/http";
-import { botStatus, createLinkCode, isPlatformAdmin, myWhatsApp, requestBot, setBriefs, unlinkWhatsApp } from "@/server/whatsapp/bot";
+import { handle, ok, refuse, requireSession } from "@/server/http";
+import { botStatus, createLinkCode, isPlatformAdmin, myWhatsApp, requestBot, unlinkWhatsApp } from "@/server/whatsapp/bot";
 
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/whatsapp/[action]">) {
   const { action } = await ctx.params;
@@ -29,11 +28,6 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/whatsapp/[a
       return ok(await createLinkCode(who));
     }
     if (action === "unlink") { await unlinkWhatsApp(who); return ok({}); }
-    if (action === "briefs") {
-      const b = await readBody(req, 1024);
-      await setBriefs(who, b.on === true);
-      return ok({});
-    }
     if (action === "pair" || action === "logout") { await requestBot(who, action); return ok({}); }
     return refuse("Not found", 404);
   });

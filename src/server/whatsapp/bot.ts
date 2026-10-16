@@ -1,7 +1,8 @@
 // The bot's side of WhatsApp, Hermes-style: deny by default and never message anyone first.
 // - Linking: a teammate asks 1Fold for a one-time code and sends it to the bot from their phone. That proves the
 //   number is theirs and means they wrote first. Anyone else who writes is ignored.
-// - Replies from a linked number: TODAY (the brief now), STOP / START (the daily brief), anything else → a short help.
+// - Replies from a linked number: 1FOLD (or TODAY) sends the brief now; anything else gets a short help. There's no
+//   STOP: the brief is part of the job, not a newsletter.
 // - The bot's own state (for Settings), which only platform admins (PLATFORM_ADMIN_EMAILS) can change.
 import { randomInt } from "node:crypto";
 import { and, eq, gt, isNull, lt, ne, or, sql } from "drizzle-orm";
@@ -115,12 +116,6 @@ export async function unlinkWhatsApp(who: SessionRow): Promise<void> {
   await database().delete(s.whatsappLinks).where(and(eq(s.whatsappLinks.orgId, who.orgId), eq(s.whatsappLinks.memberId, memberId)));
 }
 
-export async function setBriefs(who: SessionRow, on: boolean): Promise<void> {
-  const memberId = await memberOf(who);
-  await database().update(s.whatsappLinks).set({ briefs: on })
-    .where(and(eq(s.whatsappLinks.orgId, who.orgId), eq(s.whatsappLinks.memberId, memberId)));
-}
-
 /** The worker, hourly: codes that expired over a day ago are gone for good. */
 export async function cleanupLinkCodes(): Promise<number> {
   const gone = await database().delete(s.whatsappLinkCodes)
@@ -150,7 +145,12 @@ const sameChat = (msg: Inbound) => msg.phone
   ? or(eq(s.whatsappLinks.jid, msg.jid), eq(s.whatsappLinks.phone, msg.phone))!
   : eq(s.whatsappLinks.jid, msg.jid);
 
-const HELP = "This is 1Fold. Reply TODAY for today's tasks, STOP to pause the daily brief, START to turn it back on.";
+const SIGN_OFF = "🤍 *1FOLD By TensorFold* 🤍";
+const HELP = ["👋 *This is 1FOLD*", "", "Reply *1FOLD* anytime for your pending tasks.", "", SIGN_OFF].join("\n");
+const CODE_FAILED = ["⚠️ *That code didn't work*", "", "It may have expired — codes last 15 minutes.",
+  "Get a new one in 1FOLD: your name → *WhatsApp* → *Connect WhatsApp*."].join("\n");
+const connected = (company: string) => ["✅ *You're connected to 1FOLD*", `_${company}_`, "",
+  "Every working day at *9:00* you'll get your pending tasks here.", "", "Reply *1FOLD* anytime for updates.", "", SIGN_OFF].join("\n");
 
 /**
  * One message someone sent the bot. Replies through `reply` — to a person who just sent a code, or to a linked number;
@@ -168,19 +168,10 @@ export async function handleMessage(msg: Inbound, whatsapp: Replier, appUrl: str
   if (links.some((l) => l.jid !== msg.jid)) { // the same person, now writing from the other form of their id
     await database().update(s.whatsappLinks).set({ jid: msg.jid }).where(sameChat(msg));
   }
-  const word = msg.text.trim().toLowerCase().replace(/[^a-z]/g, "");
-  if (word === "stop" || word === "start") {
-    await database().update(s.whatsappLinks).set({ briefs: word === "start" }).where(sameChat(msg));
-    await reply.send(msg.jid, word === "stop"
-      ? "Paused — no more daily briefs. Reply START to turn them back on."
-      : "On — you'll get your tasks every working day at 9:00.");
-    return;
-  }
-  if (word === "today") {
+  const word = msg.text.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (word === "1fold" || word === "today") { // one brief per company they're linked in
     const briefs = await Promise.all(links.map((l) => briefFor(l.orgId, l.memberId, appUrl)));
-    const texts = briefs.filter((t): t is string => !!t);
-    if (!texts.length) await reply.send(msg.jid, "Nothing on your plate today — no overdue, due or open tickets.");
-    for (const text of texts) await reply.send(msg.jid, text);
+    for (const text of briefs.filter((t): t is string => !!t)) await reply.send(msg.jid, text);
     return;
   }
   await reply.send(msg.jid, HELP);
@@ -191,7 +182,7 @@ async function linkNumber(msg: Inbound, code: string, reply: Replier) {
     .where(and(eq(s.whatsappLinkCodes.id, sha256(code)), isNull(s.whatsappLinkCodes.usedAt), gt(s.whatsappLinkCodes.expiresAt, sql`now()`)))
     .returning();
   if (!used) {
-    await reply.send(msg.jid, "That code didn't work — it may have expired. In 1Fold, open your name → WhatsApp to get a new one.");
+    await reply.send(msg.jid, CODE_FAILED);
     return;
   }
   await database().transaction(async (tx) => {
@@ -206,5 +197,5 @@ async function linkNumber(msg: Inbound, code: string, reply: Replier) {
       });
   });
   const [org] = await inScope({ orgId: used.orgId }, (tx) => tx.select({ name: s.orgs.name }).from(s.orgs).where(eq(s.orgs.id, used.orgId)));
-  await reply.send(msg.jid, `✅ Connected to ${org?.name ?? "your company"} on 1Fold. Every working day at 9:00 you'll get your tasks here. Reply TODAY to get them now, STOP to pause.`);
+  await reply.send(msg.jid, connected(org?.name ?? "your company"));
 }
