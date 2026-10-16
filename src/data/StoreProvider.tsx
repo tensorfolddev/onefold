@@ -8,6 +8,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname, useRouter } from "next/navigation";
 import { can as canFor, type Action, type Ctx } from "../domain/permissions.ts";
 import type { Panel, Person } from "../domain/types.ts";
+import { cheer, finished } from "../domain/selectors/celebrate.ts";
+import { celebrate } from "../ui/celebrate.ts";
 import { Toaster, type ToastItem } from "../ui/Toast.tsx";
 import { api, ApiError, upload } from "./api.ts";
 import { AccessError, record, recorded, ValidationError, type CommandName, type Commands, type InviteInput, type Step } from "./commands.ts";
@@ -200,10 +202,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return undefined;
     }
     const isKeyed = "key" in result && "db" in result;
-    show({ ...cur, db: isKeyed ? (result as { db: Db }).db : (result as Db) });
+    const next = isKeyed ? (result as { db: Db }).db : (result as Db);
+    show({ ...cur, db: next });
     // Only the latest change can be undone.
     setToasts((ts) => (ts.some((t) => t.undo) ? ts.map((t) => (t.undo ? { ...t, undo: undefined } : t)) : ts));
-    if (opts.success) toast(opts.success, opts.undoable ? undo : undefined);
+    // Something just got finished — a ticket reached Done, or a whole epic did: cheer instead of the usual toast.
+    const party = cheer(finished(cur.db, next));
+    if (party) {
+      toast(party.message, opts.success && opts.undoable ? undo : undefined);
+      celebrate(party.big, party.title);
+    } else if (opts.success) toast(opts.success, opts.undoable ? undo : undefined);
     send("/api/org/changes", { steps, undoable: !!opts.undoable });
     return isKeyed ? (result as { key: K }).key : (true as const);
   }, [send, show, toast, undo]);
