@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Building2, Check, House, Pencil } from "lucide-react";
 import { Popover } from "@/ui/Popover";
 import { useMe } from "@/data/StoreProvider";
+import { ArchivedBanner } from "./ArchiveControls";
 import { ProductTabs } from "./ProductTabs";
 import { STAGES, STAGE_TONE } from "@/domain/status";
 import { Avatar, HealthDot, ProductTile } from "@/ui/primitives";
@@ -31,6 +32,7 @@ export function ProductSpace({ productKey, children }: { productKey: string; chi
   return (
     <div className="page product-space">
       <ProductHeader product={product} />
+      {product.archivedAt && <ArchivedBanner product={product} />}
       {panel !== "developer" && <StageStepper product={product} />}
       {panel !== "developer" && <ProductTabs product={product} />}
       <div className="product-body">{children}</div>

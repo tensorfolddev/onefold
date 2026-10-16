@@ -70,7 +70,9 @@ claude mcp add --transport http onefold https://1fold.tensorfold.ai/api/mcp --he
 ```
 
 Tools: `list_products`, `list_tickets`, `get_ticket`, `create_ticket`, `update_ticket`, `move_ticket`, `add_comment`,
-`set_section`, `add_dependency`. They run as the token's owner — same permissions, same commands, audit log source
+`set_section`, `add_dependency` — and, for admins and managers only, `archive_product`, `restore_product`, `list_groups`,
+`create_group`, `rename_group`, `delete_group`, `move_product`, `list_members`, `add_member`, `remove_member`. No tool
+deletes a product: an admin does that in the app, from Archived, by typing "Delete <name>". They run as the token's owner — same permissions, same commands, audit log source
 `mcp`, live in everyone's browser. Tool names and required inputs never change (design §12.8): only new tools and
 optional inputs are added.
 

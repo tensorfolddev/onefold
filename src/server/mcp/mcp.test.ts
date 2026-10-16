@@ -72,7 +72,11 @@ test("only a token gets in, and never from another website", async () => {
   const init = await rpc(adminToken, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
   assert.equal(init.body.result!.serverInfo!.name, "1fold");
   const names = (await rpc(adminToken, "tools/list")).body.result!.tools!.map((t) => t.name).sort();
-  assert.deepEqual(names, ["add_comment", "add_dependency", "create_ticket", "get_ticket", "list_products", "list_tickets", "move_ticket", "set_section", "update_ticket"]);
+  assert.deepEqual(names, [
+    "add_comment", "add_dependency", "add_member", "archive_product", "create_group", "create_ticket", "delete_group", "get_ticket",
+    "list_groups", "list_members", "list_products", "list_tickets", "move_product", "move_ticket", "remove_member", "rename_group",
+    "restore_product", "set_section", "update_ticket",
+  ]);
 });
 
 test("the tools work on tickets as the token's owner, and every change is audited as MCP", async () => {
@@ -141,6 +145,48 @@ test("a developer's token reaches only their products; another company's reaches
   assert.deepEqual((await tool(eveToken, "list_products")).data, []);
   assert.match((await tool(eveToken, "get_ticket", { key: "CH-1" })).refused!, /No ticket CH-1/);
   assert.equal((await tool(eveToken, "list_tickets", {})).data.total, 0);
+});
+
+test("projects over MCP: admins and managers archive, restore, group and staff them; developers can't; nothing deletes one", async () => {
+  const { invites } = await createInvites(admin, [{ email: "mo@acme.example", panel: "manager" }], APP);
+  const mo = await acceptInvitation(invites[0].link.split("/invite/")[1], { name: "Mo Manager", password: PASSWORD });
+  await applySteps(admin, [{ name: "setMember", args: ["CH", mo.personId, true] }]);
+  const moToken = (await createApiToken((await readSession(mo.token))!, "Mo's Claude")).token;
+  assert.ok(!(await rpc(moToken, "tools/list")).body.result!.tools!.some((t) => /delete_product|remove_product/.test(t.name)));
+
+  // Archive: read-only, out of lists, and gone for the developer.
+  assert.match((await tool(devToken, "archive_product", { product: "CH" })).refused!, /Only admins and managers/);
+  assert.deepEqual((await tool(moToken, "archive_product", { product: "Checkout" })).data, { key: "CH", name: "Checkout", group: null, archived: true });
+  assert.deepEqual((await tool(moToken, "list_products")).data, []);
+  assert.equal((await tool(moToken, "list_products", { include_archived: true })).data[0].archived, true);
+  assert.equal((await tool(adminToken, "list_tickets", {})).data.total, 0);
+  assert.ok((await tool(adminToken, "list_tickets", { product: "CH" })).data.total > 0); // named: still readable
+  assert.match((await tool(adminToken, "create_ticket", { product: "CH", title: "x" })).refused!, /Checkout is archived — restore it first/);
+  assert.deepEqual((await tool(devToken, "list_products", { include_archived: true })).data, []);
+  assert.match((await tool(devToken, "get_ticket", { key: "CH-4" })).refused!, /No ticket CH-4/);
+  assert.match((await tool(devToken, "restore_product", { product: "CH" })).refused!, /Only admins and managers/);
+  assert.equal((await tool(moToken, "restore_product", { product: "CH" })).data.archived, false);
+  assert.equal((await tool(devToken, "list_products")).data[0].key, "CH"); // back for everyone
+
+  // Groups: make one, move the product in, rename it, delete it — the product stays, ungrouped.
+  assert.match((await tool(devToken, "create_group", { name: "Mine" })).refused!, /Only admins and managers/);
+  const made = (await tool(moToken, "create_group", { name: "Clients" })).data;
+  assert.equal((await tool(moToken, "move_product", { product: "CH", group: "clients" })).data.group, "Clients");
+  assert.deepEqual((await tool(adminToken, "list_groups")).data.groups, [{ id: made.id, name: "Clients", products: ["CH"] }]);
+  await tool(moToken, "rename_group", { group: "Clients", name: "Client work" });
+  assert.deepEqual((await tool(moToken, "delete_group", { group: made.id })).data, { deleted: "Client work", now_ungrouped: ["CH"] });
+  assert.equal((await tool(adminToken, "list_products")).data[0].group, null);
+
+  // Members: a manager lists, removes and adds back a developer; a developer can't even list them.
+  const members = async () => (await tool(moToken, "list_members", { product: "CH" })).data.members.map((m: { name: string }) => m.name);
+  assert.ok((await members()).includes("Sam Dev"));
+  await tool(moToken, "remove_member", { product: "CH", person: "Sam Dev" });
+  assert.ok(!(await members()).includes("Sam Dev"));
+  assert.deepEqual((await tool(devToken, "list_products")).data, []); // off the product: out of Sam's view
+  await tool(moToken, "add_member", { product: "CH", person: "Sam Dev" });
+  assert.ok((await members()).includes("Sam Dev"));
+  assert.match((await tool(devToken, "list_members", {})).refused!, /Only admins and managers/);
+  assert.ok((await tool(adminToken, "list_members", {})).data.some((p: { name: string; products: string[] }) => p.name === "Sam Dev" && p.products.includes("CH")));
 });
 
 test("a token stops working when its owner is turned off, or their password changes", async () => {

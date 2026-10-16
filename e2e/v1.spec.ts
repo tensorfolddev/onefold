@@ -278,6 +278,47 @@ test("Claude connects with a personal token: an MCP tool makes a ticket that sho
   await expect(page.getByRole("button", { name: "Made by Claude" }).first()).toBeVisible();
 });
 
+test("an admin archives a project: it moves to the closed Archived group, read-only, and is back in one click; deleting needs its name typed", async ({ page }) => {
+  await signUp(page, "Kappa", email("ka"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Legacy");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const sidebar = page.getByRole("complementary", { name: "Products" });
+  const archived = sidebar.getByRole("button", { name: /^Archived/ });
+  await expect(archived).toHaveAttribute("aria-expanded", "false"); // always there, at the bottom, closed
+  await expect(archived).toContainText("0");
+
+  await sidebar.getByRole("button", { name: "Legacy options" }).click();
+  await page.getByRole("button", { name: "Archive project" }).click();
+  await expect(archived).toContainText("1");
+  await expect(sidebar.getByRole("link", { name: /Legacy/ })).toHaveCount(0); // gone from the groups; Archived is closed
+  await expect(page.locator(".archived-banner")).toContainText("read-only"); // its page says so
+
+  await archived.click();
+  await sidebar.getByRole("button", { name: "Restore Legacy" }).click(); // one click
+  await expect(archived).toContainText("0");
+  await expect(page.locator(".archived-banner")).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { name: "Legacy options" })).toBeVisible();
+
+  // Deleting for good: archived first, then type "Delete Legacy" and agree — until then the button stays off.
+  await sidebar.getByRole("button", { name: "Legacy options" }).click();
+  await page.getByRole("button", { name: "Archive project" }).click();
+  await page.locator(".archived-banner").getByRole("button", { name: "Delete forever…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete Legacy for good?" });
+  const confirm = dialog.getByRole("button", { name: "Delete forever" });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel("Type Delete Legacy to confirm").fill("Delete Legacy");
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel("I understand this can't be undone").check();
+  await confirm.click();
+  await expect(page).toHaveURL(/\/admin\/products$/);
+  await expect(archived).toContainText("0");
+  await expect(sidebar.getByText("Legacy")).toHaveCount(0);
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

@@ -1,6 +1,7 @@
 // Selectors for My Work (the signed-in person's view). Pure functions over the live store data.
 // Relative imports, so the server (the worker's daily brief) can use these too.
 import { today } from "../clock.ts";
+import { archivedKeys } from "../permissions.ts";
 import { statusOf, toneOf as toneOfTicket } from "./product.ts";
 import type { Db } from "../../data/db.ts";
 import { shortDate } from "../status.ts";
@@ -51,7 +52,8 @@ function groupOf(db: Db, t: Ticket): GroupId | null {
 
 /** NOW / NEXT / IN REVIEW / DONE for the current user, soonest due first. */
 export function groupMyWork(db: Db, personId: string, tickets: Ticket[]): WorkGroup[] {
-  const mine = tickets.filter((t) => t.assigneeId === personId);
+  const archived = archivedKeys(db.products);
+  const mine = tickets.filter((t) => t.assigneeId === personId && !archived.has(t.productKey));
   return GROUPS.map((g) => ({
     ...g,
     tickets: mine.filter((t) => groupOf(db, t) === g.id).sort((a, b) => (a.due ?? "~").localeCompare(b.due ?? "~")),
