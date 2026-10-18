@@ -26,6 +26,18 @@ function blockAt(editor: Editor, x: number, y: number): Target | null {
   return { pos, top: r.top - wrap.top + Math.min(4, r.height / 4), left: r.left - wrap.left };
 }
 
+/** Picks the block up: ProseMirror moves it to wherever it's dropped. Plain DOM work, outside React's render. */
+function startDrag(editor: Editor, pos: number, e: DragEvent) {
+  const view = editor.view;
+  view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
+  view.dragging = { slice: view.state.selection.content(), move: true };
+  const dom = view.nodeDOM(pos) as HTMLElement | null;
+  if (!e.dataTransfer) return;
+  if (dom) e.dataTransfer.setDragImage(dom, 0, 0);
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", view.state.doc.nodeAt(pos)?.textContent ?? "");
+}
+
 export function BlockHandle({ editor }: { editor: Editor }) {
   const [target, setTarget] = useState<Target | null>(null);
   const [menu, setMenu] = useState(false);
@@ -55,16 +67,6 @@ export function BlockHandle({ editor }: { editor: Editor }) {
   const node = editor.state.doc.nodeAt(target.pos);
   if (!node) return null;
 
-  const select = () => editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, target.pos)));
-  const onDragStart = (e: React.DragEvent) => {
-    select();
-    const slice = editor.state.selection.content();
-    editor.view.dragging = { slice, move: true }; // ProseMirror moves the block where it's dropped
-    const dom = editor.view.nodeDOM(target.pos) as HTMLElement | null;
-    if (dom) e.dataTransfer.setDragImage(dom, 0, 0);
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", node.textContent);
-  };
   const turnInto = (run: (typeof BLOCKS)[number]["run"]) => {
     editor.chain().focus().setTextSelection(target.pos + 1).run();
     run(editor);
@@ -75,7 +77,7 @@ export function BlockHandle({ editor }: { editor: Editor }) {
     <div className="block-handle-layer" style={{ top: target.top, left: target.left }}>
       <button
         type="button" className="block-handle" draggable aria-label="Drag to move, or click for block options" aria-haspopup="menu" aria-expanded={menu}
-        onDragStart={onDragStart} onClick={() => setMenu((m) => !m)}
+        onDragStart={(e) => startDrag(editor, target.pos, e.nativeEvent)} onClick={() => setMenu((m) => !m)}
       >
         <GripVertical aria-hidden />
       </button>

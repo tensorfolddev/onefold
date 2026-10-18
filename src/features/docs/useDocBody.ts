@@ -185,5 +185,11 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
     };
   }, [flush]);
 
-  return { status, error, body, reloadKey, saving, unsaved, savedAt, conflict, presence, staleBy, setDraft, resolveConflict, reload: load };
+  /** Takes the latest saved version; anything unsaved here is put on the clipboard first, so nothing is lost. */
+  const reload = useCallback(async () => {
+    if (draft.current) await navigator.clipboard?.writeText(draft.current).catch(() => {});
+    await load();
+  }, [load]);
+
+  return { status, error, body, reloadKey, saving, unsaved, savedAt, conflict, presence, staleBy, setDraft, resolveConflict, reload };
 }
