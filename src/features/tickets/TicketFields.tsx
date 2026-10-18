@@ -108,7 +108,7 @@ export function AssigneeField({ ticket, product, onCard }: { ticket: Ticket; pro
           type="button" className="card-assignees" aria-haspopup="menu" aria-expanded={open} onClick={openMenu}
           aria-label={`Assignees: ${label}. Change assignees`}
         >
-          <Assignees ids={ids} />
+          <Assignees ids={ids} max={2} />
         </button>
       ) : (
         <button
