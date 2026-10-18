@@ -192,14 +192,19 @@
 .sidebar-group-toggle svg.is-collapsed { transform: rotate(-90deg); }
 .sidebar-group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-group-count { font-weight: 500; font-size: 12px; }
+/* A group's ⋯ floats over its count instead of taking room, so every group's count lines up (with a menu or without).
+   It shows on hover — the count hides under it — like a product row's ⋯ and key. */
+.sidebar-group-head > .popover-anchor { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); }
 .sidebar-group-more {
-  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: 2px;
-  border-radius: var(--border-radius-small); color: var(--secondary-text-color); opacity: 0;
+  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+  border-radius: var(--border-radius-small); color: var(--secondary-text-color); background: var(--primary-background-color); opacity: 0;
 }
 .sidebar-group-head:hover .sidebar-group-more, .sidebar-group-more:focus-visible, .sidebar-group-more[aria-expanded="true"] { opacity: 1; }
+.sidebar-group-head:hover:has(.sidebar-group-more) .sidebar-group-count,
+.sidebar-group-head:has(.sidebar-group-more:focus-visible, .sidebar-group-more[aria-expanded="true"]) .sidebar-group-count { visibility: hidden; }
 .sidebar-group-more:hover { background: var(--primary-background-hover-color); }
 .sidebar-group-more svg { width: 16px; height: 16px; }
-@media (hover: none) { .sidebar-group-more { opacity: 1; } }
+@media (hover: none) { .sidebar-group-more { opacity: 1; } .sidebar-group-head:has(.sidebar-group-more) .sidebar-group-count { visibility: hidden; } }
 .sidebar-empty { padding: 4px 12px 4px 30px; font-size: 13px; color: var(--secondary-text-color); }
 .sidebar-add-group {
   display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 12px; padding: 6px 8px;

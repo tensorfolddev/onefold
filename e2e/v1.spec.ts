@@ -278,6 +278,34 @@ test("Claude connects with a personal token: an MCP tool makes a ticket that sho
   await expect(page.getByRole("button", { name: "Made by Claude" }).first()).toBeVisible();
 });
 
+test("sidebar groups: every count lines up, and a group's ⋯ shows only on hover", async ({ page }) => {
+  await signUp(page, "Mu", email("mu"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Atlas");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const sidebar = page.getByRole("complementary", { name: "Products" });
+  await sidebar.getByRole("button", { name: "New group" }).click();
+  await sidebar.getByLabel("New group name").fill("Alpha");
+  await sidebar.getByLabel("New group name").press("Enter");
+
+  const alpha = sidebar.locator(".sidebar-group-head").filter({ hasText: "Alpha" });
+  const ungrouped = sidebar.locator(".sidebar-group-head").filter({ hasText: "Ungrouped" });
+  const countEnd = async (head: typeof alpha) => { const b = (await head.locator(".sidebar-group-count").boundingBox())!; return b.x + b.width; };
+  await expect(alpha).toBeVisible();
+  await expect(ungrouped).toBeVisible();
+  expect(Math.abs((await countEnd(alpha)) - (await countEnd(ungrouped)))).toBeLessThan(1); // one column, ⋯ or not
+
+  const more = alpha.getByRole("button", { name: "Alpha group options" });
+  await page.mouse.move(0, 0);
+  await expect(more).toHaveCSS("opacity", "0");
+  await alpha.hover();
+  await expect(more).toHaveCSS("opacity", "1");
+  await expect(alpha.locator(".sidebar-group-count")).toHaveCSS("visibility", "hidden"); // the ⋯ takes the count's place
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
