@@ -174,11 +174,21 @@ export type DocKind = "Brief" | "Requirements" | "Design" | "Architecture" | "Me
 
 export interface Doc {
   id: string;
-  productKey: string;
+  productKey: string; // "" = the company's own space (stored as NULL)
+  parentId?: string; // the page it sits under; none = top level of its space
   kind: DocKind;
   title: string;
-  updated: string;
+  icon?: string; // one emoji
+  cover?: string; // a cover gradient's id
+  template?: string; // the template it started from
+  updated: string; // day of the last edit
   authorId: string;
+  createdAt?: string;
+  updatedAt?: string; // ISO; bumped by body saves at most every couple of minutes
+  updatedBy?: string;
+  rev?: number; // the body's revision as of updatedAt
+  archivedAt?: string;
+  archivedBy?: string;
 }
 
 export interface StageRequest {

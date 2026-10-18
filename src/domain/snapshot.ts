@@ -22,7 +22,7 @@ function onlyProducts(db: Db, keep: (p: Product) => boolean, keepTicket: (t: Tic
     requirements: inProducts(db.requirements),
     decisions: inProducts(db.decisions),
     milestones: inProducts(db.milestones),
-    docs: inProducts(db.docs),
+    docs: db.docs.filter((d) => d.productKey === "" || keys.has(d.productKey)), // "" = the company's own docs
     stageRequests: inProducts(db.stageRequests),
     activity: onTickets(db.activity),
     comments: onTickets(db.comments),
@@ -43,6 +43,7 @@ export function snapshotFor(db: Db, me: Person): Db {
     // Everyone sees names and roles; only admins (and you) see email addresses.
     people: db.people.map((p) => (admin || p.id === me.id ? p : { ...p, email: "" })),
     notifications: scoped.notifications.filter((n) => n.personId === me.id),
+    docs: admin ? scoped.docs : scoped.docs.filter((d) => !d.archivedAt), // archived docs: admins, in Settings
   };
 }
 

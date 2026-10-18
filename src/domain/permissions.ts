@@ -3,7 +3,7 @@ import type { Person, Product } from "./types.ts";
 export type Action =
   | "product.view" | "product.edit" | "product.create" | "product.approveStage" | "product.requestStage"
   | "members.edit" | "ticket.create" | "ticket.edit" | "ticket.delete" | "statuses.edit" | "product.brand"
-  | "doc.add" | "doc.addMeetingNotes" | "doc.delete" | "decision.add" | "milestone.edit" | "ticket.archive"
+  | "doc.add" | "doc.addMeetingNotes" | "doc.delete" | "doc.create" | "doc.edit" | "doc.archive" | "decision.add" | "milestone.edit" | "ticket.archive"
   | "product.archive" | "product.delete" | "product.group" | "groups.manage" | "members.view"
   | "people.manage" | "teams.manage" | "org.manage";
 
@@ -14,6 +14,7 @@ export interface Ctx {
 
 const ADMIN_ONLY = new Set<Action>([
   "product.create", "product.edit", "product.approveStage", "product.delete", "ticket.delete", "people.manage", "teams.manage", "org.manage",
+  "doc.archive", "doc.delete",
 ]);
 /** All that can happen to an archived product: looking at it, restoring it, or (an admin) deleting it for good. */
 export const WHILE_ARCHIVED = new Set<Action>(["product.view", "product.archive", "product.delete", "members.view"]);
@@ -42,6 +43,8 @@ export function can(me: Person | undefined, action: Action, ctx: Ctx = {}): bool
   if (ctx.product?.archivedAt && (me.panel === "developer" || !WHILE_ARCHIVED.has(action))) return false;
   if (me.panel === "admin") return true;
   if (ADMIN_ONLY.has(action)) return false;
+  // Docs: anyone who can see the space writes in it — the company's for everyone, a project's for the people on it.
+  if (action === "doc.create" || action === "doc.edit") return !ctx.product || isOnProduct(me.id, ctx.product);
   // Company-wide, for managers: the project groups, and the list of everyone.
   if (action === "groups.manage" || (action === "members.view" && !ctx.product)) return me.panel === "manager";
   if (!ctx.product || !isOnProduct(me.id, ctx.product)) return false;

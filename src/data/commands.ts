@@ -62,6 +62,12 @@ export const restoreProduct = wrap("restoreProduct");
 export const deleteProduct = wrap("deleteProduct");
 export const addDoc = wrap("addDoc");
 export const deleteDoc = wrap("deleteDoc");
+// New docs are made by POST /api/docs (the server also writes the first body), never as a replayed step.
+export const updateDoc = wrap("updateDoc");
+export const moveDoc = wrap("moveDoc");
+export const archiveDocs = wrap("archiveDocs");
+export const restoreDocs = wrap("restoreDocs");
+export const deleteDocs = wrap("deleteDocs");
 export const addDecision = wrap("addDecision");
 export const upsertMilestone = wrap("upsertMilestone");
 export const updatePerson = wrap("updatePerson");
