@@ -2,7 +2,8 @@
 
 import { notFound, redirect, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Building2, Check, House, Pencil } from "lucide-react";
+import Link from "next/link";
+import { Building2, Check, House, Pencil, Settings as SettingsIcon } from "lucide-react";
 import { Popover } from "@/ui/Popover";
 import { useMe } from "@/data/StoreProvider";
 import { ArchivedBanner } from "./ArchiveControls";
@@ -46,7 +47,10 @@ const ProductIconPicker = dynamic(() => import("./ProductIconPicker"), {
 });
 
 export function ProductHeader({ product }: { product: Product }) {
-  const { personById, can } = useMe();
+  const { personById, can, href } = useMe();
+  const pathname = usePathname();
+  const settings = href(`/products/${product.key}/settings`);
+  const onSettings = pathname.startsWith(settings);
   const pm = personById(product.pmId);
   const projectManager = personById(product.projectManagerId);
   return (
@@ -86,6 +90,14 @@ export function ProductHeader({ product }: { product: Product }) {
           </span>
         </div>
       </div>
+      {can("product.requestStage", { product }) && (
+        <Link
+          href={settings} className={`btn btn-secondary product-settings-link${onSettings ? " is-active" : ""}`}
+          aria-current={onSettings ? "page" : undefined} title="Product settings"
+        >
+          <SettingsIcon aria-hidden /> <span>Settings</span>
+        </Link>
+      )}
     </header>
   );
 }

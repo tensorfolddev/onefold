@@ -130,6 +130,11 @@ test("a ticket made in one browser appears live in another, and survives a reloa
   await page.getByText("Our own product").click(); // the Internal card
   await page.getByRole("button", { name: "Create product" }).click();
   await expect(page).toHaveURL(/\/admin\/products\/CH$/);
+  // A product's settings live at the header's top right, not among its tabs.
+  await expect(page.getByLabel("Checkout sections")).not.toContainText("Settings");
+  await page.locator(".product-header").getByRole("link", { name: "Settings" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/CH\/settings$/);
+  await expect(page.locator(".product-header").getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
 
   const other = await freshPage(browser);
   await signIn(other, email("bo"));
