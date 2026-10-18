@@ -233,24 +233,40 @@ button.chip.is-selected { background: var(--primary-selected-color); }
 .checkbox { width: 16px; height: 16px; border: 1px solid var(--ui-border-color); border-radius: 2px; background: var(--primary-background-color); accent-color: var(--primary-color); }
 
 /* ---------- Toasts (bottom-centre, above panels) ---------- */
+/* Toasts: a stack at the top right, under the top bar. Cards slide in from the right; a cheer (🎉 🏆) gets a badge
+   and a little colour. */
 .toaster {
-  position: fixed; z-index: 70; left: 50%; bottom: 24px; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;
+  position: fixed; z-index: 70; top: calc(var(--topbar-height, 56px) + 12px); right: 16px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none;
 }
 .toast {
-  pointer-events: auto; display: flex; align-items: center; gap: 12px; min-height: 40px; max-width: min(480px, calc(100vw - 32px));
-  padding: 4px 4px 4px 16px; border-radius: var(--border-radius-medium);
-  background: var(--inverted-color-background); color: var(--text-color-on-inverted);
-  box-shadow: var(--box-shadow-medium); font-size: 14px; line-height: 20px;
-  animation: toast-in var(--motion-productive-medium, 150ms) ease-out;
+  pointer-events: auto; position: relative; display: flex; align-items: center; gap: 12px;
+  width: max-content; min-height: 48px; max-width: min(400px, calc(100vw - 32px)); padding: 8px 6px 8px 16px;
+  overflow: hidden; border: 1px solid var(--layout-border-color); border-radius: 12px;
+  background: var(--primary-background-color); color: var(--primary-text-color);
+  box-shadow: var(--box-shadow-large); font-size: 14px; line-height: 20px;
+  animation: toast-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.toast-message { flex: 1; }
-.toast-action { padding: 4px 8px; border-radius: var(--border-radius-small); color: inherit; font-weight: 600; text-decoration: underline; }
-.toast-action:hover, .toast-close:hover { background: rgba(255, 255, 255, 0.15); }
-.toast-close { display: inline-flex; padding: 6px; border-radius: var(--border-radius-small); color: inherit; }
+.toast::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--primary-color); }
+.toast-icon {
+  flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  font-size: 18px; line-height: 1; background: var(--allgrey-background-color);
+}
+.toast.is-cheer {
+  border-color: color-mix(in srgb, #fdab3d 45%, var(--layout-border-color));
+  background: linear-gradient(100deg, color-mix(in srgb, #ffcb00 14%, var(--primary-background-color)), var(--primary-background-color) 70%);
+}
+.toast.is-cheer::before { background: linear-gradient(180deg, #ffcb00, #fdab3d 50%, #e2445c); }
+.toast.is-cheer .toast-icon { background: color-mix(in srgb, #ffcb00 30%, var(--primary-background-color)); animation: toast-cheer 900ms ease-in-out 1; }
+.toast-message { flex: 1; font-weight: 500; }
+.toast-action { padding: 4px 8px; border-radius: var(--border-radius-small); color: var(--primary-color); font-weight: 600; }
+.toast-action:hover, .toast-close:hover { background: var(--primary-background-hover-color); }
+.toast-close { display: inline-flex; padding: 6px; border-radius: var(--border-radius-small); color: var(--secondary-text-color); }
 .toast-close svg { width: 16px; height: 16px; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (max-width: 767px) { .toaster { bottom: 76px; } }
+@keyframes toast-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes toast-cheer { 30% { transform: scale(1.2) rotate(-10deg); } 60% { transform: scale(1.1) rotate(8deg); } }
+@media (max-width: 767px) { .toaster { left: 12px; right: 12px; align-items: stretch; } .toast { width: auto; max-width: none; } }
+@media (prefers-reduced-motion: reduce) { .toast, .toast.is-cheer .toast-icon { animation: none; } }
 
 .app-loading { min-height: 100vh; background: var(--allgrey-background-color); }
 
