@@ -92,13 +92,20 @@ test("an admin resets a teammate's password: old sessions end, the new password 
   if (again.kind === "signed-in") dev = await who(again.session);
 });
 
-test("one login in two companies: sign-in asks which, and one company's admin can't reset that login", async () => {
-  await signUpCompany({ name: "Sam Dev", email: "sam@acme.example", password: "Brand-New-Pass-7", company: "Beta Works", slug: "beta-works" });
-  const choice = await signIn("sam@acme.example", "Brand-New-Pass-7");
-  assert.equal(choice.kind, "choose");
-  if (choice.kind === "choose") assert.deepEqual(choice.companies.map((c) => c.slug).sort(), ["acme-labs", "beta-works"]);
-  assert.equal((await signIn("sam@acme.example", "Brand-New-Pass-7", "beta-works")).kind, "signed-in");
-  await assert.rejects(setPassword(admin, devPersonId, "Takeover-Pass-9"), /another company/);
+test("one email, one company: it can't start another, be invited to another, or join one", async () => {
+  // Sam is already in Acme Labs: no second company of his own…
+  await assert.rejects(signUpCompany({ name: "Sam Dev", email: "sam@acme.example", password: "Brand-New-Pass-7", company: "Beta Works", slug: "beta-works" }), /one email, one company/);
+  // (A free-mail founder: Beta takes any email, so only the one-company rule can say no.)
+  const beta = await who(await signUpCompany({ name: "Bea", email: "bea.works@gmail.com", password: PASSWORD, company: "Beta Works", slug: "beta-works" }));
+  // …and no invite to someone else's.
+  await assert.rejects(createInvites(beta, [{ email: "sam@acme.example", panel: "developer" }], "https://1fold.test"), /sam@acme\.example already belongs to a company/);
+  // Invited by both before joining either: once Lee joins one, the other's invite stops working.
+  const toBeta = (await createInvites(beta, [{ email: "lee@acme.example", panel: "developer" }], "https://1fold.test")).invites[0].link.split("/invite/")[1];
+  const toAcme = (await createInvites(admin, [{ email: "lee@acme.example", panel: "developer" }], "https://1fold.test")).invites[0].link.split("/invite/")[1];
+  await acceptInvitation(toAcme, { name: "Lee", password: PASSWORD });
+  assert.match((await lookupInvite(toBeta)).problem!, /one email, one company/);
+  await assert.rejects(acceptInvitation(toBeta, { name: "Lee", password: PASSWORD }), /one email, one company/);
+  assert.equal((await signIn("lee@acme.example", PASSWORD)).kind, "signed-in"); // straight in: there's one company
 });
 
 test("turning someone off locks them out at once", async () => {
