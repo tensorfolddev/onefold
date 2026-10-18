@@ -101,11 +101,22 @@
 .doc-banner.is-warning svg { color: var(--warning-color); }
 .doc-body { position: relative; max-width: var(--doc-column); margin: 24px auto 0; padding: 0 24px; }
 
-/* Contents rail on wide screens. */
-.doc-toc { position: fixed; top: 140px; right: 32px; width: 200px; max-height: calc(100vh - 200px); overflow-y: auto; display: none; }
-@media (min-width: 1640px) { .doc-toc { display: block; } } /* only where it clears the writing column */
+/* The writing column, with the contents beside it when the doc area (not the window) is wide enough. */
+.docs-main { container-type: inline-size; }
+.doc-grid { display: grid; grid-template-columns: minmax(0, var(--doc-column)); justify-content: center; column-gap: 56px; padding: 0 24px; }
+.doc-col { min-width: 0; }
+.doc-col .doc-head, .doc-col .doc-body, .doc-col .doc-banner { max-width: none; margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+.doc-col .doc-banner { padding: 10px 14px; }
+.doc-toc { display: none; }
+@container (min-width: 1040px) {
+  .doc-grid.has-toc { grid-template-columns: minmax(0, var(--doc-column)) 200px; }
+  .doc-grid.has-toc .doc-toc {
+    display: block; position: sticky; top: 24px; align-self: start; margin-top: 40px;
+    max-height: calc(100vh - var(--topbar-height, 64px) - 48px); overflow-y: auto;
+  }
+}
 .doc-toc-title { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--secondary-text-color); }
-.doc-toc a { display: block; padding: 4px 8px; border-left: 2px solid var(--layout-border-color); font-size: 13px; line-height: 1.4; color: var(--secondary-text-color); text-decoration: none; }
+.doc-toc a { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; padding: 4px 8px; border-left: 2px solid var(--layout-border-color); font-size: 13px; line-height: 1.4; color: var(--secondary-text-color); text-decoration: none; }
 .doc-toc a:hover { color: var(--primary-text-color); border-left-color: var(--primary-color); }
 .doc-toc a[data-level="2"] { padding-left: 18px; }
 .doc-toc a[data-level="3"] { padding-left: 28px; }
@@ -269,7 +280,7 @@
   .docs-space { grid-template-columns: minmax(0, 1fr); }
   .docs-side { position: static; height: auto; max-height: 50vh; border-right: 0; border-bottom: 1px solid var(--layout-border-color); }
   .doc-title { font-size: 32px; }
-  .doc-head, .doc-body { padding-left: 16px; padding-right: 16px; }
+  .doc-grid { padding: 0 16px; }
   .docs-home { padding: 24px 16px 64px; }
   .block-handle-layer { display: none; }
   .doc-bubble-link input { width: 180px; }

@@ -78,6 +78,9 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
         {crumbs.map((c) => (<span key={c.id} style={{ display: "contents" }}><span aria-hidden>/</span><Link href={href(docPath(c))}>{c.icon ?? ""} {c.title}</Link></span>))}
       </nav>
       {doc.cover && <div className="doc-cover" style={{ "--cover": coverCss(doc.cover) } as React.CSSProperties} aria-hidden />}
+      {/* The writing column, and beside it (when there's room) the contents, which stays in view as you scroll. */}
+      <div className={`doc-grid${headings.length > 2 ? " has-toc" : ""}`}>
+      <div className="doc-col">
       <header className="doc-head">
 
         {doc.icon && (
@@ -202,6 +205,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
           </footer>
         )}
       </div>
+      </div>
 
       {headings.length > 2 && (
         <nav className="doc-toc" aria-label="On this page">
@@ -214,6 +218,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
           ))}
         </nav>
       )}
+      </div>
     </article>
   );
 }
