@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useDb } from "@/data/StoreProvider";
 import { templateFor, templatesFor, type DocTemplate } from "@/domain/docTemplates";
-import { docPath, fromMarkdownFile } from "./tree";
+import { Upload } from "lucide-react";
+import { IMPORT_ACCEPT, importFile } from "./importFile";
+import { docPath } from "./tree";
 
 export interface Where { parentId?: string; groupId?: string }
 
@@ -22,27 +24,39 @@ export function useNewDoc(productKey: string) {
   /** A blank page, straight away. */
   const blank = (where: Where = {}) => create(templateFor("blank")!, where);
 
-  /** Imports dropped .md files as new pages (the first one opens). */
+  /** Imports dropped files (Markdown, Word, PDF, anything) as new pages; the first one opens. */
   const importFiles = async (files: FileList | File[]) => {
-    const md = [...files].filter((f) => /\.(md|markdown|txt)$/i.test(f.name) || f.type === "text/markdown");
-    if (!md.length) { toast("Drop a Markdown (.md) file to import it", undefined, "error"); return; }
     let first: string | null = null;
-    for (const f of md) {
-      if (f.size > 900_000) { toast(`${f.name} is too big to import`, undefined, "error"); continue; }
-      const { title, body } = fromMarkdownFile(f.name, await f.text());
-      const id = await createDoc({ title, body, productKey: productKey || undefined });
-      first ??= id;
+    for (const f of [...files]) {
+      try {
+        const id = await importFile(f, (input) => createDoc({ ...input, productKey: productKey || undefined }));
+        first ??= id;
+      } catch (e) {
+        toast(e instanceof Error ? e.message : `Couldn't import ${f.name}`, undefined, "error");
+      }
     }
     if (first) router.push(href(docPath({ id: first, productKey })));
   };
 
+  /** A file from the computer (Markdown, Word, PDF or anything) as a new page, which then opens. */
+  const importOne = async (file: File, where: Where = {}) => {
+    setPicking(null);
+    try {
+      const id = await importFile(file, (input) => createDoc({ ...input, productKey: productKey || undefined, ...where }));
+      if (id) router.push(href(docPath({ id, productKey })));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : `Couldn't import ${file.name}`, undefined, "error");
+    }
+  };
+
   const picker = picking && (
-    <TemplatePicker space={productKey ? "project" : "company"} onPick={(t) => void create(t, picking)} onClose={() => setPicking(null)} />
+    <TemplatePicker space={productKey ? "project" : "company"} onPick={(t) => void create(t, picking)} onClose={() => setPicking(null)}
+      onImport={(f) => void importOne(f, picking)} />
   );
   return { open: (where: Where = {}) => setPicking(where), create, blank, importFiles, picker };
 }
 
-function TemplatePicker({ space, onPick, onClose }: { space: "project" | "company"; onPick: (t: DocTemplate) => void; onClose: () => void }) {
+function TemplatePicker({ space, onPick, onClose, onImport }: { space: "project" | "company"; onPick: (t: DocTemplate) => void; onClose: () => void; onImport: (f: File) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -54,6 +68,12 @@ function TemplatePicker({ space, onPick, onClose }: { space: "project" | "compan
       <h2 id="template-title" className="confirm-title">New page</h2>
       <p className="confirm-body">Start blank, or from a template you can change freely.</p>
       <div className="template-cards">
+        <label className="template-card is-import">
+          <span className="template-card-icon" aria-hidden><Upload /></span>
+          <span className="template-card-name">Import a file</span>
+          <span className="template-card-blurb">Markdown, Word or PDF — or attach any file</span>
+          <input type="file" accept={IMPORT_ACCEPT} className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) onImport(f); }} />
+        </label>
         {templatesFor(space).map((t) => (
           <button key={t.id} type="button" className="template-card" onClick={() => onPick(t)}>
             <span className="template-card-icon" aria-hidden>{t.icon}</span>

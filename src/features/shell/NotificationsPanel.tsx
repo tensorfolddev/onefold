@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AtSign, BellOff, CheckCheck, CircleCheck, UserPlus, Users, X } from "lucide-react";
 import { useMe } from "@/data/StoreProvider";
@@ -21,7 +21,7 @@ export function NotificationsPanel() {
   const { notificationsOpen, setNotificationsOpen, openTicket } = useAppState();
   const [tab, setTab] = useState("All");
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const { db, me, personById, href } = useMe();
+  const { db, me, personById, href, toast } = useMe();
   const router = useRouter();
   // The list is live (new notices appear as they arrive). ponytail: "read" lives in this panel only; it resets on sign-in.
   const [readIds, setReadIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -33,6 +33,19 @@ export function NotificationsPanel() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [notificationsOpen, setNotificationsOpen]);
+
+  // A new mention while you're here pops up right away ("Ayla mentioned you in Design spec"); what was already there
+  // when you signed in isn't news.
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const mine = db.notifications.filter((n) => n.personId === me.id);
+    if (!seen.current) { seen.current = new Set(mine.map((n) => n.id)); return; }
+    for (const n of mine) {
+      if (seen.current.has(n.id)) continue;
+      seen.current.add(n.id);
+      if (n.kind === "mention") toast(`🔔 ${personById(n.actorId)?.name ?? "Someone"} ${n.text}`, undefined, "info");
+    }
+  }, [db.notifications, me.id, personById, toast]);
 
   if (!notificationsOpen) return null;
 

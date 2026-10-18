@@ -5,7 +5,8 @@
 import { Extension, InputRule, type Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
-import { FileText, SquareCheck } from "lucide-react";
+import { Bug, FileText, Layers, SquareCheck } from "lucide-react";
+import { Avatar } from "@/ui/primitives";
 import { safeHref } from "./links";
 import { toDocJson } from "./markdown";
 
@@ -23,8 +24,8 @@ import { suggestMenu, type MenuItem } from "./SuggestMenu";
 
 export interface DocLinks {
   people: { id: string; name: string; role?: string }[];
-  tickets: { key: string; title: string }[];
-  docs: { id: string; title: string; icon?: string }[];
+  tickets: { key: string; title: string; type?: "task" | "bug" | "epic"; status?: { name: string; color: string } }[];
+  docs: { id: string; title: string; icon?: string; space?: string }[];
   /** Uploads files into the doc and inserts them (images inline, other files as cards) at `pos`, or the caret. */
   upload?: (files: File[], pos?: number) => void;
 }
@@ -41,8 +42,15 @@ const insertRef = (editor: Editor, from: number, to: number, attrs: { kind: "tic
 function refItems(get: Get, q: string, limit = LIMIT): MenuItem[] {
   const { tickets, docs } = get();
   return [
-    ...docs.filter((d) => has(d.title, q)).slice(0, limit).map((d) => ({ key: `doc:${d.id}`, label: d.title, hint: "Doc", icon: d.icon ? <span>{d.icon}</span> : <FileText /> })),
-    ...tickets.filter((t) => has(`${t.key} ${t.title}`, q)).slice(0, limit).map((t) => ({ key: `ticket:${t.key}`, label: t.key, hint: t.title, icon: <SquareCheck /> })),
+    ...docs.filter((d) => has(d.title, q)).slice(0, limit).map((d) => ({
+      key: `doc:${d.id}`, label: d.title, group: "Pages", icon: d.icon ? <span className="slash-emoji">{d.icon}</span> : <FileText />,
+      meta: d.space ? <span className="slash-space">{d.space}</span> : undefined,
+    })),
+    ...tickets.filter((t) => has(`${t.key} ${t.title}`, q)).slice(0, limit).map((t) => ({
+      key: `ticket:${t.key}`, label: t.title, hint: t.key, group: "Tickets",
+      icon: t.type === "bug" ? <Bug /> : t.type === "epic" ? <Layers /> : <SquareCheck />,
+      meta: t.status ? <span className="slash-status" style={{ background: t.status.color }}>{t.status.name}</span> : undefined,
+    })),
   ];
 }
 const pickRef = (editor: Editor, range: { from: number; to: number }, item: MenuItem) => {
@@ -55,10 +63,11 @@ const MentionPicker = (get: Get) => Extension.create({
   name: "mentionPicker",
   addProseMirrorPlugins() {
     return [Suggestion({ ...suggestMenu({
-      editor: this.editor, char: "@", title: "Mention a person, doc or ticket", empty: "Nothing matches",
+      editor: this.editor, char: "@", empty: "Nobody, no page and no ticket by that name",
       allow: ({ editor, range }) => !editor.isActive("codeBlock") && /(^|[\s(])$/.test(editor.state.doc.textBetween(Math.max(0, range.from - 1), range.from, "\n", " ")),
       items: (q) => [
-        ...get().people.filter((p) => has(p.name, q)).slice(0, q.trim() ? LIMIT : 4).map((p) => ({ key: `person:${p.id}`, label: p.name, hint: p.role })),
+        ...get().people.filter((p) => has(p.name, q)).slice(0, q.trim() ? LIMIT : 4)
+          .map((p) => ({ key: `person:${p.id}`, label: p.name, hint: p.role, group: "People", icon: <Avatar personId={p.id} size="sm" /> })),
         ...refItems(get, q, q.trim() ? LIMIT : 4),
       ],
       pick: (editor, range, item: MenuItem) => {
@@ -74,7 +83,7 @@ const RefPicker = (get: Get) => Extension.create({
   name: "refPicker",
   addProseMirrorPlugins() {
     return [Suggestion({ ...suggestMenu({
-      editor: this.editor, char: "[[", title: "Link a ticket or doc", empty: "No ticket or doc matches", allowSpaces: true,
+      editor: this.editor, char: "[[", empty: "No page or ticket matches", allowSpaces: true,
       items: (q) => refItems(get, q),
       pick: pickRef,
     }), pluginKey: new PluginKey("refPicker") })];

@@ -7,7 +7,13 @@ import { ReactRenderer } from "@tiptap/react";
 import type { SuggestionKeyDownProps, SuggestionOptions, SuggestionProps } from "@tiptap/suggestion";
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 
-export interface MenuItem { key: string; label: string; hint?: string; icon?: React.ReactNode }
+export interface MenuItem {
+  key: string; label: string; hint?: string; icon?: React.ReactNode;
+  /** A heading the item sits under ("People", "Pages", "Tickets"); shown once, before the first of its group. */
+  group?: string;
+  /** Something small on the right (a ticket's status, a page's space). */
+  meta?: React.ReactNode;
+}
 interface ListHandle { onKeyDown: (p: SuggestionKeyDownProps) => boolean }
 type ListProps = SuggestionProps<MenuItem, MenuItem> & { empty: string; title?: string };
 
@@ -27,14 +33,18 @@ const MenuList = forwardRef<ListHandle, ListProps>(function MenuList({ items, co
     <div className="slash-menu" role="listbox" aria-label={title ?? "Suggestions"}>
       {title && <p className="slash-title">{title}</p>}
       {items.length ? items.map((it, i) => (
-        <button
-          key={it.key} type="button" role="option" aria-selected={i === active} className={`slash-item${i === active ? " is-active" : ""}`}
-          onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); command(it); }}
-          ref={(el) => { if (i === active) el?.scrollIntoView({ block: "nearest" }); }}
-        >
-          {it.icon && <span className="slash-icon" aria-hidden>{it.icon}</span>}
-          <span className="slash-text"><span className="slash-label">{it.label}</span>{it.hint && <span className="slash-hint">{it.hint}</span>}</span>
-        </button>
+        <div key={it.key} role="presentation">
+          {it.group && it.group !== items[i - 1]?.group && <p className="slash-group">{it.group}</p>}
+          <button
+            type="button" role="option" aria-selected={i === active} className={`slash-item${it.group ? " is-compact" : ""}${i === active ? " is-active" : ""}`}
+            onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); command(it); }}
+            ref={(el) => { if (i === active) el?.scrollIntoView({ block: "nearest" }); }}
+          >
+            {it.icon && <span className="slash-icon" aria-hidden>{it.icon}</span>}
+            <span className="slash-text"><span className="slash-label">{it.label}</span>{it.hint && <span className="slash-hint">{it.hint}</span>}</span>
+            {it.meta && <span className="slash-meta">{it.meta}</span>}
+          </button>
+        </div>
       )) : <p className="slash-empty">{empty}</p>}
     </div>
   );

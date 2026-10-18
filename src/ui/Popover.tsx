@@ -14,7 +14,8 @@ function place(r: DOMRect, align: "left" | "right", width?: number): React.CSSPr
   const vertical = below >= 240 || below >= r.top
     ? { top: r.bottom + GAP, maxHeight: below - GAP - 12 }
     : { bottom: innerHeight - r.top + GAP, maxHeight: r.top - GAP - 12 };
-  return { position: "fixed", left, width, overflowY: "auto", ...vertical };
+  // Above side panels and dialogs it may be opened from (a ticket's ⋯ lives inside the ticket panel).
+  return { position: "fixed", zIndex: 200, left, width, overflowY: "auto", ...vertical };
 }
 
 /**
