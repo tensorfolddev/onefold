@@ -52,3 +52,20 @@ test("unsafe links are dropped; raw HTML never becomes a node", () => {
   assert.ok(!json.includes("javascript:"), json);
   assert.ok(!/"type":"(script|html)/.test(json), json);
 });
+
+test("every template opens and saves without changing a character", async () => {
+  const { DOC_TEMPLATES } = await import("../../../domain/docTemplates.ts");
+  for (const t of DOC_TEMPLATES) assert.equal(roundTrip(t.body), t.body, t.id);
+});
+
+test("an empty list item or trailing blank lines are never stored (Markdown can't hold them)", () => {
+  const item = (type: string, child: string) => ({ type: "doc", content: [
+    { type: "paragraph", content: [{ type: "text", text: "Keep" }] },
+    { type, content: [{ type: child, ...(child === "taskItem" && { attrs: { checked: false } }), content: [{ type: "paragraph" }] }] },
+    { type: "paragraph" },
+  ] });
+  for (const [list, child] of [["bulletList", "listItem"], ["orderedList", "listItem"], ["taskList", "taskItem"]]) {
+    assert.equal(toMarkdown(item(list, child)), "Keep", list);
+  }
+  assert.equal(roundTrip("1. \n\nAfter"), "After");
+});
