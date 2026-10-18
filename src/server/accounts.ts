@@ -28,6 +28,18 @@ const pgCode = (e: unknown) => ((e as { cause?: { code?: string } }).cause ?? (e
 const findUser = async (email: string) =>
   (await database().select().from(s.users).where(eq(s.users.email, email.trim().toLowerCase())))[0] ?? null;
 
+/** One email, one company: a login already in a company can't start, join or be invited to another. */
+export const ONE_COMPANY = "already belongs to a company on 1Fold — one email, one company";
+
+const inACompany = async (userId: string) =>
+  (await inScope({ userId }, (tx) => tx.select({ id: s.members.id }).from(s.members).where(eq(s.members.userId, userId)))).length > 0;
+
+/** Whether this email's login is in a company already (logins from before the rule may be in more than one). */
+export async function emailInACompany(email: string): Promise<boolean> {
+  const user = await findUser(email);
+  return !!user && inACompany(user.id);
+}
+
 export async function slugTaken(slug: string): Promise<boolean> {
   const { rows } = await database().execute(sql`select onefold_slug_taken(${slug}) as taken`);
   return (rows[0] as { taken: boolean }).taken;
@@ -62,6 +74,7 @@ export async function signUpCompany(input: { name: string; email: string; passwo
   const problem = passwordError(input.password);
   if (problem) throw new ValidationError(problem);
   const existing = await findUser(email);
+  if (existing && await inACompany(existing.id)) throw new ValidationError(`This email ${ONE_COMPANY}. Sign in instead, or use another email.`);
   if (existing && !(await verifyPassword(input.password, existing.passwordHash))) {
     throw new ValidationError("This email already has a 1Fold login — use its password to add another company");
   }
@@ -142,7 +155,11 @@ export async function lookupInvite(token: string): Promise<InviteView> {
       email: inv.email, panel: inv.panel, role: inv.role,
     };
   });
-  return { ...view, hasLogin: !!(await findUser(view.email)) };
+  const user = await findUser(view.email);
+  if (user && !view.problem && await inACompany(user.id)) {
+    return { ...view, problem: `${view.email} ${ONE_COMPANY}. Ask for an invite to another email.` };
+  }
+  return { ...view, hasLogin: !!user };
 }
 
 export async function acceptInvitation(token: string, input: { name: string; password: string }): Promise<SignedIn> {
@@ -153,6 +170,7 @@ export async function acceptInvitation(token: string, input: { name: string; pas
     const loaded = (await loadCompany(tx, orgId))!;
     const { db, person } = acceptInvite(loaded.db, hash, { name: input.name });
     const user = await findUser(person.email);
+    if (user && await inACompany(user.id)) throw new ValidationError(`This email ${ONE_COMPANY}. Ask for an invite to another email.`);
     let userId: string;
     if (user) {
       if (!(await verifyPassword(input.password, user.passwordHash))) throw new ValidationError("This email already has a 1Fold login — use its password");

@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Maximize2, Trash2 } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Maximize2 } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
-import { deleteTickets } from "@/data/commands";
-import { ConfirmDialog } from "@/ui/ConfirmDialog";
+import { archiveTickets } from "@/data/commands";
 import { CATEGORY_LABEL, CATEGORY_ORDER, CATEGORY_TONE, formatHours, shortDate, toneVar } from "@/domain/status";
 import type { StatusCategory, Ticket, Tone } from "@/domain/types";
 import { StatusCell } from "@/ui/StatusCell";
-import { Avatar, Battery, IconButton } from "@/ui/primitives";
-import { DueDate, EpicChip, PrBadge, PriorityCell, requirementById, TypeIcon } from "./TicketBits";
+import { Battery, IconButton } from "@/ui/primitives";
+import { Assignees, DueDate, EpicChip, PrBadge, PriorityCell, requirementById, TypeIcon } from "./TicketBits";
 import { useDb } from "@/data/StoreProvider";
 
 const COLUMNS = [
@@ -28,18 +27,16 @@ export function TicketGrid({ tickets }: { tickets: Ticket[] }) {
   const { statusById, productByKey, can, act } = useDb();
   const [collapsed, setCollapsed] = useState<StatusCategory[]>([]);
   const [picked, setSelected] = useState<string[]>([]);
-  const [confirming, setConfirming] = useState(false);
   // Only rows still on screen count (filters can hide picked rows).
   const selected = picked.filter((k) => tickets.some((t) => t.key === k));
-  const canDelete = tickets
+  // Archived, never deleted from here (Undo is in the toast); an admin deletes for good from Settings → Archived.
+  const canArchive = tickets
     .filter((t) => selected.includes(t.key))
-    .every((t) => can("ticket.delete", { product: productByKey(t.productKey) }));
+    .every((t) => can("ticket.archive", { product: productByKey(t.productKey) }));
   const n = selected.length;
-  const noun = n === 1 ? "ticket" : "tickets";
-  const remove = () => {
-    setConfirming(false);
+  const archive = () => {
     const keys = selected;
-    if (act((d, m) => deleteTickets(d, m, keys), { success: `${n === 1 ? keys[0] : `${n} tickets`} deleted`, undoable: true })) {
+    if (act((d, m) => archiveTickets(d, m, keys), { success: `${n === 1 ? keys[0] : `${n} tickets`} archived — find them in Settings → Archived`, undoable: true })) {
       setSelected([]);
     }
   };
@@ -59,20 +56,13 @@ export function TicketGrid({ tickets }: { tickets: Ticket[] }) {
       {n > 0 && (
         <div className="selection-bar" role="region" aria-label="Selected tickets">
           <span className="selection-count" aria-live="polite">{n} selected</span>
-          {canDelete && (
-            <button type="button" className="btn btn-tertiary is-danger" onClick={() => setConfirming(true)}>
-              <Trash2 aria-hidden /> Delete
+          {canArchive && (
+            <button type="button" className="btn btn-tertiary" onClick={archive}>
+              <Archive aria-hidden /> Archive
             </button>
           )}
           <button type="button" className="btn btn-tertiary" onClick={() => setSelected([])}>Clear selection</button>
         </div>
-      )}
-      {confirming && (
-        <ConfirmDialog
-          title={n === 1 ? `Delete ${selected[0]}?` : `Delete ${n} ${noun}?`}
-          body="This can't be undone. Their updates and activity are deleted too."
-          confirmLabel="Delete" onConfirm={remove} onCancel={() => setConfirming(false)}
-        />
       )}
       {groups.map(({ cat, items }) => (
         <GridGroup
@@ -157,7 +147,7 @@ function GridRow({ ticket, selected, onSelect }: { ticket: Ticket; selected: boo
           <IconButton label="Open ticket" onClick={open}><Maximize2 /></IconButton>
         </span>
       </span>
-      <span className="grid-cell col-owner" role="cell"><Avatar personId={ticket.assigneeId} size="sm" /></span>
+      <span className="grid-cell col-owner" role="cell"><Assignees ids={ticket.assigneeIds} /></span>
       <span className="grid-cell col-status" role="cell"><StatusCell ticket={ticket} /></span>
       <span className="grid-cell col-priority" role="cell"><PriorityCell priority={ticket.priority} /></span>
       <span className="grid-cell col-due" role="cell"><DueDate ticket={ticket} done={done} /></span>

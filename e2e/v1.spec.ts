@@ -13,7 +13,13 @@ const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}
 const slug = (name: string) => `${name}-${RUN}`;
 const email = (who: string) => `${who}-${RUN}@acme.example`;
 
+// Sign-ups are limited per address (10 an hour). Each test's founder signs up from an address of their own, as real
+// people would, so the suite never trips the limit however many tests sign up.
+let signUps = 0;
+const NET = Math.floor(Math.random() * 250);
+
 async function signUp(page: Page, company: string, founderEmail: string) {
+  await page.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
   await page.goto("/signup");
   await page.getByLabel("Full name").fill("Ayla Khan");
   await page.getByLabel("Work email").fill(founderEmail);
@@ -130,6 +136,11 @@ test("a ticket made in one browser appears live in another, and survives a reloa
   await page.getByText("Our own product").click(); // the Internal card
   await page.getByRole("button", { name: "Create product" }).click();
   await expect(page).toHaveURL(/\/admin\/products\/CH$/);
+  // A product's settings live at the header's top right, not among its tabs.
+  await expect(page.getByLabel("Checkout sections")).not.toContainText("Settings");
+  await page.locator(".product-header").getByRole("link", { name: "Settings" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/CH\/settings$/);
+  await expect(page.locator(".product-header").getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
 
   const other = await freshPage(browser);
   await signIn(other, email("bo"));
@@ -145,6 +156,27 @@ test("a ticket made in one browser appears live in another, and survives a reloa
   await expect(other.getByRole("button", { name: "Build the cart" }).first()).toBeVisible({ timeout: 15_000 }); // live, no reload
   await page.reload();
   await expect(page.getByRole("button", { name: "Build the cart" }).first()).toBeVisible();
+});
+
+test("moving a ticket to Done cheers: a toast and a burst of confetti", async ({ page }) => {
+  await signUp(page, "Lambda", email("la"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Launch");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/LA$/);
+  await page.goto("/admin/products/LA/tickets");
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Ship it");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+
+  // A new ticket opens in its panel; change its status there.
+  await page.getByRole("dialog").getByRole("button", { name: /^Status: .+ Change status$/ }).click();
+  await page.getByRole("menuitemradio", { name: "Done" }).click();
+  await expect(page.getByText("LA-1 is done — nice work!")).toBeVisible();
+  await expect(page.locator("canvas.confetti")).toHaveCount(1); // and it cleans up after itself
+  await expect(page.locator("canvas.confetti")).toHaveCount(0, { timeout: 6000 });
 });
 
 const PNG_1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
@@ -276,6 +308,151 @@ test("Claude connects with a personal token: an MCP tool makes a ticket that sho
 
   await page.goto("/admin/products/MO/tickets");
   await expect(page.getByRole("button", { name: "Made by Claude" }).first()).toBeVisible();
+});
+
+test("an admin archives a project: it moves to the closed Archived group, read-only, and is back in one click; deleting needs its name typed", async ({ page }) => {
+  await signUp(page, "Kappa", email("ka"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Legacy");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const sidebar = page.getByRole("complementary", { name: "Products" });
+  const archived = sidebar.getByRole("button", { name: /^Archived/ });
+  await expect(archived).toHaveAttribute("aria-expanded", "false"); // always there, at the bottom, closed
+  await expect(archived).toContainText("0");
+
+  await sidebar.getByRole("button", { name: "Legacy options" }).click();
+  await page.getByRole("button", { name: "Archive project" }).click();
+  await expect(archived).toContainText("1");
+  await expect(sidebar.getByRole("link", { name: /Legacy/ })).toHaveCount(0); // gone from the groups; Archived is closed
+  await expect(page.locator(".archived-banner")).toContainText("read-only"); // its page says so
+
+  await archived.click();
+  await sidebar.getByRole("button", { name: "Restore Legacy" }).click(); // one click
+  await expect(archived).toContainText("0");
+  await expect(page.locator(".archived-banner")).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { name: "Legacy options" })).toBeVisible();
+
+  // Deleting for good: archived first, then type "Delete Legacy" and agree — until then the button stays off.
+  await sidebar.getByRole("button", { name: "Legacy options" }).click();
+  await page.getByRole("button", { name: "Archive project" }).click();
+  await page.locator(".archived-banner").getByRole("button", { name: "Delete forever…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete Legacy for good?" });
+  const confirm = dialog.getByRole("button", { name: "Delete forever" });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel("Type Delete Legacy to confirm").fill("Delete Legacy");
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel("I understand this can't be undone").check();
+  await confirm.click();
+  await expect(page).toHaveURL(/\/admin\/products$/);
+  await expect(archived).toContainText("0");
+  await expect(sidebar.getByText("Legacy")).toHaveCount(0);
+});
+
+test("sidebar groups: every count lines up, and a group's ⋯ shows only on hover", async ({ page }) => {
+  await signUp(page, "Mu", email("mu"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Atlas");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const sidebar = page.getByRole("complementary", { name: "Products" });
+  await sidebar.getByRole("button", { name: "New group" }).click();
+  await sidebar.getByLabel("New group name").fill("Alpha");
+  await sidebar.getByLabel("New group name").press("Enter");
+
+  const alpha = sidebar.locator(".sidebar-group-head").filter({ hasText: "Alpha" });
+  const ungrouped = sidebar.locator(".sidebar-group-head").filter({ hasText: "Ungrouped" });
+  // Its layout box (visible or not): a hovered group hides its count under the ⋯ on purpose.
+  const countEnd = (head: typeof alpha) => head.locator(".sidebar-group-count").evaluate((el) => el.getBoundingClientRect().right);
+  await expect(alpha).toBeVisible();
+  await expect(ungrouped).toBeVisible();
+  await page.mouse.move(0, 0); // the new group may have appeared under the pointer
+  expect(Math.abs((await countEnd(alpha)) - (await countEnd(ungrouped)))).toBeLessThan(1); // one column, ⋯ or not
+
+  const more = alpha.getByRole("button", { name: "Alpha group options" });
+  await page.mouse.move(0, 0);
+  await expect(more).toHaveCSS("opacity", "0");
+  await alpha.hover();
+  await expect(more).toHaveCSS("opacity", "1");
+  await expect(alpha.locator(".sidebar-group-count")).toHaveCSS("visibility", "hidden"); // the ⋯ takes the count's place
+});
+
+test("tickets: the second tab, opening on the board, which a sideways scroll over a list moves", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 800 }); // narrower than the board's lists
+  await signUp(page, "Nu", email("nu"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Rover");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+
+  const tabs = page.getByRole("tablist", { name: "Rover sections" }).getByRole("tab");
+  await expect(tabs.nth(0)).toHaveText("Overview");
+  await expect(tabs.nth(1)).toContainText("Tickets");
+  await tabs.nth(1).click();
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Scout the route");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible(); // a new ticket opens itself…
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0); // …close it
+  const board = page.locator(".kanban");
+  await expect(board).toBeVisible({ timeout: 15_000 }); // the board, not the table
+
+  // A two-finger sideways scroll over a list scrolls the board (the list only keeps its own up/down scrolling).
+  const list = (await page.locator(".kanban-col-body").first().boundingBox())!;
+  await page.mouse.move(list.x + list.width / 2, list.y + 80);
+  await page.mouse.wheel(400, 0);
+  await expect.poll(() => board.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  await page.mouse.wheel(-400, 0);
+  await expect.poll(() => board.evaluate((el) => el.scrollLeft)).toBe(0);
+});
+
+test("tickets are archived, not deleted: off the board, in Settings → Archived, back in one click; an admin deletes one for good", async ({ page }) => {
+  await signUp(page, "Omicron", email("om"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Orbital");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const productUrl = new URL(page.url()).pathname;
+  const key = `${productUrl.split("/").pop()}-1`;
+  await page.goto(`${productUrl}/tickets`);
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Old idea");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+
+  const archiveFromPanel = async () => {
+    await page.getByRole("dialog").getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Archive ticket" }).click();
+    await expect(page.locator(".ticket-panel")).toHaveCount(0);
+  };
+  await archiveFromPanel(); // a new ticket opens itself
+  await expect(page.locator(".products-view, .ticket-grid, .kanban").getByText("Old idea")).toHaveCount(0); // off the board
+
+  await page.goto(`${productUrl}/settings`);
+  const archived = page.locator(".archived-tickets");
+  await expect(archived).toContainText("Old idea");
+  await archived.getByRole("button", { name: `Restore ${key}` }).click(); // one click
+  await expect(archived).toContainText("Nothing archived");
+  await page.goto(`${productUrl}/tickets`);
+  await page.getByRole("button", { name: "Old idea" }).first().click();
+  await archiveFromPanel();
+
+  // Deleting for good: only from here, only by typing it.
+  await page.goto(`${productUrl}/settings`);
+  await archived.getByRole("button", { name: `Delete ${key} forever` }).click();
+  const confirm = page.getByRole("dialog", { name: `Delete ${key} for good?` }).getByRole("button", { name: "Delete forever" });
+  await expect(confirm).toBeDisabled();
+  await page.getByRole("dialog", { name: `Delete ${key} for good?` }).getByLabel(`Type Delete ${key} to confirm`).fill(`Delete ${key}`);
+  await confirm.click();
+  await expect(archived).toContainText("Nothing archived");
 });
 
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {

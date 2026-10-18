@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Db } from "../../data/db.ts";
 import { demoDb } from "../../data/demo.ts";
-import { deleteTickets, moveTicket, signUp, updateTicket } from "../../domain/commands/index.ts";
+import { archiveTickets, deleteTickets, moveTicket, signUp, updateTicket } from "../../domain/commands/index.ts";
 import { inScope } from "../db/client.ts";
 import * as s from "../db/schema.ts";
 import { freshDatabase } from "../testing/db.ts";
@@ -98,7 +98,7 @@ test("the database refuses broken links, and nothing half-saves", async () => {
 test("deleting tickets removes their rows, comments and activity", async () => {
   const before = await load(demo.org.id);
   const victim = before.db.tickets.find((t) => before.db.comments.some((c) => c.ticketKey === t.key))!;
-  await inScope({ orgId: demo.org.id, lock: true }, (tx) => saveCompany(tx, before, deleteTickets(before.db, admin, [victim.key])));
+  await inScope({ orgId: demo.org.id, lock: true }, (tx) => saveCompany(tx, before, deleteTickets(archiveTickets(before.db, admin, [victim.key]), admin, [victim.key], `Delete ${victim.key}`)));
   const counts = await pg.asOwner<{ t: number; c: number }>(
     "select (select count(*) from tickets where id = $1)::int as t, (select count(*) from comments where ticket_id = $1)::int as c", [victim.key]);
   assert.deepEqual(counts[0], { t: 0, c: 0 });

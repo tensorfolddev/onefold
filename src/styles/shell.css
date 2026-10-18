@@ -192,14 +192,19 @@
 .sidebar-group-toggle svg.is-collapsed { transform: rotate(-90deg); }
 .sidebar-group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-group-count { font-weight: 500; font-size: 12px; }
+/* A group's ⋯ floats over its count instead of taking room, so every group's count lines up (with a menu or without).
+   It shows on hover — the count hides under it — like a product row's ⋯ and key. */
+.sidebar-group-head > .popover-anchor { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); }
 .sidebar-group-more {
-  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: 2px;
-  border-radius: var(--border-radius-small); color: var(--secondary-text-color); opacity: 0;
+  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+  border-radius: var(--border-radius-small); color: var(--secondary-text-color); background: var(--primary-background-color); opacity: 0;
 }
 .sidebar-group-head:hover .sidebar-group-more, .sidebar-group-more:focus-visible, .sidebar-group-more[aria-expanded="true"] { opacity: 1; }
+.sidebar-group-head:hover:has(.sidebar-group-more) .sidebar-group-count,
+.sidebar-group-head:has(.sidebar-group-more:focus-visible, .sidebar-group-more[aria-expanded="true"]) .sidebar-group-count { visibility: hidden; }
 .sidebar-group-more:hover { background: var(--primary-background-hover-color); }
 .sidebar-group-more svg { width: 16px; height: 16px; }
-@media (hover: none) { .sidebar-group-more { opacity: 1; } }
+@media (hover: none) { .sidebar-group-more { opacity: 1; } .sidebar-group-head:has(.sidebar-group-more) .sidebar-group-count { visibility: hidden; } }
 .sidebar-empty { padding: 4px 12px 4px 30px; font-size: 13px; color: var(--secondary-text-color); }
 .sidebar-add-group {
   display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 12px; padding: 6px 8px;
@@ -235,3 +240,33 @@
   color: #7a4b00; background: #ffe8b3;
 }
 .env-badge[data-env="stg"] { color: #5a1f87; background: #efe0ff; }
+
+/* ---------- Archived: the last group, closed until opened; never shown to developers ---------- */
+.sidebar-archived { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--layout-border-color); }
+.sidebar-archived .sidebar-group-toggle svg:not(.is-collapsed) + .sidebar-group-name { color: var(--primary-text-color); }
+.sidebar-row.is-archived .sidebar-item { padding-right: 96px; color: var(--secondary-text-color); }
+.sidebar-row.is-archived .product-tile { filter: grayscale(0.7); opacity: 0.7; }
+.sidebar-restore {
+  position: absolute; right: 4px; top: 3px; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px;
+  border-radius: var(--border-radius-small); font-size: 12px; font-weight: 500;
+  color: var(--primary-color); background: var(--primary-background-color);
+}
+.sidebar-row.is-archived.has-menu .sidebar-restore { right: 32px; }
+.sidebar-row.is-archived.has-menu .sidebar-item { padding-right: 124px; }
+.sidebar-restore:hover { background: var(--primary-selected-color); }
+.sidebar-restore:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
+.sidebar-restore svg { width: 14px; height: 14px; }
+
+/* An archived product's pages: what happened, and the way back. */
+.archived-banner {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 12px 0 4px; padding: 10px 14px;
+  border: 1px solid var(--layout-border-color); border-radius: var(--border-radius-medium);
+  background: var(--allgrey-background-color); font-size: 14px;
+}
+.archived-banner > svg { width: 18px; height: 18px; flex: none; color: var(--secondary-text-color); }
+.archived-banner p { flex: 1; min-width: 200px; margin: 0; }
+.archived-banner .btn svg { width: 16px; height: 16px; }
+.delete-product { display: grid; gap: 12px; }
+.delete-product p { margin: 0; }
+.delete-product .input { width: 100%; }
+.delete-product-agree { display: flex; align-items: center; gap: 8px; color: var(--primary-text-color); }

@@ -2,22 +2,14 @@
 
 import { notFound, redirect, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Building2, Check, House, Pencil } from "lucide-react";
+import Link from "next/link";
+import { Building2, House, Pencil, Settings as SettingsIcon } from "lucide-react";
 import { Popover } from "@/ui/Popover";
 import { useMe } from "@/data/StoreProvider";
+import { ArchivedBanner } from "./ArchiveControls";
 import { ProductTabs } from "./ProductTabs";
-import { STAGES, STAGE_TONE } from "@/domain/status";
 import { Avatar, HealthDot, ProductTile } from "@/ui/primitives";
-import type { Product, Stage } from "@/domain/types";
-
-/** Who approves each stage before the next one starts (spec §1). */
-const APPROVER: Record<Stage, string> = {
-  INTAKE: "CEO/CTO",
-  DEFINE: "PM + CTO",
-  PLAN: "PM",
-  BUILD: "PM",
-  RELEASE: "PM",
-};
+import type { Product } from "@/domain/types";
 
 /** Product layout + gate: unknown products and products you're not on are a 404 (never "forbidden"). */
 export function ProductSpace({ productKey, children }: { productKey: string; children: React.ReactNode }) {
@@ -31,7 +23,7 @@ export function ProductSpace({ productKey, children }: { productKey: string; chi
   return (
     <div className="page product-space">
       <ProductHeader product={product} />
-      {panel !== "developer" && <StageStepper product={product} />}
+      {product.archivedAt && <ArchivedBanner product={product} />}
       {panel !== "developer" && <ProductTabs product={product} />}
       <div className="product-body">{children}</div>
     </div>
@@ -44,7 +36,10 @@ const ProductIconPicker = dynamic(() => import("./ProductIconPicker"), {
 });
 
 export function ProductHeader({ product }: { product: Product }) {
-  const { personById, can } = useMe();
+  const { personById, can, href } = useMe();
+  const pathname = usePathname();
+  const settings = href(`/products/${product.key}/settings`);
+  const onSettings = pathname.startsWith(settings);
   const pm = personById(product.pmId);
   const projectManager = personById(product.projectManagerId);
   return (
@@ -84,36 +79,15 @@ export function ProductHeader({ product }: { product: Product }) {
           </span>
         </div>
       </div>
+      {can("product.requestStage", { product }) && (
+        <Link
+          href={settings} className={`btn btn-secondary product-settings-link${onSettings ? " is-active" : ""}`}
+          aria-current={onSettings ? "page" : undefined} title="Product settings"
+        >
+          <SettingsIcon aria-hidden /> <span>Settings</span>
+        </Link>
+      )}
     </header>
   );
 }
 
-export function StageStepper({ product }: { product: Product }) {
-  const current = STAGES.indexOf(product.stage);
-  return (
-    <ol className="stage-stepper" aria-label="Product stage">
-      {STAGES.map((stage, i) => {
-        const state = i < current ? "done" : i === current ? "current" : "todo";
-        const caption =
-          state === "done" ? `Approved by ${APPROVER[stage]}`
-          : state === "current" ? (product.waitingApproval ? `Waiting for ${APPROVER[stage]} approval` : "Current stage")
-          : "";
-        return (
-          <li
-            key={stage}
-            className="stage-step"
-            data-state={state}
-            aria-current={state === "current" ? "step" : undefined}
-            style={{ "--stage": STAGE_TONE[stage] } as React.CSSProperties}
-          >
-            <span className="stage-step-marker" aria-hidden>{state === "done" ? <Check /> : i + 1}</span>
-            <span className="stage-step-text">
-              <span className="stage-step-name">{stage}</span>
-              {caption && <span className="stage-step-caption">{caption}</span>}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}

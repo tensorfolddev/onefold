@@ -144,7 +144,8 @@ export function ticketToJson(t: Ticket, ctx: ExportContext) {
     product: t.productKey,
     status: t.type === "epic" ? undefined : ctx.statusName(t.statusId),
     priority: t.priority,
-    assignee: ctx.personName(t.assigneeId),
+    assignee: ctx.personName(t.assigneeIds?.[0]), // the first, for older readers
+    assignees: (t.assigneeIds ?? []).map((pid) => ctx.personName(pid)).filter(Boolean),
     due: t.due,
     epic: t.epicKey ? ref(t.epicKey) : undefined,
     sections: TEMPLATES[t.type].map((d) => ({ id: d.id, ref: sectionRef(t.key, d.id), title: d.title, kind: d.kind, required: !!d.required, value: valueOf(d) })),

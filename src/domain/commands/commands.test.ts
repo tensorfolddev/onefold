@@ -11,6 +11,7 @@ import * as people from "./people.ts";
 import * as products from "./products.ts";
 import * as template from "./template.ts";
 import * as tickets from "./tickets.ts";
+import { groupMyWork } from "../selectors/mywork.ts";
 
 fixClock(`${SEED_TODAY}T10:00:00`);
 const A = { ...docs, ...lists, ...people, ...products, ...template, ...tickets, AccessError, ValidationError };
@@ -20,7 +21,7 @@ const who = (id: string) => db0.people.find((p) => p.id === id)!;
 const sara = who("u-sara"), admin = who("u-tayyab"), lead = who("u-ayesha"), faraz = who("u-faraz");
 const ticketIn = (db: ReturnType<typeof seedDb>, key: string) => db.tickets.find((t) => t.key === key)!;
 
-test("developer creates, edits and deletes a ticket on own product", () => {
+test("developer creates and edits a ticket on own product — but archiving or deleting is for others", () => {
   const { db, key } = A.createTicket(db0, sara, "AP", "New thing");
   assert.equal(key, "AP-34");
   const t = db.tickets.find((x) => x.key === key)!;
@@ -29,7 +30,9 @@ test("developer creates, edits and deletes a ticket on own product", () => {
   const db2 = A.updateTicket(db, sara, key, { title: "Renamed", statusId: "ap-dev" });
   const log = db2.activity.filter((a) => a.ticketKey === key).map((a) => `${a.field}:${a.from ?? ""}>${a.to}`);
   assert.deepEqual(log, ["Created:>Backlog", "Title:New thing>Renamed", "Status:Backlog>In Dev"]);
-  const db3 = A.deleteTickets(db2, sara, [key]);
+  assert.throws(() => A.archiveTickets(db2, sara, [key]), A.AccessError);
+  assert.throws(() => A.deleteTickets(db2, sara, [key], `Delete ${key}`), A.AccessError);
+  const db3 = A.deleteTickets(A.archiveTickets(db2, admin, [key]), admin, [key], `Delete ${key}`);
   assert.equal(db3.tickets.some((x) => x.key === key), false);
   assert.equal(db3.activity.some((a) => a.ticketKey === key), false);
 });
@@ -40,6 +43,17 @@ test("ticket title is required and assignee changes log names", () => {
   const db = A.updateTicket(db0, sara, "AP-12", { assigneeId: "u-daniyal" });
   const last = db.activity.at(-1)!;
   assert.deepEqual([last.field, last.from, last.to], ["Assignee", "Sara Ahmed", "Daniyal Shah"]);
+});
+
+test("a ticket can have any number of assignees: each sees it in My Work, and the log names them all", () => {
+  const db = A.updateTicket(db0, sara, "AP-12", { assigneeIds: ["u-sara", "u-daniyal", "u-sara"] });
+  assert.deepEqual(ticketIn(db, "AP-12").assigneeIds, ["u-sara", "u-daniyal"]); // once each
+  assert.deepEqual(db.activity.at(-1)!.to, "Sara Ahmed, Daniyal Shah");
+  for (const who of ["u-sara", "u-daniyal"]) {
+    assert.ok(groupMyWork(db, who, db.tickets).some((g) => g.tickets.some((t) => t.key === "AP-12")), who);
+  }
+  assert.equal(ticketIn(A.updateTicket(db, sara, "AP-12", { assigneeIds: [] }), "AP-12").assigneeIds, undefined); // nobody
+  assert.throws(() => A.updateTicket(db0, sara, "AP-12", { assigneeIds: ["u-nobody"] }), /Pick people from your team/);
 });
 
 test("developer is refused outside own products", () => {
@@ -268,7 +282,7 @@ test("groups: any grouping; deleting one leaves its products ungrouped", () => {
   assert.equal(gone.productGroups.some((g) => g.id === ai.id), false);
   assert.equal(gone.products.find((p) => p.key === "NV")!.groupId, undefined);
   assert.equal(A.renameGroup(db, admin, ai.id, "Machine learning").productGroups.find((g) => g.id === ai.id)!.name, "Machine learning");
-  assert.throws(() => A.addGroup(db0, lead, "X"), A.AccessError);
+  assert.throws(() => A.addGroup(db0, sara, "X"), A.AccessError); // managers may (archive.test.ts); developers may not
 });
 
 test("createProduct takes group, created date, icon and colour", () => {
@@ -341,7 +355,7 @@ test("dependencies: previous tickets only once, no self, no loops", () => {
 test("deleting a ticket clears it from dependencies and epic links", () => {
   let db = A.addDependency(db0, sara, "AP-26", "AP-25");
   db = A.updateTicket(db, sara, "AP-26", { epicKey: "AP-3" });
-  db = A.deleteTickets(db, admin, ["AP-25", "AP-3"]);
+  db = A.deleteTickets(A.archiveTickets(db, admin, ["AP-25", "AP-3"]), admin, ["AP-25", "AP-3"], "Delete 2 tickets");
   assert.deepEqual(ticketIn(db, "AP-26").dependsOn, []);
   assert.equal(ticketIn(db, "AP-26").epicKey, undefined);
 });

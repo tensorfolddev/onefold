@@ -115,6 +115,8 @@ export const products = pgTable("products", {
   icon: jsonb("icon"),
   groupId: text("group_id"),
   createdAt: day("created_at").notNull(),
+  archivedAt: ts("archived_at"), // set = archived: read-only, hidden from developers
+  archivedBy: text("archived_by"),
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 
@@ -189,7 +191,8 @@ export const tickets = pgTable("tickets", {
   title: text("title").notNull(),
   type: text("type").notNull(),
   statusId: text("status_id").notNull(),
-  assigneeId: text("assignee_id"),
+  assigneeId: text("assignee_id"), // the first assignee — kept for older code
+  assigneeIds: text("assignee_ids").array(), // everyone on the ticket
   priority: text("priority").notNull(),
   estimateH: doublePrecision("estimate_h").notNull(),
   due: day("due"),
@@ -200,6 +203,8 @@ export const tickets = pgTable("tickets", {
   color: text("color"),
   epicId: text("epic_id"),
   sections: jsonb("sections"), // the fixed template's filled-in sections, by section id
+  archivedAt: ts("archived_at"), // set = archived: off every board, read-only, hidden from developers
+  archivedBy: text("archived_by"),
   position: position(), // board order
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("tickets_product").on(t.orgId, t.productId), index("tickets_assignee").on(t.orgId, t.assigneeId)]);
 

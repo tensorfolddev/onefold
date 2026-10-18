@@ -115,7 +115,7 @@ export const requirements: Requirement[] = [
 
 export const tickets: Ticket[] = [
   // Acme Portal
-  { key: "AP-3", productKey: "AP", title: "Portal epic: authentication", type: "epic", statusId: "ap-epic", color: "var(--color-purple)", assigneeId: "u-ayesha", priority: "high", estimateH: 60, due: "2026-10-30", requirementId: "AP-R1", sprint: "Sprint 14",
+  { key: "AP-3", productKey: "AP", title: "Portal epic: authentication", type: "epic", statusId: "ap-epic", color: "var(--color-purple)", assigneeIds: ["u-ayesha"], priority: "high", estimateH: 60, due: "2026-10-30", requirementId: "AP-R1", sprint: "Sprint 14",
     sections: {
       goal: "Acme customers can't get into the portal today without calling support. By the end of October they sign in, stay signed in safely, and reset a forgotten password on their own.",
       success_metrics: [
@@ -128,7 +128,7 @@ export const tickets: Ticket[] = [
       risks: [{ id: "r1", text: "Acme hasn't confirmed the email sender domain yet (blocks AP-20)" }, { id: "r2", text: "Assumes Acme's user list can be imported before launch" }],
       release_plan: "Staging review with Acme on Oct 22, production on Oct 30 behind a feature flag, then remove the old support-led reset.",
     } },
-  { key: "AP-12", productKey: "AP", title: "Login page", type: "task", statusId: "ap-dev", assigneeId: "u-sara", priority: "high", estimateH: 6, due: "2026-10-02", requirementId: "AP-R1", sprint: "Sprint 14", epicKey: "AP-3", dependsOn: ["AP-13"],
+  { key: "AP-12", productKey: "AP", title: "Login page", type: "task", statusId: "ap-dev", assigneeIds: ["u-sara"], priority: "high", estimateH: 6, due: "2026-10-02", requirementId: "AP-R1", sprint: "Sprint 14", epicKey: "AP-3", dependsOn: ["AP-13"],
     sections: {
       goal: "Acme customers sign in to the portal with their email and password, so they can reach their account without calling support.",
       context: "First screen every Acme customer sees. Matches the approved Figma “Portal / Sign in” frame. The Auth API (AP-13) returns 401 for a wrong password and 429 after five tries.",
@@ -148,31 +148,31 @@ export const tickets: Ticket[] = [
       ],
       definition_of_done: [{ id: "criteria_met", text: "Every acceptance criterion is met", done: false }, { id: "reviewed", text: "Code reviewed, approved and merged", done: false }],
     } },
-  { key: "AP-13", productKey: "AP", title: "Auth API", type: "task", statusId: "ap-review", assigneeId: "u-sara", priority: "high", estimateH: 8, due: "2026-09-30", requirementId: "AP-R1", sprint: "Sprint 14", pr: { number: 88, state: "approved" }, epicKey: "AP-3" },
-  { key: "AP-14", productKey: "AP", title: "Session refresh tokens", type: "task", statusId: "ap-shipped", assigneeId: "u-zain", priority: "medium", estimateH: 5, due: "2026-09-26", requirementId: "AP-R1", sprint: "Sprint 13", pr: { number: 81, state: "merged" }, epicKey: "AP-3" },
-  { key: "AP-15", productKey: "AP", title: "Login rate limiting", type: "task", statusId: "ap-shipped", assigneeId: "u-zain", priority: "high", estimateH: 3, due: "2026-09-25", requirementId: "AP-R1", sprint: "Sprint 13", epicKey: "AP-3" },
-  { key: "AP-20", productKey: "AP", title: "Reset email", type: "task", statusId: "ap-blocked", assigneeId: "u-sara", priority: "medium", estimateH: 2, due: "2026-10-03", requirementId: "AP-R2", sprint: "Sprint 14", epicKey: "AP-3", sections: { goal: "Send the password-reset email from Acme's own domain. Waiting on Acme to confirm the sender domain for transactional email." } },
-  { key: "AP-21", productKey: "AP", title: "Reset password form", type: "task", statusId: "ap-qa", assigneeId: "u-daniyal", priority: "medium", estimateH: 4, due: "2026-10-01", requirementId: "AP-R2", sprint: "Sprint 14", epicKey: "AP-3", dependsOn: ["AP-20"] },
-  { key: "AP-22", productKey: "AP", title: "Token expiry edge case on reset link", type: "bug", statusId: "ap-ready", assigneeId: "u-zain", priority: "critical", estimateH: 2, due: "2026-10-02", requirementId: "AP-R2", sprint: "Sprint 14", epicKey: "AP-3" },
-  { key: "AP-25", productKey: "AP", title: "Profile settings page", type: "task", statusId: "ap-ready", assigneeId: "u-daniyal", priority: "low", estimateH: 6, due: "2026-10-09", requirementId: "AP-R4", sprint: "Sprint 15" },
+  { key: "AP-13", productKey: "AP", title: "Auth API", type: "task", statusId: "ap-review", assigneeIds: ["u-sara"], priority: "high", estimateH: 8, due: "2026-09-30", requirementId: "AP-R1", sprint: "Sprint 14", pr: { number: 88, state: "approved" }, epicKey: "AP-3" },
+  { key: "AP-14", productKey: "AP", title: "Session refresh tokens", type: "task", statusId: "ap-shipped", assigneeIds: ["u-zain"], priority: "medium", estimateH: 5, due: "2026-09-26", requirementId: "AP-R1", sprint: "Sprint 13", pr: { number: 81, state: "merged" }, epicKey: "AP-3" },
+  { key: "AP-15", productKey: "AP", title: "Login rate limiting", type: "task", statusId: "ap-shipped", assigneeIds: ["u-zain"], priority: "high", estimateH: 3, due: "2026-09-25", requirementId: "AP-R1", sprint: "Sprint 13", epicKey: "AP-3" },
+  { key: "AP-20", productKey: "AP", title: "Reset email", type: "task", statusId: "ap-blocked", assigneeIds: ["u-sara"], priority: "medium", estimateH: 2, due: "2026-10-03", requirementId: "AP-R2", sprint: "Sprint 14", epicKey: "AP-3", sections: { goal: "Send the password-reset email from Acme's own domain. Waiting on Acme to confirm the sender domain for transactional email." } },
+  { key: "AP-21", productKey: "AP", title: "Reset password form", type: "task", statusId: "ap-qa", assigneeIds: ["u-daniyal"], priority: "medium", estimateH: 4, due: "2026-10-01", requirementId: "AP-R2", sprint: "Sprint 14", epicKey: "AP-3", dependsOn: ["AP-20"] },
+  { key: "AP-22", productKey: "AP", title: "Token expiry edge case on reset link", type: "bug", statusId: "ap-ready", assigneeIds: ["u-zain"], priority: "critical", estimateH: 2, due: "2026-10-02", requirementId: "AP-R2", sprint: "Sprint 14", epicKey: "AP-3" },
+  { key: "AP-25", productKey: "AP", title: "Profile settings page", type: "task", statusId: "ap-ready", assigneeIds: ["u-daniyal"], priority: "low", estimateH: 6, due: "2026-10-09", requirementId: "AP-R4", sprint: "Sprint 15" },
   { key: "AP-26", productKey: "AP", title: "Avatar upload", type: "task", statusId: "ap-backlog", priority: "low", estimateH: 3, requirementId: "AP-R4" },
   { key: "AP-30", productKey: "AP", title: "CSV report export", type: "task", statusId: "ap-backlog", priority: "medium", estimateH: 8, requirementId: "AP-R3" },
   { key: "AP-31", productKey: "AP", title: "PDF export", type: "task", statusId: "ap-wontdo", priority: "low", estimateH: 10, requirementId: "AP-R3", sections: { goal: "Dropped from v1 (decision Sep 20)." } },
-  { key: "AP-33", productKey: "AP", title: "Session expires while typing", type: "bug", statusId: "ap-dev", assigneeId: "u-daniyal", priority: "high", estimateH: 3, due: "2026-10-01", sprint: "Sprint 14", epicKey: "AP-3" },
+  { key: "AP-33", productKey: "AP", title: "Session expires while typing", type: "bug", statusId: "ap-dev", assigneeIds: ["u-daniyal"], priority: "high", estimateH: 3, due: "2026-10-01", sprint: "Sprint 14", epicKey: "AP-3" },
   { key: "AP-1", productKey: "AP", title: "General (meetings & admin)", type: "task", statusId: "ap-dev", priority: "low", estimateH: 40 },
   // 1Fold
-  { key: "OF-4", productKey: "OF", title: "Ticket board (table + kanban)", type: "task", statusId: "of-done", assigneeId: "u-ayesha", priority: "high", estimateH: 16, due: "2026-09-29", requirementId: "OF-R1", pr: { number: 12, state: "merged" } },
-  { key: "OF-7", productKey: "OF", title: "Custom statuses per product", type: "task", statusId: "of-review", assigneeId: "u-zain", priority: "high", estimateH: 10, due: "2026-10-03", requirementId: "OF-R1", pr: { number: 15, state: "open" } },
-  { key: "OF-9", productKey: "OF", title: "Timer + time entries", type: "task", statusId: "of-progress", assigneeId: "u-daniyal", priority: "high", estimateH: 12, due: "2026-10-06", requirementId: "OF-R2" },
-  { key: "OF-12", productKey: "OF", title: "Workflow editor", type: "task", statusId: "of-todo", assigneeId: "u-sara", priority: "medium", estimateH: 8, due: "2026-10-08", requirementId: "OF-R1" },
-  { key: "OF-14", productKey: "OF", title: "Weekly timesheet approval", type: "task", statusId: "of-todo", assigneeId: "u-usman", priority: "medium", estimateH: 10, due: "2026-10-10", requirementId: "OF-R2" },
+  { key: "OF-4", productKey: "OF", title: "Ticket board (table + kanban)", type: "task", statusId: "of-done", assigneeIds: ["u-ayesha"], priority: "high", estimateH: 16, due: "2026-09-29", requirementId: "OF-R1", pr: { number: 12, state: "merged" } },
+  { key: "OF-7", productKey: "OF", title: "Custom statuses per product", type: "task", statusId: "of-review", assigneeIds: ["u-zain"], priority: "high", estimateH: 10, due: "2026-10-03", requirementId: "OF-R1", pr: { number: 15, state: "open" } },
+  { key: "OF-9", productKey: "OF", title: "Timer + time entries", type: "task", statusId: "of-progress", assigneeIds: ["u-daniyal"], priority: "high", estimateH: 12, due: "2026-10-06", requirementId: "OF-R2" },
+  { key: "OF-12", productKey: "OF", title: "Workflow editor", type: "task", statusId: "of-todo", assigneeIds: ["u-sara"], priority: "medium", estimateH: 8, due: "2026-10-08", requirementId: "OF-R1" },
+  { key: "OF-14", productKey: "OF", title: "Weekly timesheet approval", type: "task", statusId: "of-todo", assigneeIds: ["u-usman"], priority: "medium", estimateH: 10, due: "2026-10-10", requirementId: "OF-R2" },
   { key: "OF-18", productKey: "OF", title: "Company home dashboard", type: "task", statusId: "of-backlog", priority: "medium", estimateH: 14, requirementId: "OF-R3" },
-  { key: "OF-19", productKey: "OF", title: "Timer drifts after sleep", type: "bug", statusId: "of-stuck", assigneeId: "u-daniyal", priority: "high", estimateH: 2, due: "2026-09-30", requirementId: "OF-R2" },
+  { key: "OF-19", productKey: "OF", title: "Timer drifts after sleep", type: "bug", statusId: "of-stuck", assigneeIds: ["u-daniyal"], priority: "high", estimateH: 2, due: "2026-09-30", requirementId: "OF-R2" },
   // Nova
-  { key: "NV-1", productKey: "NV", title: "Inference API contract", type: "task", statusId: "nv-progress", assigneeId: "u-maryam", priority: "high", estimateH: 6, due: "2026-10-05", requirementId: "NV-R1" },
-  { key: "NV-2", productKey: "NV", title: "Model packaging spike", type: "task", statusId: "nv-progress", assigneeId: "u-faraz", priority: "medium", estimateH: 8, due: "2026-10-04", requirementId: "NV-R1" },
-  { key: "NV-3", productKey: "NV", title: "Metering design", type: "task", statusId: "nv-todo", assigneeId: "u-faraz", priority: "medium", estimateH: 5, requirementId: "NV-R2" },
-  { key: "NV-4", productKey: "NV", title: "Kickoff workshop notes", type: "task", statusId: "nv-done", assigneeId: "u-maryam", priority: "low", estimateH: 2 },
+  { key: "NV-1", productKey: "NV", title: "Inference API contract", type: "task", statusId: "nv-progress", assigneeIds: ["u-maryam"], priority: "high", estimateH: 6, due: "2026-10-05", requirementId: "NV-R1" },
+  { key: "NV-2", productKey: "NV", title: "Model packaging spike", type: "task", statusId: "nv-progress", assigneeIds: ["u-faraz"], priority: "medium", estimateH: 8, due: "2026-10-04", requirementId: "NV-R1" },
+  { key: "NV-3", productKey: "NV", title: "Metering design", type: "task", statusId: "nv-todo", assigneeIds: ["u-faraz"], priority: "medium", estimateH: 5, requirementId: "NV-R2" },
+  { key: "NV-4", productKey: "NV", title: "Kickoff workshop notes", type: "task", statusId: "nv-done", assigneeIds: ["u-maryam"], priority: "low", estimateH: 2 },
 ];
 
 export const decisions: Decision[] = [

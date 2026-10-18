@@ -3,6 +3,10 @@
 /* ---------- Product header (workspace-home style) ---------- */
 .product-header { display: flex; align-items: flex-start; gap: 24px; margin-bottom: 24px; }
 .product-header-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-top: 4px; }
+/* Settings sits at the header's top right (admins and the product's managers), not among the tabs. */
+.product-settings-link { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.product-settings-link svg { width: 16px; height: 16px; }
+.product-settings-link.is-active { color: var(--primary-color); border-color: var(--primary-color); background: var(--primary-selected-color); }
 .product-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .product-title { font-family: var(--font-family); font-size: 32px; font-weight: 500; line-height: 40px; }
 .product-description { font-size: 16px; line-height: 22px; color: var(--secondary-text-color); max-width: 72ch; }
@@ -195,6 +199,8 @@
 }
 @media (max-width: 767px) {
   .product-header { gap: 16px; }
+  .product-settings-link { width: 40px; padding: 0; justify-content: center; } /* icon only */
+  .product-settings-link span { display: none; }
   .product-header .product-tile.xl { width: 64px; height: 64px; border-radius: 14px; font-size: 26px; }
   .product-title { font-size: 24px; line-height: 30px; }
   .roadmap-timeline { display: none; }

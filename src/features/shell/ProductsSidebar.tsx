@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Check, ChevronDown, FolderInput, FolderMinus, LayoutGrid, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
-import { visibleProducts } from "@/domain/permissions";
-import { addGroup, deleteGroup, renameGroup, updateProduct } from "@/data/commands";
+import { Archive, ArchiveRestore, Check, ChevronDown, FolderInput, FolderMinus, LayoutGrid, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { archivedProducts, visibleProducts } from "@/domain/permissions";
+import { addGroup, deleteGroup, moveProduct, renameGroup } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Product, ProductGroup } from "@/domain/types";
+import { DeleteProductDialog, useArchive } from "@/features/products/ArchiveControls";
 import { Popover } from "@/ui/Popover";
 import { ProductTile } from "@/ui/primitives";
 
@@ -38,17 +39,17 @@ function CompanyName() {
   );
 }
 
-function GroupSection({ group, products, collapsed, onToggle, item }: {
-  group: ProductGroup | null; products: Product[]; collapsed: boolean; onToggle: () => void;
-  item: (p: Product) => React.ReactNode;
+function GroupSection({ group, label, empty = "No products yet", className, products, collapsed, onToggle, item }: {
+  group: ProductGroup | null; label?: string; empty?: string; className?: string; products: Product[];
+  collapsed: boolean; onToggle: () => void; item: (p: Product) => React.ReactNode;
 }) {
   const { can, act } = useMe();
   const [renaming, setRenaming] = useState(false);
-  const isAdmin = can("org.manage") && group;
-  const name = group?.name ?? "Ungrouped";
+  const canManage = can("groups.manage") && group;
+  const name = label ?? group?.name ?? "Ungrouped";
 
   return (
-    <div className="sidebar-group">
+    <div className={`sidebar-group${className ? ` ${className}` : ""}`}>
       {renaming && group ? (
         <InlineName label="Group name" initial={group.name} onCancel={() => setRenaming(false)}
           onSave={(n) => act((d, m) => renameGroup(d, m, group.id, n), { success: "Group renamed" })} />
@@ -59,7 +60,7 @@ function GroupSection({ group, products, collapsed, onToggle, item }: {
             <span className="sidebar-group-name">{name}</span>
             <span className="sidebar-group-count">{products.length}</span>
           </button>
-          {isAdmin && (
+          {canManage && (
             <Popover
               align="right" width={200}
               trigger={({ open, toggle }) => (
@@ -84,50 +85,60 @@ function GroupSection({ group, products, collapsed, onToggle, item }: {
         </div>
       )}
       {!collapsed && products.map(item)}
-      {!collapsed && products.length === 0 && <p className="sidebar-empty">No products yet</p>}
+      {!collapsed && products.length === 0 && <p className="sidebar-empty">{empty}</p>}
     </div>
   );
 }
 
-/** ⋯ on a product row: move it to any group, or take it out of its group. */
+const rowMenuTrigger = (product: Product) => function Trigger({ open, toggle }: { open: boolean; toggle: () => void }) {
+  return (
+    <button
+      type="button" className="sidebar-item-more" aria-label={`${product.name} options`} aria-expanded={open}
+      onClick={(e) => { e.preventDefault(); toggle(); }}
+    >
+      <MoreHorizontal aria-hidden />
+    </button>
+  );
+};
+
+/** ⋯ on a product row: move it to any group, take it out of its group, or archive it. */
 function ProductMenu({ product }: { product: Product }) {
-  const { db, act } = useMe();
+  const { db, act, can } = useMe();
+  const { archive } = useArchive();
+  const canMove = can("product.group", { product });
   const move = (groupId: string | undefined, label: string) =>
-    act((d, m) => updateProduct(d, m, product.key, { groupId }), { success: `${product.name} → ${label}`, undoable: true });
+    act((d, m) => moveProduct(d, m, product.key, groupId), { success: `${product.name} → ${label}`, undoable: true });
   const inGroup = product.groupId && db.productGroups.some((g) => g.id === product.groupId);
   return (
-    <Popover
-      align="right" width={232} className="sidebar-product-menu"
-      trigger={({ open, toggle }) => (
-        <button
-          type="button" className="sidebar-item-more" aria-label={`${product.name} options`} aria-expanded={open}
-          onClick={(e) => { e.preventDefault(); toggle(); }}
-        >
-          <MoreHorizontal aria-hidden />
-        </button>
-      )}
-    >
+    <Popover align="right" width={232} className="sidebar-product-menu" trigger={rowMenuTrigger(product)}>
       {(close) => (
         <>
-          <div className="menu-section-label"><FolderInput aria-hidden /> Move to group</div>
-          {db.productGroups.map((g) => (
-            <button
-              key={g.id} type="button" role="menuitemradio" aria-checked={g.id === product.groupId}
-              className={`menu-item${g.id === product.groupId ? " is-selected" : ""}`}
-              disabled={g.id === product.groupId}
-              onClick={() => { close(); move(g.id, g.name); }}
-            >
-              {g.name}
-              {g.id === product.groupId && <Check className="menu-item-end" />}
-            </button>
-          ))}
-          {db.productGroups.length === 0 && <p className="sidebar-empty">No groups yet — add one below.</p>}
-          {inGroup && (
+          {canMove && (
             <>
-              <div className="menu-divider" />
-              <button type="button" className="menu-item" onClick={() => { close(); move(undefined, "Ungrouped"); }}>
-                <FolderMinus /> Remove from group
-              </button>
+              <div className="menu-section-label"><FolderInput aria-hidden /> Move to group</div>
+              {db.productGroups.map((g) => (
+                <button
+                  key={g.id} type="button" role="menuitemradio" aria-checked={g.id === product.groupId}
+                  className={`menu-item${g.id === product.groupId ? " is-selected" : ""}`}
+                  disabled={g.id === product.groupId}
+                  onClick={() => { close(); move(g.id, g.name); }}
+                >
+                  {g.name}
+                  {g.id === product.groupId && <Check className="menu-item-end" />}
+                </button>
+              ))}
+              {db.productGroups.length === 0 && <p className="sidebar-empty">No groups yet — add one below.</p>}
+              {inGroup && (
+                <button type="button" className="menu-item" onClick={() => { close(); move(undefined, "Ungrouped"); }}>
+                  <FolderMinus /> Remove from group
+                </button>
+              )}
+            </>
+          )}
+          {can("product.archive", { product }) && (
+            <>
+              {canMove && <div className="menu-divider" />}
+              <button type="button" className="menu-item" onClick={() => { close(); archive(product); }}><Archive /> Archive project</button>
             </>
           )}
         </>
@@ -136,31 +147,69 @@ function ProductMenu({ product }: { product: Product }) {
   );
 }
 
-/** Company → groups → products. Groups are whatever the admin wants (client/internal, by team, by quarter…). */
+/** An archived product's row: open it (read-only), restore it in one click, or — admins — delete it for good. */
+function ArchivedRow({ product, active, onNavigate }: { product: Product; active: boolean; onNavigate: () => void }) {
+  const { href, can } = useMe();
+  const { restore } = useArchive();
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = can("product.delete", { product });
+  return (
+    <div className={`sidebar-row is-archived${canDelete ? " has-menu" : ""}`}>
+      <Link href={href(`/products/${product.key}`)} onClick={onNavigate} className={`sidebar-item${active ? " is-active" : ""}`}>
+        <ProductTile product={product} />
+        <span>{product.name}</span>
+      </Link>
+      {can("product.archive", { product }) && (
+        <button type="button" className="sidebar-restore" aria-label={`Restore ${product.name}`} onClick={() => restore(product)}>
+          <ArchiveRestore aria-hidden /> Restore
+        </button>
+      )}
+      {canDelete && (
+        <Popover align="right" width={200} className="sidebar-product-menu" trigger={rowMenuTrigger(product)}>
+          {(close) => (
+            <button type="button" className="menu-item is-danger" onClick={() => { close(); setDeleting(true); }}>
+              <Trash2 /> Delete forever…
+            </button>
+          )}
+        </Popover>
+      )}
+      {deleting && <DeleteProductDialog product={product} onClose={() => setDeleting(false)} />}
+    </div>
+  );
+}
+
+const ARCHIVED = "archived";
+
+/**
+ * Company → groups → products, then the permanent Archived group (closed until opened; never shown to developers).
+ * Groups are whatever the team wants (client/internal, by team, by quarter…).
+ */
 export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: () => void }) {
   const { me, db, href, can, act } = useMe();
   const products = visibleProducts(me, db.products);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const archived = archivedProducts(me, db.products);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set([ARCHIVED]));
   const [adding, setAdding] = useState(false);
-  const isAdmin = can("org.manage");
+  const canGroups = can("groups.manage");
   const toggle = (id: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const isActive = (p: Product) => rel === `/products/${p.key}` || rel.startsWith(`/products/${p.key}/`);
 
   const item = (p: Product) => {
-    const active = rel === `/products/${p.key}` || rel.startsWith(`/products/${p.key}/`);
+    const menu = can("product.group", { product: p }) || can("product.archive", { product: p });
     return (
-      <div key={p.key} className={`sidebar-row${isAdmin ? " has-menu" : ""}`}>
-        <Link href={href(`/products/${p.key}`)} onClick={onNavigate} className={`sidebar-item${active ? " is-active" : ""}`}>
+      <div key={p.key} className={`sidebar-row${menu ? " has-menu" : ""}`}>
+        <Link href={href(`/products/${p.key}`)} onClick={onNavigate} className={`sidebar-item${isActive(p) ? " is-active" : ""}`}>
           <ProductTile product={p} />
           <span>{p.name}</span>
           <span className="sidebar-item-end">{p.key}</span>
         </Link>
-        {isAdmin && <ProductMenu product={p} />}
+        {menu && <ProductMenu product={p} />}
       </div>
     );
   };
 
-  // Admins see every group (even empty ones, to fill them); others only groups that hold their products.
-  const groups = db.productGroups.filter((g) => isAdmin || products.some((p) => p.groupId === g.id));
+  // Whoever manages groups sees every group (even empty ones, to fill them); others only groups that hold their products.
+  const groups = db.productGroups.filter((g) => canGroups || products.some((p) => p.groupId === g.id));
   const ungrouped = products.filter((p) => !p.groupId || !db.productGroups.some((g) => g.id === p.groupId));
 
   return (
@@ -178,12 +227,17 @@ export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: 
       {ungrouped.length > 0 && (
         <GroupSection group={null} products={ungrouped} collapsed={collapsed.has("none")} onToggle={() => toggle("none")} item={item} />
       )}
-      {isAdmin && (adding ? (
+      {canGroups && (adding ? (
         <InlineName label="New group name" onCancel={() => setAdding(false)}
           onSave={(n) => act((d, m) => addGroup(d, m, n), { success: `${n.trim()} group added` })} />
       ) : (
         <button type="button" className="sidebar-add-group" onClick={() => setAdding(true)}><Plus aria-hidden /> New group</button>
       ))}
+      {me.panel !== "developer" && (
+        <GroupSection group={null} label="Archived" empty="Nothing archived" className="sidebar-archived" products={archived}
+          collapsed={collapsed.has(ARCHIVED)} onToggle={() => toggle(ARCHIVED)}
+          item={(p) => <ArchivedRow key={p.key} product={p} active={isActive(p)} onNavigate={onNavigate} />} />
+      )}
     </aside>
   );
 }

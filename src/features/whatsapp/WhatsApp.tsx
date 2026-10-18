@@ -39,7 +39,7 @@ function useWhatsApp(everyMs: number) {
   return { status, error, reload: load };
 }
 
-/** Account menu → WhatsApp: link your number, turn the daily brief on or off, or unlink. Render only while open. */
+/** Account menu → WhatsApp: link your number (or unlink it, to change numbers). Render only while open. */
 export function WhatsAppDialog({ onClose }: { onClose: () => void }) {
   const { toast } = useMe();
   const ref = useRef<HTMLDialogElement>(null);
@@ -74,14 +74,7 @@ export function WhatsAppDialog({ onClose }: { onClose: () => void }) {
     body = (
       <>
         <p className="wa-linked"><Check aria-hidden /> Connected to <strong>{shownPhone(linked.phone)}</strong></p>
-        <label className="settings-toggle">
-          <input type="checkbox" role="switch" checked={linked.briefs} disabled={busy}
-            onChange={(e) => { const on = e.target.checked; void run(() => api("/api/whatsapp/briefs", { on }), on ? "Daily brief on" : "Daily brief paused"); }} />
-          <span>
-            <strong>Daily brief at 9:00</strong>
-            <span className="muted">Every working day: what&apos;s overdue, due today, in progress and in review. You can also reply TODAY, STOP or START to the bot.</span>
-          </span>
-        </label>
+        <p className="muted">Every working day at 9:00 you get your pending tasks here, project by project. Reply <strong>1FOLD</strong> to the bot anytime for an update.</p>
         <div className="inv-foot">
           <button type="button" className="btn btn-tertiary is-danger" disabled={busy}
             onClick={() => void run(async () => { await api("/api/whatsapp/unlink", {}); setCode(null); }, "WhatsApp disconnected")}>
@@ -113,7 +106,7 @@ export function WhatsAppDialog({ onClose }: { onClose: () => void }) {
   } else {
     body = (
       <>
-        <p className="muted">Get your tasks on WhatsApp every working day at 9:00 — overdue, due today, in progress and in review, with links. You send the first message, so 1Fold only ever writes to you.</p>
+        <p className="muted">Get your pending tasks on WhatsApp every working day at 9:00, project by project, with due dates and links. You send the first message, so 1Fold only ever writes to you.</p>
         <div className="inv-foot">
           <button type="button" className="btn btn-tertiary" onClick={onClose}>Not now</button>
           <button type="button" className="btn btn-primary" disabled={busy}

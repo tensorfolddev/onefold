@@ -54,6 +54,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
       name: p.name, type: p.type, client: opt(p.client), stage: p.stage, health: p.health, pmId: p.pmId,
       projectManagerId: p.projectManagerId, color: p.color, description: p.description, waitingApproval: opt(p.waitingApproval),
       icon: opt(p.icon), groupId: opt(p.groupId), createdAt: p.createdAt,
+      archivedAt: instantOrNull(p.archivedAt), archivedBy: opt(p.archivedBy),
     })),
     productMembers: db.products.flatMap((p) => p.memberIds.map((m) => r(`${p.key}:${m}`, { productId: p.key, memberId: m }))),
     boardLists: productKeys.flatMap((key) => (db.statusesByProduct[key] ?? []).map((s) => r(s.id, {
@@ -65,9 +66,10 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     docs: db.docs.map((d) => r(d.id, { productId: d.productKey, kind: d.kind, title: d.title, updated: d.updated, authorId: d.authorId })),
     stageRequests: db.stageRequests.map((s) => r(s.id, { productId: s.productKey, stage: s.stage, requestedBy: s.requestedBy, at: instant(s.at) })),
     tickets: db.tickets.map((t) => r(t.key, {
-      productId: t.productKey, title: t.title, type: t.type, statusId: t.statusId, assigneeId: opt(t.assigneeId),
+      productId: t.productKey, title: t.title, type: t.type, statusId: t.statusId, assigneeId: opt(t.assigneeIds?.[0]), assigneeIds: t.assigneeIds?.length ? t.assigneeIds : null,
       priority: t.priority, estimateH: t.estimateH, due: opt(t.due), requirementId: opt(t.requirementId), sprint: opt(t.sprint),
       pr: opt(t.pr), createdBy: opt(t.createdBy), color: opt(t.color), epicId: opt(t.epicKey),
+      archivedAt: instantOrNull(t.archivedAt), archivedBy: opt(t.archivedBy),
       sections: t.sections && Object.keys(t.sections).length ? t.sections : null,
     })),
     ticketDependencies: db.tickets.flatMap((t) => (t.dependsOn ?? []).map((d) => r(`${t.key}:${d}`, { ticketId: t.key, dependsOnId: d }))),
@@ -122,15 +124,17 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     description: str(p.description), waitingApproval: und(p.waitingApproval),
     memberIds: (membersOf.get(p.id) ?? []).map((m) => str(m.memberId)), icon: und<ProductIcon>(p.icon), groupId: und(p.groupId),
     createdAt: str(p.createdAt),
+    ...(p.archivedAt ? { archivedAt: instant(str(p.archivedAt)), archivedBy: und<string>(p.archivedBy) } : {}),
   }));
   const statusesByProduct: Record<string, Status[]> = Object.fromEntries(products.map((p) => [p.key, (listsOf.get(p.key) ?? []).map((s) => ({
     id: s.id, name: str(s.name), category: s.category as Status["category"], tone: s.tone as Status["tone"], system: und<Status["system"]>(s.system),
   }))]));
   const tickets: Ticket[] = t.tickets.map((k) => ({
     key: k.id, productKey: str(k.productId), title: str(k.title), type: k.type as Ticket["type"], statusId: str(k.statusId),
-    assigneeId: und(k.assigneeId), priority: k.priority as Ticket["priority"], estimateH: k.estimateH as number, due: und(k.due),
+    assigneeIds: (k.assigneeIds as string[] | null)?.length ? (k.assigneeIds as string[]) : k.assigneeId ? [str(k.assigneeId)] : undefined, priority: k.priority as Ticket["priority"], estimateH: k.estimateH as number, due: und(k.due),
     requirementId: und(k.requirementId), sprint: und(k.sprint), pr: und<PullRequest>(k.pr), createdBy: und(k.createdBy),
     color: und(k.color), epicKey: und(k.epicId), sections: und<TicketSections>(k.sections),
+    ...(k.archivedAt ? { archivedAt: instant(str(k.archivedAt)), archivedBy: und<string>(k.archivedBy) } : {}),
     dependsOn: depsOf.has(k.id) ? depsOf.get(k.id)!.map((d) => str(d.dependsOnId)) : undefined,
     attachments: filesOf.has(k.id) ? filesOf.get(k.id)!.map((a): Attachment => ({
       id: a.id, name: str(a.name), type: str(a.type), size: a.size as number, width: a.width as number, height: a.height as number,

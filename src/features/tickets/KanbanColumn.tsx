@@ -1,13 +1,14 @@
 "use client";
 
 import { memo } from "react";
-import { Ban, Layers, Plus } from "lucide-react";
+import { Layers, Plus } from "lucide-react";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDb } from "@/data/StoreProvider";
+import { heldUp, openBlockers } from "@/domain/selectors/blocked";
+import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
-import { Avatar, StatusPill } from "@/ui/primitives";
-import { DueDate, EpicChip, TypeIcon } from "./TicketBits";
+import { Assignees, DueDate, EpicChip, TypeIcon } from "./TicketBits";
 import { ListHeader, TaskComposer } from "./KanbanLists";
 import { useIsDone } from "./TemplateRelations";
 
@@ -18,13 +19,16 @@ export const SORT_TRANSITION = { duration: 220, easing: "cubic-bezier(0.2, 0, 0,
 
 export type Composer = { statusId: string; position: "top" | "bottom" } | null;
 
-/** "Blocked by 2" while a dependency is still open. */
+/** "Blocked by CH-2" while a dependency is still open — with a face that says how that feels. */
 function BlockedChip({ ticket }: { ticket: Ticket }) {
   const { db } = useDb();
-  const isDone = useIsDone();
-  const open = (ticket.dependsOn ?? []).filter((k) => { const t = db.tickets.find((x) => x.key === k); return t && !isDone(t); });
+  const open = openBlockers(db, ticket).map((t) => t.key);
   if (!open.length) return null;
-  return <span className="blocked-chip" title={`Blocked by ${open.join(", ")}`}><Ban aria-hidden /> Blocked{open.length > 1 ? ` · ${open.length}` : ""}</span>;
+  return (
+    <span className="blocked-chip" title={`Waiting on ${open.join(", ")} — finish ${open.length > 1 ? "those" : "that"} first`}>
+      <span className="blocked-face" aria-hidden>😣</span> Blocked by {open[0]}{open.length > 1 ? ` +${open.length - 1}` : ""}
+    </span>
+  );
 }
 
 function EpicProgress({ epic }: { epic: Ticket }) {
@@ -43,19 +47,20 @@ function EpicProgress({ epic }: { epic: Ticket }) {
 
 /** Epic face: colour wash in the epic's colour, icon badge, "Epic" pill, bold title. */
 const EpicCardView = memo(function EpicCardView({ ticket }: { ticket: Ticket }) {
+  const { db } = useDb();
   return (
     <>
       <span className="epic-card-head">
         <span className="epic-card-badge" aria-hidden><Layers /></span>
         <span className="key">{ticket.key}</span>
-        <span className="epic-card-pill">Epic</span>
+        <span className="epic-card-pill">{epicLabel(db, ticket)}</span>
       </span>
       <span className="epic-card-title">{ticket.title}</span>
       <EpicProgress epic={ticket} />
       <span className="epic-card-foot">
         {ticket.due ? <DueDate ticket={ticket} done={false} /> : <span className="muted">No due date</span>}
         <span className="spacer" />
-        <Avatar personId={ticket.assigneeId} size="sm" />
+        <Assignees ids={ticket.assigneeIds} />
       </span>
     </>
   );
@@ -71,27 +76,28 @@ export const CardView = memo(function CardView({ ticket }: { ticket: Ticket }) {
       <span className="kanban-card-key"><TypeIcon type={ticket.type} /><span className="key">{ticket.key}</span><EpicChip ticket={ticket} /></span>
       <span className="kanban-card-title">{ticket.title}</span>
       <span className="kanban-card-meta">
-        {status && <StatusPill name={status.name} tone={status.tone} />}
         {ticket.due && <span className="due-chip"><DueDate ticket={ticket} done={status?.category === "done"} /></span>}
         <BlockedChip ticket={ticket} />
         <span className="spacer" />
-        <Avatar personId={ticket.assigneeId} size="sm" />
+        <Assignees ids={ticket.assigneeIds} />
       </span>
     </>
   );
 });
 
 const SortableCard = memo(function SortableCard({ ticket, canMove, onOpen }: { ticket: Ticket; canMove: boolean; onOpen: (key: string) => void }) {
+  const { db } = useDb();
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: cardId(ticket.key), data: { type: "card", key: ticket.key }, disabled: !canMove, transition: SORT_TRANSITION,
   });
+  const held = heldUp(db, ticket); // waiting on something, or stuck: the card strains now and then
   return (
     <li
       ref={setNodeRef} className={`kanban-card-slot${isDragging ? " is-placeholder" : ""}`}
       style={{ transform: CSS.Translate.toString(transform), transition }}
     >
       <button
-        type="button" className={`kanban-card${canMove ? " is-movable" : ""}${ticket.type === "epic" ? " is-epic" : ""}`}
+        type="button" className={`kanban-card${canMove ? " is-movable" : ""}${ticket.type === "epic" ? " is-epic" : ""}${held ? " is-held" : ""}`}
         style={ticket.type === "epic" ? ({ "--epic": ticket.color } as React.CSSProperties) : undefined}
         onClick={() => onOpen(ticket.key)}
         {...attributes} {...listeners}

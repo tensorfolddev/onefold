@@ -56,8 +56,8 @@ The worker (`npm run worker` locally) runs scheduled jobs next to the website.
 
 The worker runs a WhatsApp bot (Baileys, the way Hermes Agent does: bot mode on its own number, deny by default,
 never writes first). People link their number by sending it a one-time code (their name → WhatsApp); every working
-day at 9:00 in the company's time zone they get what's overdue, due today, in progress and in review. Replies:
-TODAY, STOP, START. When WhatsApp is down the brief goes by email. Platform admins (`PLATFORM_ADMIN_EMAILS`) pair the
+day at 9:00 in the company's time zone they get all their pending tickets, project by project, with due dates and
+links. Replying 1FOLD sends it again anytime; it can't be switched off. When WhatsApp is down the brief goes by email. Platform admins (`PLATFORM_ADMIN_EMAILS`) pair the
 bot in Settings → WhatsApp. Locally: `npm run worker` next to `npm run dev`.
 
 ## Claude & MCP
@@ -70,7 +70,9 @@ claude mcp add --transport http onefold https://1fold.tensorfold.ai/api/mcp --he
 ```
 
 Tools: `list_products`, `list_tickets`, `get_ticket`, `create_ticket`, `update_ticket`, `move_ticket`, `add_comment`,
-`set_section`, `add_dependency`. They run as the token's owner — same permissions, same commands, audit log source
+`set_section`, `add_dependency` — and, for admins and managers only, `archive_product`, `restore_product`, `list_groups`,
+`create_group`, `rename_group`, `delete_group`, `move_product`, `list_members`, `add_member`, `remove_member`. No tool
+deletes a product: an admin does that in the app, from Archived, by typing "Delete <name>". They run as the token's owner — same permissions, same commands, audit log source
 `mcp`, live in everyone's browser. Tool names and required inputs never change (design §12.8): only new tools and
 optional inputs are added.
 

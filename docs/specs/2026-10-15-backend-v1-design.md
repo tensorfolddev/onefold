@@ -117,9 +117,9 @@ number**, **deny by default**, and **never message someone who hasn't messaged t
 - **A teammate joins:** Profile → *Connect WhatsApp* shows a one-tap `wa.me` link with a code prefilled
   (`1FOLD-7K2QXM`: once, for 15 minutes). They send it; the bot matches the code, links their number, and replies "You're connected".
   This proves the number is theirs **and** means they messaged first. Unknown senders are ignored.
-- **The brief:** at **9:00 Pakistan time** on working days, each connected member gets their tasks for the day —
-  overdue, due today, in progress, in review — with links. Messages go out a few seconds apart. Replies:
-  `today` (send it now), `stop` / `start`.
+- **The brief:** at **9:00 Pakistan time** on working days, each connected member gets all their pending tickets,
+  project by project, soonest due first, with links. Messages go out a few seconds apart. Replying `1FOLD` sends it
+  now; there's no `stop` — the brief is part of the job, not a subscription.
 - **When WhatsApp fails** (logged out, banned, protocol change): the brief goes by **email** instead, the admin gets
   an email and sees *Disconnected — scan again* in Settings. We keep the Baileys dependency up to date.
 - **Risk, stated plainly:** Baileys is unofficial; WhatsApp can restrict the bot number. Dedicated SIM, opt-in only,

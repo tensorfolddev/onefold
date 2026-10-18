@@ -7,7 +7,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { can as canFor, type Action, type Ctx } from "../domain/permissions.ts";
-import type { Panel, Person } from "../domain/types.ts";
+import type { Panel, Person, Ticket } from "../domain/types.ts";
+import { cheer, finished } from "../domain/selectors/celebrate.ts";
+import { celebrate } from "../ui/celebrate.ts";
 import { Toaster, type ToastItem } from "../ui/Toast.tsx";
 import { api, ApiError, upload } from "./api.ts";
 import { AccessError, record, recorded, ValidationError, type CommandName, type Commands, type InviteInput, type Step } from "./commands.ts";
@@ -22,7 +24,10 @@ type ActResult<K> = Db | { db: Db; key: K };
 export interface CreatedInvite { id: string; email: string; panel: Panel; role: string; link: string; emailed: boolean }
 
 export interface Store extends Lookups {
+  /** The company as screens show it: archived tickets left out of every board, list and count. */
   db: Db;
+  /** Archived tickets (admins and managers only — developers never receive them): product Settings → Archived. */
+  archivedTickets: Ticket[];
   me: Person;
   panel: Panel;
   /** "/products/AP" → "/dev/products/AP" for the signed-in panel. */
@@ -200,10 +205,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return undefined;
     }
     const isKeyed = "key" in result && "db" in result;
-    show({ ...cur, db: isKeyed ? (result as { db: Db }).db : (result as Db) });
+    const next = isKeyed ? (result as { db: Db }).db : (result as Db);
+    show({ ...cur, db: next });
     // Only the latest change can be undone.
     setToasts((ts) => (ts.some((t) => t.undo) ? ts.map((t) => (t.undo ? { ...t, undo: undefined } : t)) : ts));
-    if (opts.success) toast(opts.success, opts.undoable ? undo : undefined);
+    // Something just got finished — a ticket reached Done, or a whole epic did: cheer instead of the usual toast.
+    const party = cheer(finished(cur.db, next));
+    if (party) {
+      toast(party.message, opts.success && opts.undoable ? undo : undefined);
+      celebrate(party.big);
+    } else if (opts.success) toast(opts.success, opts.undoable ? undo : undefined);
     send("/api/org/changes", { steps, undoable: !!opts.undoable });
     return isKeyed ? (result as { key: K }).key : (true as const);
   }, [send, show, toast, undo]);
@@ -275,17 +286,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const auth: Auth = useMemo(() => ({ ready, signIn, createCompany, checkSlug, lookupInvite, acceptInvite, signOut }),
     [ready, signIn, createCompany, checkSlug, lookupInvite, acceptInvite, signOut]);
 
-  const lookups = useMemo(() => (view ? makeLookups(view.db) : null), [view]);
+  // Commands run on everything (so archived tickets can be restored or deleted); screens see only live tickets.
+  const live = useMemo(() => view && ({
+    db: { ...view.db, tickets: view.db.tickets.filter((t) => !t.archivedAt) },
+    archived: view.db.tickets.filter((t) => t.archivedAt),
+  }), [view]);
+  const lookups = useMemo(() => (live ? makeLookups(live.db) : null), [live]);
   const store: Store | null = useMemo(() => {
     const me = view?.db.people.find((p) => p.id === view.meId);
-    if (!view || !me || !lookups) return null;
+    if (!view || !live || !me || !lookups) return null;
     return {
-      ...lookups, db: view.db, me, panel: view.panel,
+      ...lookups, db: live.db, archivedTickets: live.archived, me, panel: view.panel,
       href: (path: string) => `/${PANEL_SLUG[view.panel]}${path}`,
       can: (action, ctx = {}) => canFor(me, action, ctx),
       run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification, uploadImage,
     };
-  }, [view, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage]);
+  }, [view, live, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage]);
 
   return (
     <StoreCtx.Provider value={{ store, auth }}>

@@ -1,14 +1,15 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
 import { isOnProduct } from "@/domain/permissions";
 import { useDb } from "@/data/StoreProvider";
+import { epicLabel, epicsOf } from "@/domain/selectors/epics";
 import type { Priority, Product, Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { Avatar, IconButton } from "@/ui/primitives";
-import { isOverdue, PRIORITY_LABEL } from "./TicketBits";
+import { Assignees, isOverdue, PRIORITY_LABEL } from "./TicketBits";
 
 const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"];
 
@@ -78,12 +79,12 @@ export function TypeField({ ticket }: { ticket: Ticket }) {
 export function EpicField({ ticket }: { ticket: Ticket }) {
   const { updateTicket } = useAppState();
   const { db } = useDb();
-  const epics = db.tickets.filter((t) => t.type === "epic" && t.productKey === ticket.productKey);
+  const epics = epicsOf(db, ticket.productKey);
   return (
     <select className="meta-select" aria-label="Epic" value={ticket.epicKey ?? ""}
       onChange={(e) => updateTicket(ticket.key, { epicKey: e.target.value || undefined })}>
       <option value="">No epic</option>
-      {epics.map((t) => <option key={t.key} value={t.key}>{t.key} · {t.title}</option>)}
+      {epics.map((t) => <option key={t.key} value={t.key}>{epicLabel(db, t)} · {t.title}</option>)}
     </select>
   );
 }
@@ -92,39 +93,39 @@ export function AssigneeField({ ticket, product }: { ticket: Ticket; product: Pr
   const { updateTicket } = useAppState();
   const { db, personById } = useDb();
   const people = db.people.filter((p) => p.active && isOnProduct(p.id, product));
-  const current = personById(ticket.assigneeId);
-  const pick = (id: string | undefined, close: () => void) => {
-    if (id !== ticket.assigneeId) updateTicket(ticket.key, { assigneeId: id });
-    close();
-  };
+  const ids = ticket.assigneeIds ?? [];
+  const label = ids.length === 0 ? "Unassigned" : ids.length === 1 ? personById(ids[0])?.name ?? "1 person" : `${ids.length} people`;
+  // Any number of people: each pick adds or removes one, and the menu stays open for the next.
+  const toggle = (id: string) => updateTicket(ticket.key, { assigneeIds: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id] });
 
   return (
     <Popover
-      width={240} className="assignee-menu"
-      trigger={({ open, toggle }) => (
+      width={260} className="assignee-menu"
+      trigger={({ open, toggle: openMenu }) => (
         <button
           type="button" className={`btn btn-tertiary meta-trigger${open ? " is-open" : ""}`}
-          aria-haspopup="menu" aria-expanded={open} onClick={toggle}
-          aria-label={`Assignee: ${current?.name ?? "Unassigned"}. Change assignee`}
+          aria-haspopup="menu" aria-expanded={open} onClick={openMenu}
+          aria-label={`Assignees: ${label}. Change assignees`}
         >
-          <Avatar personId={ticket.assigneeId} size="sm" /> {current?.name ?? "Unassigned"}
+          <Assignees ids={ids} /> {label}
         </button>
       )}
     >
-      {(close) => (
+      {() => (
         <>
           <button
-            type="button" role="menuitemradio" aria-checked={!ticket.assigneeId}
-            className={`menu-item${!ticket.assigneeId ? " is-selected" : ""}`} onClick={() => pick(undefined, close)}
+            type="button" role="menuitemcheckbox" aria-checked={!ids.length}
+            className={`menu-item${!ids.length ? " is-selected" : ""}`} onClick={() => ids.length && updateTicket(ticket.key, { assigneeIds: [] })}
           >
             <Avatar size="sm" /> Unassigned
           </button>
           {people.map((p) => (
             <button
-              key={p.id} type="button" role="menuitemradio" aria-checked={p.id === ticket.assigneeId}
-              className={`menu-item${p.id === ticket.assigneeId ? " is-selected" : ""}`} onClick={() => pick(p.id, close)}
+              key={p.id} type="button" role="menuitemcheckbox" aria-checked={ids.includes(p.id)}
+              className={`menu-item${ids.includes(p.id) ? " is-selected" : ""}`} onClick={() => toggle(p.id)}
             >
               <Avatar personId={p.id} size="sm" /> {p.name}
+              {ids.includes(p.id) && <Check className="menu-item-end" aria-hidden />}
             </button>
           ))}
         </>

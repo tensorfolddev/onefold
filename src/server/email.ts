@@ -88,7 +88,7 @@ export const verifyEmail = (p: { to: string; link: string }) => message(
 /** The daily brief, when WhatsApp can't take it. `lines` is the WhatsApp text, kept as plain lines. */
 export const briefEmail = (p: { to: string; orgName: string; text: string; myWorkUrl: string }) => message(
   p.to, `Your tasks today at ${p.orgName}`,
-  p.text.split("\n").filter((l) => l.trim() && !/^Reply /.test(l)).map((l) => l.replace(/\*/g, "")),
+  p.text.split("\n").filter((l) => l.trim() && !/^[━\s]+$/.test(l) && !/^Reply |🤍/.test(l)).map((l) => l.replace(/[*_]/g, "").trim()),
   { label: "Open My Work", url: p.myWorkUrl },
   "WhatsApp couldn't be reached this morning, so your 1Fold brief came by email instead.",
 );

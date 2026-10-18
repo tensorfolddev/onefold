@@ -6,6 +6,7 @@ import { Plus, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
 import { addDependency, createTicket, removeDependency, updateTicket } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
+import { epicLabel } from "@/domain/selectors/epics";
 import type { Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { IconButton, Progress, StatusPill } from "@/ui/primitives";
@@ -23,7 +24,7 @@ export function useIsDone() {
 }
 
 function TicketRow({ t, onRemove, removeLabel }: { t: Ticket; onRemove?: () => void; removeLabel?: string }) {
-  const { statusById } = useDb();
+  const { db, statusById } = useDb();
   const { openTicket } = useAppState();
   const isDone = useIsDone();
   const status = t.type === "epic" ? undefined : statusById(t.statusId);
@@ -34,7 +35,7 @@ function TicketRow({ t, onRemove, removeLabel }: { t: Ticket; onRemove?: () => v
         <span className="key">{t.key}</span>
         <span className="tpl-ref-title">{t.title}</span>
       </button>
-      {status ? <StatusPill name={status.name} tone={status.tone} /> : <span className="tpl-ref-epic">Epic</span>}
+      {status ? <StatusPill name={status.name} tone={status.tone} /> : <span className="tpl-ref-epic">{epicLabel(db, t)}</span>}
       {onRemove && <span className="tpl-item-x"><IconButton label={removeLabel ?? "Remove"} onClick={onRemove}><X /></IconButton></span>}
     </li>
   );
@@ -85,7 +86,7 @@ export function DependenciesSection({ ticket, editable }: { ticket: Ticket; edit
   const { db, act, can, productByKey } = useDb();
   const deps = (ticket.dependsOn ?? []).map((k) => db.tickets.find((t) => t.key === k)).filter((t): t is Ticket => !!t);
   const blocks = db.tickets.filter((t) => t.dependsOn?.includes(ticket.key));
-  const visible = (t: Ticket) => { const p = productByKey(t.productKey); return !!p && can("product.view", { product: p }); };
+  const visible = (t: Ticket) => { const p = productByKey(t.productKey); return !!p && !p.archivedAt && can("product.view", { product: p }); };
   // This product first; anything you can see is allowed. The store refuses loops with a clear message.
   const candidates = db.tickets
     .filter((t) => t.key !== ticket.key && !ticket.dependsOn?.includes(t.key) && visible(t))

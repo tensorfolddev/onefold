@@ -2,7 +2,7 @@ import { now } from "../clock.ts";
 import { DEFINITION_OF_DONE, isStoredKind, sectionDef, TEMPLATE_NAME } from "../templates.ts";
 import type { Activity, Attachment, Person, SectionValue, Ticket } from "../types.ts";
 import type { Db } from "../../data/db.ts";
-import { check, log, productOf, replace, ticketOf, ValidationError } from "./shared.ts";
+import { check, liveTicketOf, log, productOf, replace, ValidationError } from "./shared.ts";
 
 // ---------- ticket template (sections, dependencies, images) ----------
 const MAX_TEXT = 20_000;
@@ -11,7 +11,7 @@ const MAX_DEPENDENCIES = 30;
 const MAX_IMAGES = 20;
 
 const editTicket = (db: Db, me: Person, key: string) => {
-  const t = ticketOf(db, key);
+  const t = liveTicketOf(db, key, me);
   check(me, "ticket.edit", { product: productOf(db, t.productKey) });
   return t;
 };
@@ -61,7 +61,9 @@ export function addDependency(db: Db, me: Person, key: string, depKey: string): 
   const t = editTicket(db, me, key);
   const dep = db.tickets.find((x) => x.key === depKey);
   if (!dep) throw new ValidationError(`${depKey} doesn't exist`);
-  check(me, "product.view", { product: productOf(db, dep.productKey) });
+  const depProduct = productOf(db, dep.productKey);
+  check(me, "product.view", { product: depProduct });
+  if (depProduct.archivedAt) throw new ValidationError(`${depKey} is in ${depProduct.name}, which is archived`);
   if (depKey === key) throw new ValidationError("A ticket can't depend on itself");
   if (t.dependsOn?.includes(depKey)) throw new ValidationError(`${key} already depends on ${depKey}`);
   if ((t.dependsOn?.length ?? 0) >= MAX_DEPENDENCIES) throw new ValidationError(`At most ${MAX_DEPENDENCIES} dependencies`);
