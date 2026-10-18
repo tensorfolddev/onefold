@@ -12,7 +12,7 @@ import { EMPTY_FILTERS, filterTickets, type Filters, type SortKey, type ViewMode
 /** Client wrapper: owns view / search / person / quick-filter / sort state for one product's tickets. */
 export function TicketBoard({ productKey }: { productKey: string }) {
   const { tickets } = useAppState();
-  const [view, setView] = useState<ViewMode>("table");
+  const [view, setView] = useState<ViewMode>("kanban");
   const [query, setQuery] = useState("");
   const [person, setPerson] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
