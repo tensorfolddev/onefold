@@ -10,6 +10,7 @@ import { Markdown } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { Callout } from "./callout.ts";
+import { LinkCard, Mention, Ref } from "./nodes.ts";
 import { safeHref } from "./links.ts";
 
 export const lowlight = createLowlight(common);
@@ -40,6 +41,9 @@ export function docExtensions(opts: { editable: boolean; placeholder?: string })
     TaskItem.configure({ nested: true }),
     DocTable, TableRow, TableHeader, TableCell,
     Callout,
+    Mention,
+    Ref,
+    LinkCard,
     Placeholder.configure({ placeholder: opts.placeholder ?? "Write, or press / for blocks…" }),
     Markdown,
   ];
