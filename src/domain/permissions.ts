@@ -3,7 +3,7 @@ import type { Person, Product } from "./types.ts";
 export type Action =
   | "product.view" | "product.edit" | "product.create" | "product.approveStage" | "product.requestStage"
   | "members.edit" | "ticket.create" | "ticket.edit" | "ticket.delete" | "statuses.edit" | "product.brand"
-  | "doc.add" | "doc.addMeetingNotes" | "doc.delete" | "decision.add" | "milestone.edit"
+  | "doc.add" | "doc.addMeetingNotes" | "doc.delete" | "decision.add" | "milestone.edit" | "ticket.archive"
   | "product.archive" | "product.delete" | "product.group" | "groups.manage" | "members.view"
   | "people.manage" | "teams.manage" | "org.manage";
 
@@ -13,12 +13,12 @@ export interface Ctx {
 }
 
 const ADMIN_ONLY = new Set<Action>([
-  "product.create", "product.edit", "product.approveStage", "product.delete", "people.manage", "teams.manage", "org.manage",
+  "product.create", "product.edit", "product.approveStage", "product.delete", "ticket.delete", "people.manage", "teams.manage", "org.manage",
 ]);
 /** All that can happen to an archived product: looking at it, restoring it, or (an admin) deleting it for good. */
 export const WHILE_ARCHIVED = new Set<Action>(["product.view", "product.archive", "product.delete", "members.view"]);
 const DEVELOPER_ON_PRODUCT = new Set<Action>([
-  "product.view", "ticket.create", "ticket.edit", "ticket.delete", "statuses.edit", "doc.addMeetingNotes",
+  "product.view", "ticket.create", "ticket.edit", "statuses.edit", "doc.addMeetingNotes",
 ]);
 
 export const isOnProduct = (personId: string, p: Product) =>

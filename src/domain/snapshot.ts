@@ -2,13 +2,13 @@
 // change against it; this copy is only for showing screens (and the instant, local preview of a change).
 import type { Db } from "../data/db.ts";
 import { archivedProducts, visibleProducts } from "./permissions.ts";
-import type { Person, Product } from "./types.ts";
+import type { Person, Product, Ticket } from "./types.ts";
 
 /** The company cut down to some of its products, and only what belongs to them. */
-function onlyProducts(db: Db, keep: (p: Product) => boolean): Db {
+function onlyProducts(db: Db, keep: (p: Product) => boolean, keepTicket: (t: Ticket) => boolean = () => true): Db {
   const products = db.products.filter(keep);
   const keys = new Set(products.map((p) => p.key));
-  const tickets = db.tickets.filter((t) => keys.has(t.productKey));
+  const tickets = db.tickets.filter((t) => keys.has(t.productKey) && keepTicket(t));
   const ticketKeys = new Set(tickets.map((t) => t.key));
   const inProducts = <T extends { productKey: string }>(list: T[]) => list.filter((x) => keys.has(x.productKey));
   const onTickets = <T extends { ticketKey: string }>(list: T[]) => list.filter((x) => ticketKeys.has(x.ticketKey));
@@ -34,7 +34,8 @@ export function snapshotFor(db: Db, me: Person): Db {
   const admin = me.panel === "admin";
   // Their products, and the archived ones they may still open (never a developer: for them, archived is gone).
   const mine = new Set([...visibleProducts(me, db.products), ...archivedProducts(me, db.products)].map((p) => p.key));
-  const scoped = onlyProducts(db, (p) => mine.has(p.key));
+  // A developer never sees an archived ticket (or its updates); admins and managers find them in product Settings.
+  const scoped = onlyProducts(db, (p) => mine.has(p.key), (t) => me.panel !== "developer" || !t.archivedAt);
   return {
     ...scoped,
     // Invite links are secrets: only admins see pending invites, and nobody gets the token's hash.

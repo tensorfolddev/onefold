@@ -73,10 +73,11 @@ test("only a token gets in, and never from another website", async () => {
   assert.equal(init.body.result!.serverInfo!.name, "1fold");
   const names = (await rpc(adminToken, "tools/list")).body.result!.tools!.map((t) => t.name).sort();
   assert.deepEqual(names, [
-    "add_comment", "add_dependency", "add_member", "archive_product", "create_group", "create_ticket", "delete_group", "get_ticket",
-    "list_groups", "list_members", "list_products", "list_tickets", "move_product", "move_ticket", "remove_member", "rename_group",
-    "restore_product", "set_section", "update_ticket",
+    "add_comment", "add_dependency", "add_member", "archive_product", "archive_ticket", "create_group", "create_ticket", "delete_group",
+    "get_ticket", "list_groups", "list_members", "list_products", "list_tickets", "move_product", "move_ticket", "remove_member",
+    "rename_group", "restore_product", "restore_ticket", "set_section", "update_ticket",
   ]);
+  assert.ok(!names.some((n) => /(delete|remove)_(ticket|product)/.test(n))); // no ticket or product is ever deleted over MCP
 });
 
 test("the tools work on tickets as the token's owner, and every change is audited as MCP", async () => {
@@ -142,6 +143,15 @@ test("a developer's token reaches only their products; another company's reaches
   const both = (await tool(adminToken, "update_ticket", { key: "CH-4", assignees: ["me", "Sam Dev"] })).data;
   assert.deepEqual([both.assignee, both.assignees], ["Ayla Khan", ["Ayla Khan", "Sam Dev"]]); // any number of people
   assert.ok((await tool(devToken, "list_tickets", { assignee: "me" })).data.tickets.some((t: { key: string }) => t.key === "CH-4"));
+  // Archive: off the lists, read-only, gone for the developer; restored, it's back. Developers can't archive.
+  assert.match((await tool(devToken, "archive_ticket", { key: "CH-4" })).refused!, /Not allowed/);
+  assert.equal((await tool(adminToken, "archive_ticket", { key: "CH-4" })).data.archived, true);
+  assert.ok(!(await tool(adminToken, "list_tickets", { product: "CH" })).data.tickets.some((t: { key: string }) => t.key === "CH-4"));
+  assert.ok((await tool(adminToken, "list_tickets", { product: "CH", include_archived: true })).data.tickets.some((t: { key: string }) => t.key === "CH-4"));
+  assert.match((await tool(adminToken, "update_ticket", { key: "CH-4", title: "x" })).refused!, /CH-4 is archived — restore it first/);
+  assert.match((await tool(devToken, "get_ticket", { key: "CH-4" })).refused!, /No ticket CH-4/);
+  assert.equal((await tool(adminToken, "restore_ticket", { key: "CH-4" })).data.archived, undefined);
+  assert.equal((await tool(devToken, "get_ticket", { key: "CH-4" })).data.key, "CH-4");
 
   const other = await signUpCompany({ name: "Eve", email: "eve@other.example", password: PASSWORD, company: "Other", slug: "other-mcp" });
   const eveToken = (await createApiToken((await readSession(other.token))!, "Eve's")).token;

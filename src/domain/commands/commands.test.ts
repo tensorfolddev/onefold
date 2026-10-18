@@ -21,7 +21,7 @@ const who = (id: string) => db0.people.find((p) => p.id === id)!;
 const sara = who("u-sara"), admin = who("u-tayyab"), lead = who("u-ayesha"), faraz = who("u-faraz");
 const ticketIn = (db: ReturnType<typeof seedDb>, key: string) => db.tickets.find((t) => t.key === key)!;
 
-test("developer creates, edits and deletes a ticket on own product", () => {
+test("developer creates and edits a ticket on own product — but archiving or deleting is for others", () => {
   const { db, key } = A.createTicket(db0, sara, "AP", "New thing");
   assert.equal(key, "AP-34");
   const t = db.tickets.find((x) => x.key === key)!;
@@ -30,7 +30,9 @@ test("developer creates, edits and deletes a ticket on own product", () => {
   const db2 = A.updateTicket(db, sara, key, { title: "Renamed", statusId: "ap-dev" });
   const log = db2.activity.filter((a) => a.ticketKey === key).map((a) => `${a.field}:${a.from ?? ""}>${a.to}`);
   assert.deepEqual(log, ["Created:>Backlog", "Title:New thing>Renamed", "Status:Backlog>In Dev"]);
-  const db3 = A.deleteTickets(db2, sara, [key]);
+  assert.throws(() => A.archiveTickets(db2, sara, [key]), A.AccessError);
+  assert.throws(() => A.deleteTickets(db2, sara, [key], `Delete ${key}`), A.AccessError);
+  const db3 = A.deleteTickets(A.archiveTickets(db2, admin, [key]), admin, [key], `Delete ${key}`);
   assert.equal(db3.tickets.some((x) => x.key === key), false);
   assert.equal(db3.activity.some((a) => a.ticketKey === key), false);
 });
@@ -353,7 +355,7 @@ test("dependencies: previous tickets only once, no self, no loops", () => {
 test("deleting a ticket clears it from dependencies and epic links", () => {
   let db = A.addDependency(db0, sara, "AP-26", "AP-25");
   db = A.updateTicket(db, sara, "AP-26", { epicKey: "AP-3" });
-  db = A.deleteTickets(db, admin, ["AP-25", "AP-3"]);
+  db = A.deleteTickets(A.archiveTickets(db, admin, ["AP-25", "AP-3"]), admin, ["AP-25", "AP-3"], "Delete 2 tickets");
   assert.deepEqual(ticketIn(db, "AP-26").dependsOn, []);
   assert.equal(ticketIn(db, "AP-26").epicKey, undefined);
 });

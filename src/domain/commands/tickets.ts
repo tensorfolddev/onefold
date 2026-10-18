@@ -3,7 +3,7 @@ import { formatHours, shortDate } from "../status.ts";
 import { TEMPLATE_NAME } from "../templates.ts";
 import type { Activity, Person, Priority, Ticket } from "../types.ts";
 import { EPIC_COLORS, type Db } from "../../data/db.ts";
-import { check, fail, id, log, positiveNumberError, productOf, replace, requiredError, ticketOf, ValidationError } from "./shared.ts";
+import { check, fail, id, liveTicketOf, log, positiveNumberError, productOf, replace, requiredError, ticketOf, ValidationError } from "./shared.ts";
 
 // ---------- tickets ----------
 export type TicketPatch = Partial<Pick<Ticket,
@@ -50,7 +50,7 @@ const PRIORITY_LABEL: Record<Priority, string> = { critical: "Critical", high: "
 export function updateTicket(db: Db, me: Person, key: string, given: LegacyPatch): Db {
   const { assigneeId: one, ...rest } = given;
   const patch: TicketPatch = "assigneeId" in given ? { ...rest, assigneeIds: one ? [one] : [] } : rest;
-  const cur = ticketOf(db, key);
+  const cur = liveTicketOf(db, key, me);
   check(me, "ticket.edit", { product: productOf(db, cur.productKey) });
   if (patch.title !== undefined) fail(requiredError("Title", patch.title));
   fail(positiveNumberError("Estimate", patch.estimateH));
@@ -107,7 +107,7 @@ export function updateTicket(db: Db, me: Person, key: string, given: LegacyPatch
  * or at the end of that status's tickets. The order of db.tickets is the board order.
  */
 export function moveTicket(db: Db, me: Person, key: string, statusId: string, beforeKey?: string): Db {
-  const cur = ticketOf(db, key);
+  const cur = liveTicketOf(db, key, me);
   const sameColumn = cur.statusId === statusId;
   if (sameColumn) check(me, "ticket.edit", { product: productOf(db, cur.productKey) });
   const next = sameColumn ? db : updateTicket(db, me, key, { statusId }); // updateTicket checks + logs the status change
@@ -121,8 +121,55 @@ export function moveTicket(db: Db, me: Person, key: string, statusId: string, be
   return { ...next, tickets: [...rest.slice(0, at), moved, ...rest.slice(at)] };
 }
 
-export function deleteTickets(db: Db, me: Person, keys: string[]): Db {
-  for (const key of keys) check(me, "ticket.delete", { product: productOf(db, ticketOf(db, key).productKey) });
+// ---------- archive ----------
+
+/** The tickets a change covers: archiving (or restoring) an epic takes its tickets with it. */
+const withEpicTickets = (db: Db, keys: string[]) => {
+  const epics = new Set(keys.filter((k) => ticketOf(db, k).type === "epic"));
+  return new Set([...keys, ...db.tickets.filter((t) => t.epicKey && epics.has(t.epicKey)).map((t) => t.key)]);
+};
+
+function setArchived(db: Db, me: Person, keys: string[], on: boolean): Db {
+  for (const key of keys) check(me, "ticket.archive", { product: productOf(db, ticketOf(db, key).productKey) });
+  const covered = withEpicTickets(db, keys);
+  const changing = db.tickets.filter((t) => covered.has(t.key) && !!t.archivedAt !== on);
+  if (!changing.length) throw new ValidationError(on ? "Already archived" : "Nothing archived to restore");
+  const at = now();
+  const keysChanging = new Set(changing.map((t) => t.key));
+  return {
+    ...db,
+    tickets: db.tickets.map((t) => {
+      if (!keysChanging.has(t.key)) return t;
+      if (on) return { ...t, archivedAt: at, archivedBy: me.id };
+      const back = { ...t }; // a copy, so the fields are gone, not merely undefined
+      delete back.archivedAt;
+      delete back.archivedBy;
+      return back;
+    }),
+    activity: [...db.activity, ...changing.map((t): Activity => ({ id: id(), ticketKey: t.key, at, actorId: me.id, field: "Archive", to: on ? "Archived" : "Restored" }))],
+  };
+}
+
+/** Archives tickets (an epic with its tickets): off every board and list, read-only, until restored. */
+export const archiveTickets = (db: Db, me: Person, keys: string[]): Db => setArchived(db, me, keys, true);
+
+/** Brings archived tickets back (an epic with its tickets) exactly as they were. */
+export const restoreTickets = (db: Db, me: Person, keys: string[]): Db => setArchived(db, me, keys, false);
+
+/** What an admin types to delete archived tickets for good. */
+export const ticketDeletePhrase = (keys: string[]) => `Delete ${keys.length === 1 ? keys[0] : `${keys.length} tickets`}`;
+
+/**
+ * Deletes archived tickets for good: admins only, archived tickets only, and only once ticketDeletePhrase is typed —
+ * checked here too, so no client can skip it. Anything else is archived instead, never deleted.
+ */
+export function deleteTickets(db: Db, me: Person, keys: string[], typed = ""): Db {
+  for (const key of keys) {
+    const t = ticketOf(db, key);
+    check(me, "ticket.delete", { product: productOf(db, t.productKey) });
+    if (!t.archivedAt) throw new ValidationError(`Archive ${key} before deleting it`);
+  }
+  if (typed.trim() !== ticketDeletePhrase(keys)) throw new ValidationError(`Type "${ticketDeletePhrase(keys)}" to delete for good`);
   const gone = new Set(keys);
   // Nothing may point at a deleted ticket: drop it from dependencies, unlink tickets from a deleted epic.
   const unlink = (t: Ticket): Ticket => {
@@ -140,7 +187,7 @@ export function deleteTickets(db: Db, me: Person, keys: string[]): Db {
 }
 
 export function addComment(db: Db, me: Person, ticketKey: string, body: string): Db {
-  check(me, "ticket.edit", { product: productOf(db, ticketOf(db, ticketKey).productKey) });
+  check(me, "ticket.edit", { product: productOf(db, liveTicketOf(db, ticketKey, me).productKey) });
   fail(requiredError("Update", body));
   return { ...db, comments: [...db.comments, { id: id(), ticketKey, authorId: me.id, at: now(), body: body.trim() }] };
 }

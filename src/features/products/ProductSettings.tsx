@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { useMe } from "@/data/StoreProvider";
 import type { Product } from "@/domain/types";
+import { ArchivedTickets } from "./ArchivedTickets";
 import { ProductForm } from "./ProductForm";
 
 /** Settings: admins edit the product; its managers see the details. */
@@ -15,6 +16,7 @@ export function ProductSettings({ productKey }: { productKey: string }) {
     <div className="admin-settings">
       {can("product.edit", { product }) ? <ProductForm product={product} /> : <ProductDetails product={product} />}
 
+      <ArchivedTickets product={product} />
     </div>
   );
 }

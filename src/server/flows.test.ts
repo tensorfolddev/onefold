@@ -73,15 +73,16 @@ test("changes: a batch is one version; permissions and the step allow-list are e
 });
 
 test("undo puts things back — but never over someone else's newer change", async () => {
-  await applySteps(admin, [{ name: "deleteTickets", args: [["CH-1"]] }], { undoable: true });
-  assert.equal((await viewFor(admin)).db.tickets.length, 0);
+  const archived = async () => (await viewFor(admin)).db.tickets.find((t) => t.key === "CH-1")!.archivedAt;
+  await applySteps(admin, [{ name: "archiveTickets", args: [["CH-1"]] }], { undoable: true });
+  assert.ok(await archived());
   await undoLast(admin);
-  assert.deepEqual((await viewFor(admin)).db.tickets.map((t) => t.key), ["CH-1"]);
+  assert.equal(await archived(), undefined);
   await assert.rejects(undoLast(admin), /nothing to undo/);
-  await applySteps(admin, [{ name: "deleteTickets", args: [["CH-1"]] }], { undoable: true });
+  await applySteps(admin, [{ name: "archiveTickets", args: [["CH-1"]] }], { undoable: true });
   await applySteps(dev, [{ name: "createTicket", args: ["CH", "Someone else's work"] }]);
   await assert.rejects(undoLast(admin), /can't be undone/);
-  assert.equal((await viewFor(admin)).db.tickets.length, 1);
+  assert.ok(await archived());
 });
 
 test("an admin resets a teammate's password: old sessions end, the new password works", async () => {
@@ -117,7 +118,7 @@ test("turning someone off locks them out at once", async () => {
 test("every change is in the audit log, and no invite secret ever is", async () => {
   const rows = await inScope({ orgId: admin.orgId }, (tx) => tx.execute(sql`select command, args::text as args from audit_log order by id`));
   const commands = rows.rows.map((r) => (r as { command: string }).command);
-  for (const c of ["signUp", "inviteMembers", "acceptInvite", "createProduct", "createTicket", "deleteTickets", "undo", "setPassword", "updatePerson"]) {
+  for (const c of ["signUp", "inviteMembers", "acceptInvite", "createProduct", "createTicket", "archiveTickets", "undo", "setPassword", "updatePerson"]) {
     assert.ok(commands.includes(c), c);
   }
   assert.ok(rows.rows.every((r) => !/tokenHash|token"/.test((r as { args: string }).args)));

@@ -57,6 +57,13 @@
       "when": 1792310094670,
       "tag": "0007_ticket_assignees",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792311923275,
+      "tag": "0008_ticket_archive",
+      "breakpoints": true
     }
   ]
 }

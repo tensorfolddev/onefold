@@ -124,6 +124,9 @@ export interface Ticket {
   dependsOn?: string[];
   /** Images; the bytes live in the browser's file store (lib/files.ts), only metadata is here. */
   attachments?: Attachment[];
+  // Archived: out of every board, list and count; read-only and hidden from developers — until restored.
+  archivedAt?: string; // ISO time
+  archivedBy?: string; // person id
 }
 
 /** One line of a list or checklist section. */
@@ -192,7 +195,7 @@ export interface Activity {
   at: string; // ISO datetime
   actorId: string;
   field: "Status" | "Assignee" | "Due date" | "Estimate" | "Created" | "Title" | "Description" | "Priority" | "Requirement" | "Colour"
-    | "Type" | "Epic" | "Section" | "Dependency" | "Image";
+    | "Type" | "Epic" | "Section" | "Dependency" | "Image" | "Archive";
   from?: string;
   to: string;
 }

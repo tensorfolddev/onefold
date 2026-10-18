@@ -69,6 +69,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
       productId: t.productKey, title: t.title, type: t.type, statusId: t.statusId, assigneeId: opt(t.assigneeIds?.[0]), assigneeIds: t.assigneeIds?.length ? t.assigneeIds : null,
       priority: t.priority, estimateH: t.estimateH, due: opt(t.due), requirementId: opt(t.requirementId), sprint: opt(t.sprint),
       pr: opt(t.pr), createdBy: opt(t.createdBy), color: opt(t.color), epicId: opt(t.epicKey),
+      archivedAt: instantOrNull(t.archivedAt), archivedBy: opt(t.archivedBy),
       sections: t.sections && Object.keys(t.sections).length ? t.sections : null,
     })),
     ticketDependencies: db.tickets.flatMap((t) => (t.dependsOn ?? []).map((d) => r(`${t.key}:${d}`, { ticketId: t.key, dependsOnId: d }))),
@@ -133,6 +134,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     assigneeIds: (k.assigneeIds as string[] | null)?.length ? (k.assigneeIds as string[]) : k.assigneeId ? [str(k.assigneeId)] : undefined, priority: k.priority as Ticket["priority"], estimateH: k.estimateH as number, due: und(k.due),
     requirementId: und(k.requirementId), sprint: und(k.sprint), pr: und<PullRequest>(k.pr), createdBy: und(k.createdBy),
     color: und(k.color), epicKey: und(k.epicId), sections: und<TicketSections>(k.sections),
+    ...(k.archivedAt ? { archivedAt: instant(str(k.archivedAt)), archivedBy: und<string>(k.archivedBy) } : {}),
     dependsOn: depsOf.has(k.id) ? depsOf.get(k.id)!.map((d) => str(d.dependsOnId)) : undefined,
     attachments: filesOf.has(k.id) ? filesOf.get(k.id)!.map((a): Attachment => ({
       id: a.id, name: str(a.name), type: str(a.type), size: a.size as number, width: a.width as number, height: a.height as number,
