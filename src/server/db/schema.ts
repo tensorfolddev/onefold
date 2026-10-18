@@ -200,6 +200,8 @@ export const tickets = pgTable("tickets", {
   color: text("color"),
   epicId: text("epic_id"),
   sections: jsonb("sections"), // the fixed template's filled-in sections, by section id
+  archivedAt: ts("archived_at"), // set = archived: off every board, read-only, hidden from developers
+  archivedBy: text("archived_by"),
   position: position(), // board order
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("tickets_product").on(t.orgId, t.productId), index("tickets_assignee").on(t.orgId, t.assigneeId)]);
 

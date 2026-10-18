@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Ellipsis, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, Ellipsis, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
-import { deleteTickets } from "@/data/commands";
+import { archiveTickets, restoreTickets } from "@/data/commands";
 import type { Product, Ticket } from "@/domain/types";
-import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { Popover } from "@/ui/Popover";
 import { StatusCell } from "@/ui/StatusCell";
 import { Avatar, IconButton, ProductTile, StatusPill } from "@/ui/primitives";
@@ -17,12 +16,14 @@ import {
 import { scrollToSection, TemplateOutline } from "./TemplateSections";
 import { OVERVIEW, TicketPanelTabs } from "./TicketPanelTabs";
 import { useDb } from "@/data/StoreProvider";
-import { formatHours } from "@/domain/status";
+import { formatHours, shortDate } from "@/domain/status";
 
 /** Global ticket panel (mounted once by AppShell; opened via openTicket(key)). */
 export function TicketPanelHost() {
   const { openTicketKey, openTicket, tickets } = useAppState();
-  const ticket = tickets.find((t) => t.key === openTicketKey);
+  const { productByKey, can, archivedTickets } = useDb();
+  // An archived ticket still opens (from Settings → Archived, or a link): read-only, with a way back.
+  const ticket = tickets.find((t) => t.key === openTicketKey) ?? archivedTickets.find((t) => t.key === openTicketKey);
   const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -36,7 +37,6 @@ export function TicketPanelHost() {
     return () => document.removeEventListener("keydown", onKey);
   }, [openTicketKey, openTicket]);
 
-  const { productByKey, can } = useDb();
   const product = ticket && productByKey(ticket.productKey);
   if (!ticket || !product) return null;
   const close = () => openTicket(null);
@@ -49,7 +49,7 @@ export function TicketPanelHost() {
         aria-labelledby="ticket-panel-title" tabIndex={-1}
       >
         {/* keyed: another ticket opens on its Overview, scrolled to the top */}
-        <TicketView key={ticket.key} ticket={ticket} product={product} editable={can("ticket.edit", { product })} onClose={close} />
+        <TicketView key={ticket.key} ticket={ticket} product={product} editable={can("ticket.edit", { product }) && !ticket.archivedAt} onClose={close} />
       </aside>
     </>
   );
@@ -84,16 +84,16 @@ function TicketView({ ticket, product, editable, onClose }: PanelProps & { onClo
 type PanelProps = { ticket: Ticket; product: Product; editable: boolean };
 
 function PanelHeader({ ticket, product, editable, onClose }: PanelProps & { onClose: () => void }) {
-  const { href, can, act } = useDb();
+  const { href, can, act, personById } = useDb();
   const { openTicket } = useAppState();
-  const [confirming, setConfirming] = useState(false);
-  const canDelete = can("ticket.delete", { product });
-
-  const remove = () => {
-    setConfirming(false);
+  // Tickets are archived, never deleted from here: an admin deletes for good from product Settings → Archived.
+  const canArchive = can("ticket.archive", { product });
+  const archive = () => {
     const key = ticket.key;
-    if (act((d, m) => deleteTickets(d, m, [key]), { success: `${key} deleted`, undoable: true })) onClose();
+    const what = ticket.type === "epic" ? `${key} and its tickets archived` : `${key} archived`;
+    if (act((d, m) => archiveTickets(d, m, [key]), { success: `${what} — they're in Settings → Archived`, undoable: true })) onClose();
   };
+  const restore = () => act((d, m) => restoreTickets(d, m, [ticket.key]), { success: `${ticket.key} restored`, undoable: true });
 
   return (
     <header className="ticket-panel-header tp-head">
@@ -114,7 +114,7 @@ function PanelHeader({ ticket, product, editable, onClose }: PanelProps & { onCl
           )}
         </nav>
         <span className="spacer" />
-        {canDelete && (
+        {canArchive && !ticket.archivedAt && (
           <Popover
             align="right" width={200}
             trigger={({ open, toggle }) => (
@@ -122,8 +122,8 @@ function PanelHeader({ ticket, product, editable, onClose }: PanelProps & { onCl
             )}
           >
             {(close) => (
-              <button type="button" role="menuitem" className="menu-item is-danger" onClick={() => { close(); setConfirming(true); }}>
-                <Trash2 aria-hidden /> Delete ticket
+              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); archive(); }}>
+                <Archive aria-hidden /> {ticket.type === "epic" ? "Archive epic and its tickets" : "Archive ticket"}
               </button>
             )}
           </Popover>
@@ -133,12 +133,15 @@ function PanelHeader({ ticket, product, editable, onClose }: PanelProps & { onCl
       <div className="ticket-panel-heading">
         <TitleField key={ticket.key} ticket={ticket} editable={editable} />
       </div>
-      {confirming && (
-        <ConfirmDialog
-          title={`Delete ${ticket.key}?`}
-          body="This can't be undone. Its updates and activity are deleted too."
-          confirmLabel="Delete" onConfirm={remove} onCancel={() => setConfirming(false)}
-        />
+      {ticket.archivedAt && (
+        <div className="ticket-archived-banner" role="status">
+          <Archive aria-hidden />
+          <p>
+            <strong>Archived</strong> on {shortDate(ticket.archivedAt)}{personById(ticket.archivedBy) && ` by ${personById(ticket.archivedBy)!.name}`}.
+            {" "}It&apos;s read-only and off the board.
+          </p>
+          {canArchive && <button type="button" className="btn btn-primary" onClick={restore}><ArchiveRestore aria-hidden /> Restore</button>}
+        </div>
       )}
     </header>
   );

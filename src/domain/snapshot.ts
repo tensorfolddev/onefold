@@ -8,7 +8,8 @@ export function snapshotFor(db: Db, me: Person): Db {
   const admin = me.panel === "admin";
   const products = visibleProducts(me, db.products);
   const keys = new Set(products.map((p) => p.key));
-  const tickets = db.tickets.filter((t) => keys.has(t.productKey));
+  // A developer never sees an archived ticket (or its updates); admins and managers find them in product Settings.
+  const tickets = db.tickets.filter((t) => keys.has(t.productKey) && (me.panel !== "developer" || !t.archivedAt));
   const ticketKeys = new Set(tickets.map((t) => t.key));
   const inProducts = <T extends { productKey: string }>(list: T[]) => list.filter((x) => keys.has(x.productKey));
   const onTickets = <T extends { ticketKey: string }>(list: T[]) => list.filter((x) => ticketKeys.has(x.ticketKey));
@@ -29,6 +30,6 @@ export function snapshotFor(db: Db, me: Person): Db {
     stageRequests: inProducts(db.stageRequests),
     activity: onTickets(db.activity),
     comments: onTickets(db.comments),
-    notifications: db.notifications.filter((n) => n.personId === me.id),
+    notifications: db.notifications.filter((n) => n.personId === me.id && !(n.target.includes("-") && db.tickets.some((t) => t.key === n.target) && !ticketKeys.has(n.target))),
   };
 }

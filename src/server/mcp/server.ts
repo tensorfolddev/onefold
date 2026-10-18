@@ -10,7 +10,7 @@ import { z } from "zod";
 import type { Db } from "../../data/db.ts";
 import { PANEL_SLUG } from "../../data/session.ts";
 import {
-  AccessError, addComment, addDependency, createTicket, moveTicket, setSection, updateTicket, ValidationError, type TicketPatch,
+  AccessError, addComment, addDependency, archiveTickets, createTicket, moveTicket, restoreTickets, setSection, updateTicket, ValidationError, type TicketPatch,
 } from "../../domain/commands/index.ts";
 import { DEFINITION_OF_DONE, sectionDef, ticketToJson } from "../../domain/templates.ts";
 import type { Panel, SectionValue, Ticket } from "../../domain/types.ts";
@@ -84,6 +84,7 @@ function summary(c: Ctx, t: Ticket) {
   return {
     key: t.key, title: t.title, type: t.type, status: t.type === "epic" ? undefined : statusName(c, t),
     assignee: personName(c, t.assigneeId) ?? null, priority: t.priority, due: t.due ?? null, epic: t.epicKey ?? null, url: ticketUrl(c, t.key),
+    ...(t.archivedAt && { archived: true }),
   };
 }
 
@@ -165,7 +166,7 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
 
   server.registerTool("list_tickets", {
     title: "List tickets",
-    description: "Tickets you can see, newest first. Filters combine. Done and cancelled tickets are left out unless include_done is true.",
+    description: "Tickets you can see, newest first. Filters combine. Done and cancelled tickets are left out unless include_done is true; archived ones unless include_archived is.",
     inputSchema: {
       product: z.string().optional().describe("Product key or name, e.g. CH"),
       status: z.string().optional().describe("List name, e.g. In Progress"),
@@ -173,6 +174,7 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
       type: TYPES.optional(),
       text: z.string().optional().describe("Words to find in the key or title"),
       include_done: z.boolean().optional(),
+      include_archived: z.boolean().optional(),
       limit: z.number().int().min(1).max(MAX_LIST).optional().describe(`At most this many (default 50, up to ${MAX_LIST})`),
     },
     annotations: READ,
@@ -187,7 +189,8 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
       && (assigneeId === undefined || (t.assigneeId ?? null) === assigneeId)
       && (!a.type || t.type === a.type)
       && (!a.text || `${t.key} ${t.title}`.toLowerCase().includes(a.text.toLowerCase()))
-      && (a.include_done || !["done", "cancelled"].includes(categoryOf(t) ?? "")));
+      && (a.include_done || !["done", "cancelled"].includes(categoryOf(t) ?? ""))
+      && (a.include_archived || !t.archivedAt));
     const number = (t: Ticket) => Number(t.key.split("-").pop());
     const sorted = [...found].sort((x, y) => x.productKey.localeCompare(y.productKey) || number(y) - number(x));
     return { total: found.length, tickets: sorted.slice(0, a.limit ?? 50).map((t) => summary(c, t)) };
@@ -305,6 +308,22 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
     const dep = findTicket(c, a.depends_on).key;
     return (db, me) => ({ db: addDependency(db, me, t.key, dep), steps: [{ name: "addDependency", args: [t.key, dep] }] });
   })));
+
+  // Archived tickets: admins and the product's managers. There's deliberately no tool that deletes a ticket — an admin
+  // does that in the app, from product Settings → Archived.
+  for (const [name, on] of [["archive_ticket", true], ["restore_ticket", false]] as const) {
+    server.registerTool(name, {
+      title: on ? "Archive a ticket" : "Restore an archived ticket",
+      description: on
+        ? "Take a ticket off the board: it turns read-only and leaves every list until restored. An epic takes its tickets with it. Admins, and the product's managers."
+        : "Bring an archived ticket back exactly as it was (an epic with its tickets). Admins, and the product's managers.",
+      inputSchema: { key: z.string().describe("Ticket key, e.g. CH-12") },
+      annotations: { ...WRITE, idempotentHint: false },
+    }, (a) => attempt(() => change((c) => findTicket(c, a.key).key, (c) => {
+      const key = findTicket(c, a.key).key;
+      return (db, me) => ({ db: (on ? archiveTickets : restoreTickets)(db, me, [key]), steps: [{ name: on ? "archiveTickets" : "restoreTickets", args: [[key]] }] });
+    })));
+  }
 
   return server;
 }

@@ -49,7 +49,7 @@ export interface BriefSection { title: string; tickets: Ticket[] }
 export function briefSections(db: Db, personId: string, day: string): BriefSection[] {
   const open = db.tickets.filter((t) => {
     const category = statusOf(db, t)?.category;
-    return t.assigneeId === personId && t.type !== "epic" && !!category && category !== "done" && category !== "cancelled";
+    return !t.archivedAt && t.assigneeId === personId && t.type !== "epic" && !!category && category !== "done" && category !== "cancelled";
   });
   const review = (t: Ticket) => statusOf(db, t)?.tone === "review";
   const sections: { title: string; fits: (t: Ticket) => boolean }[] = [

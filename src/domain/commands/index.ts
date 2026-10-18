@@ -10,11 +10,11 @@ import {
   addGroup, approveStage, createProduct, deleteGroup, renameGroup, requestStage, setMember, setProductLook, updateProduct,
 } from "./products.ts";
 import { addAttachment, addDependency, removeAttachment, removeDependency, setSection } from "./template.ts";
-import { addComment, createTicket, deleteTickets, moveTicket, updateTicket } from "./tickets.ts";
+import { addComment, archiveTickets, createTicket, deleteTickets, moveTicket, restoreTickets, updateTicket } from "./tickets.ts";
 
 export const commands = {
   // tickets
-  createTicket, updateTicket, moveTicket, deleteTickets, addComment,
+  createTicket, updateTicket, moveTicket, deleteTickets, addComment, archiveTickets, restoreTickets,
   setSection, addDependency, removeDependency, addAttachment, removeAttachment,
   // board lists
   addStatus, updateStatus, moveStatus, deleteStatus,
@@ -29,7 +29,7 @@ export const commands = {
 
 // The UI composes several into one change with act(); the names stay the same.
 export {
-  createTicket, updateTicket, moveTicket, deleteTickets, addComment,
+  createTicket, updateTicket, moveTicket, deleteTickets, addComment, archiveTickets, restoreTickets,
   setSection, addDependency, removeDependency, addAttachment, removeAttachment,
   addStatus, updateStatus, moveStatus, deleteStatus,
   createProduct, updateProduct, setProductLook, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
@@ -42,6 +42,7 @@ export type Commands = typeof commands;
 export type CommandName = keyof Commands;
 
 export { AccessError, ValidationError } from "./shared.ts";
+export { ticketDeletePhrase } from "./tickets.ts";
 export { acceptInvite, inviteProblem, inviteState, isFreeMail, signUp, slugError, slugify, INVITE_DAYS } from "./org.ts";
 export { EMAIL_RE, MIN_PASSWORD, domainOf } from "./shared.ts";
 export type { InviteInput, NewInvite, SignUpInput } from "./org.ts";

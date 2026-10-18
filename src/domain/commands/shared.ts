@@ -47,6 +47,13 @@ export const productOf = (db: Db, key: string) => {
   if (!p) throw new ValidationError(`Product ${key} not found`);
   return p;
 };
+/** A ticket that may be changed: an archived one is read-only until restored (and a developer doesn't see it at all). */
+export const liveTicketOf = (db: Db, key: string, me: Person) => {
+  const t = ticketOf(db, key);
+  if (t.archivedAt) throw new ValidationError(me.panel === "developer" ? `Ticket ${key} not found` : `${key} is archived — restore it first`);
+  return t;
+};
+
 export const ticketOf = (db: Db, key: string) => {
   const t = db.tickets.find((x) => x.key === key);
   if (!t) throw new ValidationError(`Ticket ${key} not found`);

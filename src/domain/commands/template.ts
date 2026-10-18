@@ -2,7 +2,7 @@ import { now } from "../clock.ts";
 import { DEFINITION_OF_DONE, isStoredKind, sectionDef, TEMPLATE_NAME } from "../templates.ts";
 import type { Activity, Attachment, Person, SectionValue, Ticket } from "../types.ts";
 import type { Db } from "../../data/db.ts";
-import { check, log, productOf, replace, ticketOf, ValidationError } from "./shared.ts";
+import { check, liveTicketOf, log, productOf, replace, ValidationError } from "./shared.ts";
 
 // ---------- ticket template (sections, dependencies, images) ----------
 const MAX_TEXT = 20_000;
@@ -11,7 +11,7 @@ const MAX_DEPENDENCIES = 30;
 const MAX_IMAGES = 20;
 
 const editTicket = (db: Db, me: Person, key: string) => {
-  const t = ticketOf(db, key);
+  const t = liveTicketOf(db, key, me);
   check(me, "ticket.edit", { product: productOf(db, t.productKey) });
   return t;
 };

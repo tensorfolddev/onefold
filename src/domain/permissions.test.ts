@@ -14,11 +14,12 @@ test("developer sees only member products", () => {
   assert.equal(visibleProducts(admin, db.products).length, 4);
 });
 
-test("developer ticket CRUD only on own products", () => {
-  for (const a of ["ticket.create", "ticket.edit", "ticket.delete"] as const) {
+test("developer creates and edits tickets only on own products, and never archives or deletes them", () => {
+  for (const a of ["ticket.create", "ticket.edit"] as const) {
     assert.equal(can(sara, a, { product: prod("AP") }), true, a);
     assert.equal(can(sara, a, { product: prod("NV") }), false, a);
   }
+  for (const a of ["ticket.archive", "ticket.delete"] as const) assert.equal(can(sara, a, { product: prod("AP") }), false, a);
 });
 
 test("developer never manages anything", () => {

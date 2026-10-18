@@ -278,6 +278,48 @@ test("Claude connects with a personal token: an MCP tool makes a ticket that sho
   await expect(page.getByRole("button", { name: "Made by Claude" }).first()).toBeVisible();
 });
 
+test("tickets are archived, not deleted: off the board, in Settings → Archived, back in one click; an admin deletes one for good", async ({ page }) => {
+  await signUp(page, "Omicron", email("om"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Orbital");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const productUrl = new URL(page.url()).pathname;
+  const key = `${productUrl.split("/").pop()}-1`;
+  await page.goto(`${productUrl}/tickets`);
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Old idea");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+
+  const archiveFromPanel = async () => {
+    await page.getByRole("dialog").getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Archive ticket" }).click();
+    await expect(page.locator(".ticket-panel")).toHaveCount(0);
+  };
+  await archiveFromPanel(); // a new ticket opens itself
+  await expect(page.locator(".products-view, .ticket-grid, .kanban").getByText("Old idea")).toHaveCount(0); // off the board
+
+  await page.goto(`${productUrl}/settings`);
+  const archived = page.locator(".archived-tickets");
+  await expect(archived).toContainText("Old idea");
+  await archived.getByRole("button", { name: `Restore ${key}` }).click(); // one click
+  await expect(archived).toContainText("Nothing archived");
+  await page.goto(`${productUrl}/tickets`);
+  await page.getByRole("button", { name: "Old idea" }).first().click();
+  await archiveFromPanel();
+
+  // Deleting for good: only from here, only by typing it.
+  await page.goto(`${productUrl}/settings`);
+  await archived.getByRole("button", { name: `Delete ${key} forever` }).click();
+  const confirm = page.getByRole("dialog", { name: `Delete ${key} for good?` }).getByRole("button", { name: "Delete forever" });
+  await expect(confirm).toBeDisabled();
+  await page.getByRole("dialog", { name: `Delete ${key} for good?` }).getByLabel(`Type Delete ${key} to confirm`).fill(`Delete ${key}`);
+  await confirm.click();
+  await expect(archived).toContainText("Nothing archived");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

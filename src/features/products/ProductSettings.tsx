@@ -7,6 +7,7 @@ import { useMe } from "@/data/StoreProvider";
 import { shortDate, STAGES } from "@/domain/status";
 import type { Product } from "@/domain/types";
 import { StagePill } from "@/ui/primitives";
+import { ArchivedTickets } from "./ArchivedTickets";
 import { ProductForm } from "./ProductForm";
 
 /** Settings tab: admins edit + approve stages; managers read details + request the next stage. */
@@ -43,6 +44,8 @@ export function ProductSettings({ productKey }: { productKey: string }) {
           </button>
         )}
       </section>
+
+      <ArchivedTickets product={product} />
     </div>
   );
 }
