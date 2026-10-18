@@ -78,7 +78,7 @@ test("developers never see an archived project or anything in it; admins and its
   assert.ok(!withoutArchived(archived).tickets.some((t) => t.productKey === "AP"));
   const mine = groupMyWork(archived, "u-sara", archived.tickets).flatMap((g) => g.tickets);
   assert.ok(mine.length > 0 && !mine.some((t) => t.productKey === "AP"));
-  const apHours = db0.tickets.filter((t) => t.productKey === "AP" && t.assigneeId === "u-sara" && t.type !== "epic" && isOpenTicket(db0, t))
+  const apHours = db0.tickets.filter((t) => t.productKey === "AP" && !!t.assigneeIds?.includes("u-sara") && t.type !== "epic" && isOpenTicket(db0, t))
     .reduce((s, t) => s + t.estimateH, 0);
   assert.ok(apHours > 0);
   assert.equal(bookedH(archived, "u-sara"), bookedH(db0, "u-sara") - apHours);
