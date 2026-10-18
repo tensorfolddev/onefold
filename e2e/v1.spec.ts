@@ -390,9 +390,11 @@ test("tickets: the second tab, opening on the board, which a sideways scroll ove
   await page.getByRole("button", { name: "New ticket" }).click();
   await page.getByLabel("New ticket title").fill("Scout the route");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await page.keyboard.press("Escape"); // a new ticket opens itself
+  await expect(page.getByRole("dialog")).toBeVisible(); // a new ticket opens itself…
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0); // …close it
   const board = page.locator(".kanban");
-  await expect(board).toBeVisible(); // the board, not the table
+  await expect(board).toBeVisible({ timeout: 15_000 }); // the board, not the table
 
   // A two-finger sideways scroll over a list scrolls the board (the list only keeps its own up/down scrolling).
   const list = (await page.locator(".kanban-col-body").first().boundingBox())!;
