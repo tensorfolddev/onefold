@@ -1,8 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
-/** Anchor + floating menu. Closes on outside click and Escape. */
+const MENU_MIN_W = 220; // .menu min-width
+const GAP = 6;
+
+/** Fixed spot under (or, near the bottom of the screen, over) the anchor, kept on screen. */
+function place(r: DOMRect, align: "left" | "right", width?: number): React.CSSProperties {
+  const w = Math.max(width ?? 0, MENU_MIN_W);
+  const left = Math.max(8, Math.min(align === "right" ? r.right - w : r.left, innerWidth - w - 8));
+  const below = innerHeight - r.bottom;
+  const vertical = below >= 240 || below >= r.top
+    ? { top: r.bottom + GAP, maxHeight: below - GAP - 12 }
+    : { bottom: innerHeight - r.top + GAP, maxHeight: r.top - GAP - 12 };
+  return { position: "fixed", left, width, overflowY: "auto", ...vertical };
+}
+
+/**
+ * Anchor + floating menu. Closes on outside click and Escape. `floating` puts the menu on <body> at a fixed spot,
+ * so a parent that clips (a board card) can't cut it off; it closes if the page scrolls under it.
+ */
 export function Popover({
   trigger,
   children,
@@ -10,6 +28,7 @@ export function Popover({
   className = "",
   width,
   anchorClassName = "",
+  floating = false,
 }: {
   trigger: (props: { open: boolean; toggle: () => void }) => React.ReactNode;
   children: (close: () => void) => React.ReactNode;
@@ -17,36 +36,44 @@ export function Popover({
   className?: string;
   width?: number;
   anchorClassName?: string;
+  floating?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [spot, setSpot] = useState<React.CSSProperties | null>(null); // non-null = open
+  const [anchor, setAnchor] = useState<HTMLDivElement | null>(null); // state, not a ref: toggle reads it
+  const menuRef = useRef<HTMLDivElement>(null);
+  const open = spot !== null;
+  const close = () => setSpot(null);
+  const toggle = () => {
+    if (open || !anchor) return close();
+    setSpot(floating ? place(anchor.getBoundingClientRect(), align, width) : { top: `calc(100% + ${GAP}px)`, [align]: 0, width });
+  };
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const inside = (t: EventTarget | null) => !!t && (anchor?.contains(t as Node) || menuRef.current?.contains(t as Node));
+    const onDown = (e: MouseEvent) => { if (!inside(e.target)) close(); };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    const onScroll = (e: Event) => { if (!inside(e.target)) close(); }; // the anchor moved away from the menu
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+    if (floating) { addEventListener("scroll", onScroll, true); addEventListener("resize", close); }
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      removeEventListener("scroll", onScroll, true);
+      removeEventListener("resize", close);
     };
-  }, [open]);
+  }, [open, floating, anchor]);
 
+  const menu = open && (
+    <div ref={menuRef} className={`menu ${className}`} role="menu" style={spot}>
+      {children(close)}
+    </div>
+  );
   return (
-    <div className={`popover-anchor ${anchorClassName}`} ref={ref}>
-      {trigger({ open, toggle: () => setOpen((o) => !o) })}
-      {open && (
-        <div
-          className={`menu ${className}`}
-          role="menu"
-          style={{ top: "calc(100% + 6px)", [align]: 0, width }}
-        >
-          {children(() => setOpen(false))}
-        </div>
-      )}
+    <div className={`popover-anchor ${anchorClassName}`} ref={setAnchor}>
+      {trigger({ open, toggle })}
+      {floating && menu ? createPortal(menu, document.body) : menu}
     </div>
   );
 }

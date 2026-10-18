@@ -10,6 +10,7 @@ import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
 import { Assignees, DueDate, EpicChip, PriorityChip, TypeIcon } from "./TicketBits";
 import { ListHeader, TaskComposer } from "./KanbanLists";
+import { AssigneeField, CardDueField, PriorityField } from "./TicketFields";
 import { useIsDone } from "./TemplateRelations";
 
 export const cardId = (key: string) => `card:${key}`;
@@ -45,8 +46,45 @@ function EpicProgress({ epic }: { epic: Ticket }) {
   );
 }
 
+/** Keeps a click, drag or key on a card's quick field (or its menu) from also opening or dragging the card. */
+const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+function QuickEdit({ children }: { children: React.ReactNode }) {
+  return <span className="card-edit" onClick={stop} onMouseDown={stop} onTouchStart={stop} onKeyDown={stop}>{children}</span>;
+}
+
+/**
+ * The card's bottom row: [priority][date] … people. On a card you can edit, each opens its own picker right there,
+ * so priority, deadline and assignees change without opening the ticket.
+ */
+function CardFoot({ ticket, done, editable, alwaysDate, children }: {
+  ticket: Ticket; done: boolean; editable: boolean; alwaysDate?: boolean; children?: React.ReactNode;
+}) {
+  const { productByKey } = useDb();
+  const product = editable ? productByKey(ticket.productKey) : undefined;
+  if (product) {
+    return (
+      <>
+        <QuickEdit><PriorityField ticket={ticket} onCard /></QuickEdit>
+        <QuickEdit><CardDueField ticket={ticket} done={done} /></QuickEdit>
+        {children}
+        <span className="spacer" />
+        <QuickEdit><AssigneeField ticket={ticket} product={product} onCard /></QuickEdit>
+      </>
+    );
+  }
+  return (
+    <>
+      <PriorityChip priority={ticket.priority} />
+      {ticket.due ? <span className="due-chip"><DueDate ticket={ticket} done={done} /></span> : alwaysDate && <span className="due-chip is-empty">No date</span>}
+      {children}
+      <span className="spacer" />
+      <Assignees ids={ticket.assigneeIds} />
+    </>
+  );
+}
+
 /** Epic face: colour wash in the epic's colour, icon badge, "Epic" pill, bold title. */
-const EpicCardView = memo(function EpicCardView({ ticket }: { ticket: Ticket }) {
+const EpicCardView = memo(function EpicCardView({ ticket, editable }: { ticket: Ticket; editable: boolean }) {
   const { db } = useDb();
   return (
     <>
@@ -57,31 +95,22 @@ const EpicCardView = memo(function EpicCardView({ ticket }: { ticket: Ticket }) 
       </span>
       <span className="epic-card-title">{ticket.title}</span>
       <EpicProgress epic={ticket} />
-      <span className="epic-card-foot">
-        <PriorityChip priority={ticket.priority} />
-        {ticket.due ? <span className="due-chip"><DueDate ticket={ticket} done={false} /></span> : <span className="due-chip is-empty">No date</span>}
-        <span className="spacer" />
-        <Assignees ids={ticket.assigneeIds} />
-      </span>
+      <span className="epic-card-foot"><CardFoot ticket={ticket} done={false} editable={editable} alwaysDate /></span>
     </>
   );
 });
 
-/** The card face — shared by the card in its list and the copy that follows the pointer while dragging. */
-export const CardView = memo(function CardView({ ticket }: { ticket: Ticket }) {
+/** The card face — shared by the card in its list and the copy that follows the pointer while dragging (not editable). */
+export const CardView = memo(function CardView({ ticket, editable = false }: { ticket: Ticket; editable?: boolean }) {
   const { statusById } = useDb();
   const status = statusById(ticket.statusId);
-  if (ticket.type === "epic") return <EpicCardView ticket={ticket} />;
+  if (ticket.type === "epic") return <EpicCardView ticket={ticket} editable={editable} />;
   return (
     <>
       <span className="kanban-card-key"><TypeIcon type={ticket.type} /><span className="key">{ticket.key}</span><EpicChip ticket={ticket} /></span>
       <span className="kanban-card-title">{ticket.title}</span>
       <span className="kanban-card-meta">
-        <PriorityChip priority={ticket.priority} />
-        {ticket.due && <span className="due-chip"><DueDate ticket={ticket} done={status?.category === "done"} /></span>}
-        <BlockedChip ticket={ticket} />
-        <span className="spacer" />
-        <Assignees ids={ticket.assigneeIds} />
+        <CardFoot ticket={ticket} done={status?.category === "done"} editable={editable}><BlockedChip ticket={ticket} /></CardFoot>
       </span>
     </>
   );
@@ -98,14 +127,19 @@ const SortableCard = memo(function SortableCard({ ticket, canMove, onOpen }: { t
       ref={setNodeRef} className={`kanban-card-slot${isDragging ? " is-placeholder" : ""}`}
       style={{ transform: CSS.Translate.toString(transform), transition }}
     >
-      <button
-        type="button" className={`kanban-card${canMove ? " is-movable" : ""}${ticket.type === "epic" ? " is-epic" : ""}${held ? " is-held" : ""}`}
+      {/* a div, not a button: the card holds its own buttons (priority, date, people). dnd-kit gives it role="button". */}
+      <div
+        className={`kanban-card${canMove ? " is-movable" : ""}${ticket.type === "epic" ? " is-epic" : ""}${held ? " is-held" : ""}`}
         style={ticket.type === "epic" ? ({ "--epic": ticket.color } as React.CSSProperties) : undefined}
         onClick={() => onOpen(ticket.key)}
         {...attributes} {...listeners}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target === e.currentTarget) onOpen(ticket.key);
+          else listeners?.onKeyDown?.(e);
+        }}
       >
-        <CardView ticket={ticket} />
-      </button>
+        <CardView ticket={ticket} editable={canMove} />
+      </div>
     </li>
   );
 });

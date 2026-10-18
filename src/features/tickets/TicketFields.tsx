@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, Flag, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
 import { isOnProduct } from "@/domain/permissions";
 import { useDb } from "@/data/StoreProvider";
@@ -9,7 +9,8 @@ import { epicLabel, epicsOf } from "@/domain/selectors/epics";
 import type { Priority, Product, Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { Avatar, IconButton } from "@/ui/primitives";
-import { Assignees, isOverdue, PRIORITY_LABEL } from "./TicketBits";
+import { shortDate } from "@/domain/status";
+import { Assignees, DueDate, isOverdue, PRIORITY_LABEL } from "./TicketBits";
 
 const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"];
 
@@ -89,7 +90,8 @@ export function EpicField({ ticket }: { ticket: Ticket }) {
   );
 }
 
-export function AssigneeField({ ticket, product }: { ticket: Ticket; product: Product }) {
+/** `onCard`: the board card's avatar stack is the trigger, and the menu floats over the board. */
+export function AssigneeField({ ticket, product, onCard }: { ticket: Ticket; product: Product; onCard?: boolean }) {
   const { updateTicket } = useAppState();
   const { db, personById } = useDb();
   const people = db.people.filter((p) => p.active && isOnProduct(p.id, product));
@@ -100,8 +102,15 @@ export function AssigneeField({ ticket, product }: { ticket: Ticket; product: Pr
 
   return (
     <Popover
-      width={260} className="assignee-menu"
-      trigger={({ open, toggle: openMenu }) => (
+      width={260} className="assignee-menu" floating={onCard} align={onCard ? "right" : "left"}
+      trigger={({ open, toggle: openMenu }) => onCard ? (
+        <button
+          type="button" className="card-assignees" aria-haspopup="menu" aria-expanded={open} onClick={openMenu}
+          aria-label={`Assignees: ${label}. Change assignees`}
+        >
+          <Assignees ids={ids} />
+        </button>
+      ) : (
         <button
           type="button" className={`btn btn-tertiary meta-trigger${open ? " is-open" : ""}`}
           aria-haspopup="menu" aria-expanded={open} onClick={openMenu}
@@ -134,18 +143,19 @@ export function AssigneeField({ ticket, product }: { ticket: Ticket; product: Pr
   );
 }
 
-export function PriorityField({ ticket }: { ticket: Ticket }) {
+/** `onCard`: the trigger is the card's priority tag, and the menu floats over the board. */
+export function PriorityField({ ticket, onCard }: { ticket: Ticket; onCard?: boolean }) {
   const { updateTicket } = useAppState();
   return (
     <Popover
-      width={160} className="priority-menu"
+      width={160} className="priority-menu" floating={onCard}
       trigger={({ open, toggle }) => (
         <button
-          type="button" className="priority-cell" data-priority={ticket.priority}
+          type="button" className={onCard ? "card-priority" : "priority-cell"} data-priority={ticket.priority}
           aria-haspopup="menu" aria-expanded={open} onClick={toggle}
           aria-label={`Priority: ${PRIORITY_LABEL[ticket.priority]}. Change priority`}
         >
-          {PRIORITY_LABEL[ticket.priority]}
+          {onCard && <Flag aria-hidden />}{PRIORITY_LABEL[ticket.priority]}
         </button>
       )}
     >
@@ -177,6 +187,29 @@ export function DueField({ ticket, done }: { ticket: Ticket; done: boolean }) {
       </label>
       {ticket.due && <IconButton label="Clear due date" onClick={() => updateTicket(ticket.key, { due: undefined })}><X /></IconButton>}
     </>
+  );
+}
+
+/** The board card's date tag: opens the browser's date picker right on the card. Pick → saved; Clear → no date. */
+export function CardDueField({ ticket, done }: { ticket: Ticket; done: boolean }) {
+  const { updateTicket } = useAppState();
+  const input = useRef<HTMLInputElement>(null);
+  const pick = () => {
+    try { input.current?.showPicker(); } catch { input.current?.focus(); } // no showPicker: the field takes typing
+  };
+  return (
+    <span className="card-due">
+      <button
+        type="button" className={`due-chip${ticket.due ? "" : " is-empty"}`} onClick={pick}
+        aria-label={ticket.due ? `Due ${shortDate(ticket.due)}. Change due date` : "No due date. Set due date"}
+      >
+        {ticket.due ? <DueDate ticket={ticket} done={done} /> : "No date"}
+      </button>
+      <input
+        ref={input} type="date" className="card-due-input" tabIndex={-1} aria-hidden value={ticket.due ?? ""}
+        onChange={(e) => { const due = e.target.value || undefined; if (due !== ticket.due) updateTicket(ticket.key, { due }); }}
+      />
+    </span>
   );
 }
 

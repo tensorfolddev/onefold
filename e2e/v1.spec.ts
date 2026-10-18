@@ -456,6 +456,42 @@ test("tickets are archived, not deleted: off the board, in Settings → Archived
   await expect(archived).toContainText("Nothing archived");
 });
 
+test("a card's priority, date and people change right on the board, without opening the ticket", async ({ page }) => {
+  await signUp(page, "Pi", email("pi"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Prism");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  await page.goto(`${new URL(page.url()).pathname}/tickets`);
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Quick one");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const panel = page.locator(".ticket-panel");
+  await page.keyboard.press("Escape"); // a new ticket opens itself
+  await expect(panel).toHaveCount(0);
+  const card = page.locator(".kanban-card", { hasText: "Quick one" });
+
+  await card.getByRole("button", { name: /^Priority: .+ Change priority$/ }).click();
+  await page.getByRole("menuitemradio", { name: "Critical" }).click();
+  await expect(card.getByRole("button", { name: "Priority: Critical. Change priority" })).toBeVisible();
+
+  await card.getByRole("button", { name: /Change assignees$/ }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Ayla Khan" }).click(); // the menu stays open for more
+  await page.keyboard.press("Escape");
+  await expect(card.getByRole("button", { name: "Assignees: Ayla Khan. Change assignees" })).toBeVisible();
+
+  await card.getByRole("button", { name: "No due date. Set due date" }).click(); // the browser's date picker
+  await card.locator('input[type="date"]').fill("2030-01-15", { force: true });
+  await expect(card.getByRole("button", { name: /^Due .+ Change due date$/ })).toBeVisible();
+
+  await expect(panel).toHaveCount(0); // none of it opened the ticket
+  await page.reload();
+  await expect(card.getByRole("button", { name: "Priority: Critical. Change priority" })).toBeVisible(); // saved
+  await expect(card.getByRole("button", { name: "Assignees: Ayla Khan. Change assignees" })).toBeVisible();
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
