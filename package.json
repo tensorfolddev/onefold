@@ -25,7 +25,6 @@
     "@node-rs/argon2": "2.2.1",
     "@tiptap/core": "3.31.4",
     "@tiptap/extension-code-block-lowlight": "3.31.4",
-    "@tiptap/extension-drag-handle-react": "3.31.4",
     "@tiptap/extension-highlight": "3.31.4",
     "@tiptap/extension-list": "3.31.4",
     "@tiptap/extension-placeholder": "3.31.4",
