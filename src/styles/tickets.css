@@ -562,3 +562,13 @@ button.ticket-description:hover { background-color: var(--primary-background-hov
 .ticket-grid .col-ticket .epic-chip { flex: 0 1 auto; max-width: 40%; }
 .mw-cell-name { gap: 8px; }
 .mw-cell-name .epic-chip { max-width: 140px; }
+
+/* On a card you can edit, priority / date / people are buttons: each opens its picker right on the card. */
+.kanban-card { cursor: pointer; }
+.card-edit { display: inline-flex; flex: none; }
+.card-edit .card-priority, .card-edit .due-chip { transition: box-shadow var(--motion-productive-short) var(--motion-timing-transition); }
+.card-edit .card-priority:hover, .card-edit .card-priority[aria-expanded="true"], .card-edit .due-chip:hover { box-shadow: inset 0 0 0 1px var(--bar); }
+.card-assignees { display: inline-flex; padding: 2px; border-radius: 999px; transition: background-color var(--motion-productive-short); }
+.card-assignees:hover, .card-assignees[aria-expanded="true"] { background: var(--primary-background-hover-color); }
+.card-due { position: relative; display: inline-flex; }
+.card-due-input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; pointer-events: none; }
