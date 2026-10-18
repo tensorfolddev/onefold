@@ -5,9 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Bell, BookOpen, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon,
-  Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
+  Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
-import { visibleProducts } from "@/domain/permissions";
 import { isSoundOn, playSound, setSoundOn } from "@/features/tickets/sounds";
 import { AppStateProvider, useAppState, type Theme } from "@/features/shell/state";
 import { useAuth, useMe } from "@/data/StoreProvider";
@@ -19,6 +18,7 @@ import { ProductsSidebar } from "./ProductsSidebar";
 import { TicketPanelHost } from "@/features/tickets/TicketPanel";
 import { WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 import { McpDialog } from "@/features/mcp/McpDialog";
+import { GlobalSearch } from "@/features/shell/GlobalSearch";
 
 interface NavItem { path: string; label: string; icon: LucideIcon }
 
@@ -93,25 +93,9 @@ export function BrandMark() {
 }
 
 function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
-  const { openTicket, notificationsOpen, setNotificationsOpen } = useAppState();
+  const { notificationsOpen, setNotificationsOpen } = useAppState();
   const { db, me, href } = useMe();
-  const [query, setQuery] = useState("");
   const unread = db.notifications.filter((n) => n.personId === me.id && !n.read).length;
-  const visible = new Set(visibleProducts(me, db.products).map((p) => p.key));
-  const tickets = db.tickets.filter((t) => visible.has(t.productKey));
-
-  const search = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = query.trim().toLowerCase();
-    if (!q) return;
-    const hit = tickets.find((t) => t.key.toLowerCase() === q) ??
-      tickets.find((t) => `${t.key} ${t.title}`.toLowerCase().includes(q));
-    if (hit) {
-      openTicket(hit.key);
-      setQuery("");
-    }
-  };
-
   return (
     <header className="app-topbar">
       <button type="button" className="btn btn-tertiary btn-icon sidebar-toggle" aria-label="Toggle products sidebar" onClick={onToggleSidebar}>
@@ -123,16 +107,7 @@ function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       </Link>
       <EnvBadge />
       <div className="topbar-center">
-        <form className="topbar-search" onSubmit={search} role="search">
-          <Search aria-hidden />
-          <input
-            aria-label="Search tickets by key or title"
-            placeholder="Search tickets (e.g. AP-12)…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{ border: 0, background: "transparent", outline: 0, width: "100%" }}
-          />
-        </form>
+        <GlobalSearch />
       </div>
       <div className="topbar-actions">
         <Tooltip label="Notifications">

@@ -5,9 +5,11 @@
 // pages (next/dynamic), so nothing else pays for it.
 import type { JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BlockHandle } from "./BlockHandle";
 import { BubbleToolbar } from "./BubbleToolbar";
+import { chipExtensions, CHIP_NODES } from "./Chips";
+import { connectExtensions, type DocLinks } from "./Connect";
 import { docExtensions } from "./extensions";
 import { toDocJson, toMarkdown } from "./markdown";
 import { SlashCommand } from "./SlashMenu";
@@ -24,17 +26,30 @@ const headingsOf = (doc: JSONContent): Heading[] => {
   return out;
 };
 
-export default function DocEditor({ body, editable, onChange, onHeadings, placeholder }: {
+export type { DocLinks };
+
+export default function DocEditor({ body, editable, onChange, onHeadings, placeholder, links }: {
   body: string;
   editable: boolean;
+  /** Who can be mentioned, and the tickets and docs that can be linked — read when a picker opens. */
+  links: DocLinks;
   /** Called with the doc as Markdown after each change. */
   onChange: (markdown: string) => void;
   onHeadings?: (headings: Heading[]) => void;
   placeholder?: string;
 }) {
   const content = useMemo(() => toDocJson(body), [body]);
+  // The pickers read the latest links when they open; the editor itself is made once.
+  const [connect] = useState(() => {
+    let current = links;
+    return { set: (next: DocLinks) => { current = next; }, extensions: connectExtensions(() => current) };
+  });
+  useEffect(() => connect.set(links), [connect, links]);
   const editor = useEditor({
-    extensions: [...docExtensions({ editable, placeholder }), SlashCommand],
+    extensions: [
+      ...docExtensions({ editable, placeholder }).filter((e) => !CHIP_NODES.has(e.name)), ...chipExtensions,
+      SlashCommand, ...connect.extensions,
+    ],
     content,
     editable,
     immediatelyRender: false,

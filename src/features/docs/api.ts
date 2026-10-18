@@ -1,8 +1,10 @@
 // The docs API from the browser: bodies, autosave (with its 409 "someone saved since"), presence and search.
 import { api, ApiError } from "@/data/api";
-import type { DocHit, OpenDoc, Presence } from "@/server/docs";
+import type { DocHit, DocLink, OpenDoc, Presence } from "@/server/docs";
 
-export type { DocHit, OpenDoc, Presence };
+export type { DocHit, DocLink, OpenDoc, Presence };
+
+export const docsLinkingTicket = (key: string) => api<DocLink[]>(`/api/docs/linked?ticket=${encodeURIComponent(key)}`);
 export interface Latest { body: string; rev: number; updatedBy?: string; updatedAt: string }
 
 export const getDoc = (id: string) => api<OpenDoc>(`/api/docs/${encodeURIComponent(id)}`);

@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore, Copy, Download, ImagePlus, Link2, MoreHorizontal, RefreshCw, Smile, Trash2, Users } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { archiveDocs, restoreDocs, updateDoc } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import { relativeTime } from "@/domain/status";
@@ -14,7 +14,7 @@ import type { Doc } from "@/domain/types";
 import { EmojiGrid } from "@/ui/EmojiGrid";
 import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
-import type { Heading } from "./editor/DocEditor";
+import type { DocLinks, Heading } from "./editor/DocEditor";
 import { ancestorsOf, COVERS, coverCss, docPath, downloadMarkdown, readingMinutes } from "./tree";
 import { useDocBody } from "./useDocBody";
 
@@ -40,6 +40,13 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
   const [title, setTitle] = useState(doc.title);
   const [emojiQuery, setEmojiQuery] = useState("");
   const text = latest ?? b.body;
+  // Who can be mentioned (whoever can see this doc), and what can be linked.
+  const links: DocLinks = useMemo(() => ({
+    people: db.people.filter((p) => p.active && p.panel && (!product || p.panel === "admin" || p.id === product.pmId || p.id === product.projectManagerId || product.memberIds.includes(p.id)))
+      .map((p) => ({ id: p.id, name: p.name, role: p.role })),
+    tickets: db.tickets.map((t) => ({ key: t.key, title: t.title })),
+    docs: db.docs.filter((d) => !d.archivedAt && d.id !== doc.id).map((d) => ({ id: d.id, title: d.title, icon: d.icon })),
+  }), [db.people, db.tickets, db.docs, product, doc.id]);
 
   const onChange = useCallback((md: string) => { setLatest(md); b.setDraft(md); }, [b]);
   const onHeadings = useCallback((h: Heading[]) => setHeadings((cur) => (sameHeadings(cur, h) ? cur : h)), []);
@@ -183,7 +190,17 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
       <div className="doc-body">
         {b.status === "error" ? <div className="docs-empty">{b.error}</div>
           : b.status === "loading" ? <div className="doc-skeleton" aria-busy="true" />
-          : <DocEditor key={b.reloadKey} body={b.body} editable={editable} onChange={onChange} onHeadings={onHeadings} />}
+          : <DocEditor key={b.reloadKey} body={b.body} editable={editable} onChange={onChange} onHeadings={onHeadings} links={links} />}
+        {b.backlinks.length > 0 && (
+          <footer className="doc-backlinks" aria-labelledby="backlinks-title">
+            <h2 id="backlinks-title" className="doc-toc-title">Linked from</h2>
+            <ul>
+              {b.backlinks.map((l) => (
+                <li key={l.id}><Link href={href(docPath(l))} className="doc-chip is-doc"><span aria-hidden>{l.icon ?? "📄"}</span><span className="doc-chip-title">{l.title}</span></Link></li>
+              ))}
+            </ul>
+          </footer>
+        )}
       </div>
 
       {headings.length > 2 && (

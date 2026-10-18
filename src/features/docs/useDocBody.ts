@@ -5,7 +5,7 @@
 // as `staleBy` when something is. Tells the server who has the doc open and who's typing.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { message } from "@/data/api";
-import { getDoc, pingPresence, saveDoc, type DocSaved, type Latest, type Presence, type PresenceChanged } from "./api";
+import { getDoc, pingPresence, saveDoc, type DocLink, type DocSaved, type Latest, type Presence, type PresenceChanged } from "./api";
 import { nextSaveDelay } from "./autosave";
 
 const PRESENCE_EVERY_MS = 15_000;
@@ -23,6 +23,8 @@ export interface DocBody {
   savedAt: number | null;
   conflict: Latest | null;
   presence: Presence[];
+  /** Docs that link to this one (that you can see). */
+  backlinks: DocLink[];
   /** Someone saved while there were unsaved changes here: their id, until reloaded. */
   staleBy: string | null;
   setDraft: (markdown: string) => void;
@@ -40,6 +42,7 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [conflict, setConflict] = useState<Latest | null>(null);
   const [presence, setPresence] = useState<Presence[]>([]);
+  const [backlinks, setBacklinks] = useState<DocLink[]>([]);
   const [staleBy, setStaleBy] = useState<string | null>(null);
 
   const rev = useRef(0);
@@ -56,6 +59,7 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
     draft.current = null;
     setBody(open.body);
     setPresence(open.presence);
+    setBacklinks(open.backlinks);
     setUnsaved(false);
     setStaleBy(null);
     setReloadKey((k) => k + 1);
@@ -191,5 +195,5 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
     await load();
   }, [load]);
 
-  return { status, error, body, reloadKey, saving, unsaved, savedAt, conflict, presence, staleBy, setDraft, resolveConflict, reload };
+  return { status, error, body, reloadKey, saving, unsaved, savedAt, conflict, presence, backlinks, staleBy, setDraft, resolveConflict, reload };
 }
