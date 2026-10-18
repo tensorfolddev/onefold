@@ -10,7 +10,7 @@ import { can as canFor, type Action, type Ctx } from "../domain/permissions.ts";
 import type { Panel, Person, Ticket } from "../domain/types.ts";
 import { cheer, finished } from "../domain/selectors/celebrate.ts";
 import { celebrate } from "../ui/celebrate.ts";
-import { Toaster, type ToastItem } from "../ui/Toast.tsx";
+import { Toaster, type ToastItem, type ToastTone } from "../ui/Toast.tsx";
 import { api, ApiError, upload } from "./api.ts";
 import { AccessError, record, recorded, ValidationError, type CommandName, type Commands, type InviteInput, type Step } from "./commands.ts";
 import { makeLookups, type Db, type Lookups } from "./db.ts";
@@ -37,7 +37,7 @@ export interface Store extends Lookups {
   run: <N extends CommandName>(name: N, args: Tail<Parameters<Commands[N]>>, opts?: RunOptions) => KeyOf<ReturnType<Commands[N]>> | undefined;
   /** Compose several commands into one change (one server transaction, one Undo). Use commands from @/data/commands. */
   act: <K = never>(fn: (db: Db, me: Person) => ActResult<K>, opts?: RunOptions) => K | true | undefined;
-  toast: (message: string, undo?: () => void) => void;
+  toast: (message: string, undo?: () => void, tone?: ToastTone) => void;
   signOut: () => void;
   /** Admins: make invite links. The server generates the secrets; each link is shown once. */
   createInvites: (invites: InviteInput[]) => Promise<CreatedInvite[]>;
@@ -95,9 +95,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const toldNewVersion = useRef(false);
 
   const dismiss = useCallback((id: number) => setToasts((ts) => ts.filter((t) => t.id !== id)), []);
-  const toast = useCallback((text: string, undo?: () => void) => {
+  const toast = useCallback((text: string, undo?: () => void, tone: ToastTone = "info") => {
     const id = ++toastId.current;
-    setToasts((ts) => [...ts.slice(-2), { id, message: text, undo }]);
+    setToasts((ts) => [...ts.slice(-2), { id, message: text, undo, tone }]);
     setTimeout(() => dismiss(id), TOAST_MS);
   }, [dismiss]);
 
@@ -117,11 +117,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       else throw e;
     }
   }, [show, toast]);
-  const refreshOrSay = useCallback(() => refresh().catch((e: unknown) => toast(message(e))), [refresh, toast]);
+  const refreshOrSay = useCallback(() => refresh().catch((e: unknown) => toast(message(e), undefined, "error")), [refresh, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time load; state is set when the server answers
-    refresh().catch((e: unknown) => toast(message(e))).finally(() => setReady(true));
+    refresh().catch((e: unknown) => toast(message(e), undefined, "error")).finally(() => setReady(true));
   }, [refresh, toast]);
 
   // Other people's changes: a live event with the new version, or coming back to the tab.
@@ -158,7 +158,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       try {
         await api(path, body);
       } catch (e) {
-        toast(message(e));
+        toast(message(e), undefined, "error");
       } finally {
         pending.current -= 1;
         if (pending.current === 0) await refreshOrSay();
@@ -195,13 +195,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       ({ result, steps } = record(() => fn(cur.db, me)));
     } catch (e) {
-      if (e instanceof AccessError || e instanceof ValidationError) { toast(e.message); return undefined; }
+      if (e instanceof AccessError || e instanceof ValidationError) { toast(e.message, undefined, "error"); return undefined; }
       throw e;
     }
     if (!steps.length) {
       // A screen changed data without a recorded command, so the server would never hear of it.
       console.error("[store] change with no recorded commands — import commands from @/data/commands");
-      toast("That change couldn't be saved — please refresh");
+      toast("That change couldn't be saved — please refresh", undefined, "error");
       return undefined;
     }
     const isKeyed = "key" in result && "db" in result;
@@ -212,9 +212,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Something just got finished — a ticket reached Done, or a whole epic did: cheer instead of the usual toast.
     const party = cheer(finished(cur.db, next));
     if (party) {
-      toast(party.message, opts.success && opts.undoable ? undo : undefined);
+      toast(party.message, opts.success && opts.undoable ? undo : undefined, "success");
       celebrate(party.big);
-    } else if (opts.success) toast(opts.success, opts.undoable ? undo : undefined);
+    } else if (opts.success) toast(opts.success, opts.undoable ? undo : undefined, "success");
     send("/api/org/changes", { steps, undoable: !!opts.undoable });
     return isKeyed ? (result as { key: K }).key : (true as const);
   }, [send, show, toast, undo]);
@@ -262,7 +262,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       await api("/api/auth/signout", {});
     } catch (e) {
-      toast(`Couldn't sign out: ${message(e)}`);
+      toast(`Couldn't sign out: ${message(e)}`, undefined, "error");
       return;
     }
     show(null);
@@ -306,7 +306,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   return (
     <StoreCtx.Provider value={{ store, auth }}>
       {children}
-      <Toaster items={toasts} onDismiss={dismiss} />
+      <Toaster items={toasts} ms={TOAST_MS} onDismiss={dismiss} />
     </StoreCtx.Provider>
   );
 }
