@@ -63,7 +63,12 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     requirements: db.requirements.map((q) => r(q.id, { productId: q.productKey, code: q.code, title: q.title })),
     decisions: db.decisions.map((d) => r(d.id, { productId: d.productKey, title: d.title, why: d.why, byId: d.byId, date: d.date })),
     milestones: db.milestones.map((m) => r(m.id, { productId: m.productKey, name: m.name, due: m.due, pct: m.pct, lateDays: m.lateDays })),
-    docs: db.docs.map((d) => r(d.id, { productId: d.productKey, kind: d.kind, title: d.title, updated: d.updated, authorId: d.authorId })),
+    docs: db.docs.map((d) => r(d.id, {
+      productId: opt(d.productKey), parentId: opt(d.parentId), kind: d.kind, title: d.title, icon: opt(d.icon), cover: opt(d.cover),
+      template: opt(d.template), updated: d.updated, authorId: d.authorId, createdAt: instantOrNull(d.createdAt),
+      updatedAt: instantOrNull(d.updatedAt), updatedBy: opt(d.updatedBy), rev: d.rev ?? null,
+      archivedAt: instantOrNull(d.archivedAt), archivedBy: opt(d.archivedBy),
+    })),
     stageRequests: db.stageRequests.map((s) => r(s.id, { productId: s.productKey, stage: s.stage, requestedBy: s.requestedBy, at: instant(s.at) })),
     tickets: db.tickets.map((t) => r(t.key, {
       productId: t.productKey, title: t.title, type: t.type, statusId: t.statusId, assigneeId: opt(t.assigneeIds?.[0]), assigneeIds: t.assigneeIds?.length ? t.assigneeIds : null,
@@ -161,7 +166,16 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     milestones: t.milestones.map((m): Milestone => ({
       id: m.id, productKey: str(m.productId), name: str(m.name), due: str(m.due), pct: m.pct as number, lateDays: m.lateDays as number,
     })),
-    docs: t.docs.map((d): Doc => ({ id: d.id, productKey: str(d.productId), kind: d.kind as Doc["kind"], title: str(d.title), updated: str(d.updated), authorId: str(d.authorId) })),
+    docs: t.docs.map((d): Doc => ({
+      id: d.id, productKey: und<string>(d.productId) ?? "", kind: d.kind as Doc["kind"], title: str(d.title), updated: str(d.updated), authorId: str(d.authorId),
+      ...(d.parentId ? { parentId: str(d.parentId) } : {}),
+      ...(d.icon ? { icon: str(d.icon) } : {}),
+      ...(d.cover ? { cover: str(d.cover) } : {}),
+      ...(d.template ? { template: str(d.template) } : {}),
+      ...(d.createdAt ? { createdAt: instant(str(d.createdAt)) } : {}),
+      ...(d.updatedAt ? { updatedAt: instant(str(d.updatedAt)), updatedBy: und<string>(d.updatedBy), rev: und<number>(d.rev) } : {}),
+      ...(d.archivedAt ? { archivedAt: instant(str(d.archivedAt)), archivedBy: und<string>(d.archivedBy) } : {}),
+    })),
     activity: t.activity.map((a): Activity => ({
       id: a.id, ticketKey: str(a.ticketId), at: str(a.at), actorId: str(a.actorId), field: a.field as Activity["field"], from: und(a.fromValue), to: str(a.toValue),
     })),

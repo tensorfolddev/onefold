@@ -167,13 +167,50 @@ export const milestones = pgTable("milestones", {
 
 export const docs = pgTable("docs", {
   ...keyed,
-  productId: text("product_id").notNull(),
+  productId: text("product_id"), // NULL = the company's own space
+  parentId: text("parent_id"),
   kind: text("kind").notNull(),
   title: text("title").notNull(),
+  icon: text("icon"),
+  cover: text("cover"),
+  template: text("template"),
   updated: day("updated").notNull(),
   authorId: text("author_id").notNull(),
+  createdAt: ts("created_at"),
+  updatedAt: ts("updated_at"),
+  updatedBy: text("updated_by"),
+  rev: integer("rev"),
+  archivedAt: ts("archived_at"),
+  archivedBy: text("archived_by"),
   position: position(),
-}, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("docs_parent").on(t.orgId, t.parentId)]);
+
+const companyRows = () => pgPolicy("company_rows", {
+  for: "all",
+  using: sql`org_id = current_setting('app.org_id', true)`,
+  withCheck: sql`org_id = current_setting('app.org_id', true)`,
+});
+
+/** A doc's text (Markdown), one row per doc, loaded only when someone opens it. `rev` guards against overwrites. */
+export const docBodies = pgTable("doc_bodies", {
+  orgId: text("org_id").notNull(),
+  docId: text("doc_id").notNull(),
+  body: text("body").notNull(),
+  rev: integer("rev").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+}, (t) => [primaryKey({ columns: [t.orgId, t.docId] }), companyRows()]);
+
+/** Earlier versions of a doc: one per author per ten minutes of editing, plus one before every overwrite or restore. */
+export const docVersions = pgTable("doc_versions", {
+  ...keyed,
+  docId: text("doc_id").notNull(),
+  rev: integer("rev").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  authorId: text("author_id"),
+  at: ts("at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("doc_versions_doc").on(t.orgId, t.docId, t.at), companyRows()]);
 
 export const stageRequests = pgTable("stage_requests", {
   ...keyed,

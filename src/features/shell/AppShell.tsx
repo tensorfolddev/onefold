@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon,
+  Bell, BookOpen, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon,
   Search, Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { visibleProducts } from "@/domain/permissions";
@@ -27,6 +27,7 @@ const NAV: Record<Panel, NavItem[]> = {
   admin: [
     { path: "", label: "Home", icon: Home },
     { path: "/products", label: "Products", icon: LayoutGrid },
+    { path: "/docs", label: "Docs", icon: BookOpen },
     { path: "/people", label: "People", icon: UserCog },
     { path: "/teams", label: "Teams", icon: Users },
     { path: "/settings", label: "Settings", icon: Settings },
@@ -35,11 +36,13 @@ const NAV: Record<Panel, NavItem[]> = {
     { path: "", label: "Home", icon: Home },
     { path: "/my-work", label: "My Work", icon: ListChecks },
     { path: "/products", label: "Products", icon: LayoutGrid },
+    { path: "/docs", label: "Docs", icon: BookOpen },
     { path: "/teams", label: "Team", icon: Users },
   ],
   developer: [
     { path: "", label: "My Work", icon: ListChecks },
     { path: "/products", label: "Products", icon: LayoutGrid },
+    { path: "/docs", label: "Docs", icon: BookOpen },
   ],
 };
 

@@ -4,12 +4,12 @@
 //   POST /api/org/password  { personId, password }                    — your password, or (admins) a teammate's
 //   POST /api/org/invites   { invites: [{ email, panel, role? }] }    — make invite links (emailed, and shown once)
 //   POST /api/org/verify-email                                        — email me a new "confirm your email" link
-//   GET  /api/org/events                                              — live updates (server-sent events)
+//   GET  /api/org/events                                              — live updates (server-sent events): versions, doc saves, doc presence
 import type { NextRequest } from "next/server";
 import type { InviteInput } from "@/domain/commands";
 import { sendVerification, setPassword } from "@/server/accounts";
 import { limit, MINUTE } from "@/server/auth/rateLimit";
-import { applySteps, createInvites, undoLast, type Step } from "@/server/changes";
+import { applySteps, createInvites, undoLast, viewFor, type Step } from "@/server/changes";
 import { subscribe } from "@/server/events";
 import { appUrl, handle, ok, readBody, refuse, requireSession, str } from "@/server/http";
 
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/org/[action
 }
 
 const PING_MS = 25_000;
+const KEYS_TTL_MS = 30_000; // how long a stream trusts its list of visible projects
 
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/org/[action]">) {
   const { action } = await ctx.params;
@@ -55,7 +56,17 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/org/[action]
           try { controller.enqueue(encoder.encode(text)); } catch { stop(); } // the browser went away
         };
         send("retry: 5000\n\n");
-        const unsubscribe = await subscribe(who.orgId, (version) => send(`event: version\ndata: ${version}\n\n`));
+        // Doc events only go to people who can see that project ("" = the company's docs, everyone's).
+        let keys: { set: Set<string>; at: number } | null = null;
+        const canSee = async (productKey: string) => {
+          if (!productKey) return true;
+          if (!keys || Date.now() - keys.at > KEYS_TTL_MS) keys = { set: new Set((await viewFor(who)).db.products.map((p) => p.key)), at: Date.now() };
+          return keys.set.has(productKey);
+        };
+        const unsubscribe = await subscribe(who.orgId, (e) => {
+          if (e.type === "version") return send(`event: version\ndata: ${e.version}\n\n`);
+          canSee(e.productKey).then((yes) => yes && send(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`)).catch(() => {});
+        });
         const ping = setInterval(() => send(": ping\n\n"), PING_MS);
         stop = () => { clearInterval(ping); unsubscribe(); };
         req.signal.addEventListener("abort", () => { stop(); try { controller.close(); } catch { /* already closed */ } });

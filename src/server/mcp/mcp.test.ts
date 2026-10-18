@@ -73,11 +73,12 @@ test("only a token gets in, and never from another website", async () => {
   assert.equal(init.body.result!.serverInfo!.name, "1fold");
   const names = (await rpc(adminToken, "tools/list")).body.result!.tools!.map((t) => t.name).sort();
   assert.deepEqual(names, [
-    "add_comment", "add_dependency", "add_member", "archive_product", "archive_ticket", "create_group", "create_ticket", "delete_group",
-    "get_ticket", "list_groups", "list_members", "list_products", "list_tickets", "move_product", "move_ticket", "remove_member",
-    "rename_group", "restore_product", "restore_ticket", "set_section", "update_ticket",
+    "add_comment", "add_dependency", "add_member", "archive_doc", "archive_product", "archive_ticket", "create_doc", "create_group",
+    "create_ticket", "delete_group", "get_doc", "get_ticket", "list_docs", "list_groups", "list_members", "list_products", "list_tickets",
+    "move_doc", "move_product", "move_ticket", "remove_member", "rename_group", "restore_doc", "restore_product", "restore_ticket",
+    "search_docs", "set_section", "update_doc", "update_ticket",
   ]);
-  assert.ok(!names.some((n) => /(delete|remove)_(ticket|product)/.test(n))); // no ticket or product is ever deleted over MCP
+  assert.ok(!names.some((n) => /(delete|remove)_(ticket|product|doc)/.test(n))); // no ticket, product or doc is ever deleted over MCP
 });
 
 test("the tools work on tickets as the token's owner, and every change is audited as MCP", async () => {
@@ -200,6 +201,32 @@ test("projects over MCP: admins and managers archive, restore, group and staff t
   assert.ok((await members()).includes("Sam Dev"));
   assert.match((await tool(devToken, "list_members", {})).refused!, /Only admins and managers/);
   assert.ok((await tool(adminToken, "list_members", {})).data.some((p: { name: string; products: string[] }) => p.name === "Sam Dev" && p.products.includes("CH")));
+});
+
+test("docs over MCP: anyone on a space reads and writes, edits never overwrite a newer save, only admins archive", async () => {
+  type Meta = { id: string; title: string; space: string; parent: string | null; archived: boolean; rev: number; markdown: string; url: string };
+  const made: Meta = (await tool(devToken, "create_doc", { title: "Checkout notes", space: "CH", template: "meeting" })).data;
+  assert.deepEqual([made.space, made.rev], ["Checkout", 1]);
+  assert.match(made.markdown, /^## Attendees/);
+  assert.match(made.url, /\/dev\/d\//);
+  const appended: Meta = (await tool(devToken, "update_doc", { doc: made.id, append: "## Extra\n\nMore detail.", base_rev: made.rev })).data;
+  assert.match(appended.markdown, /## Extra\n\nMore detail\.$/);
+  assert.equal(appended.rev, 2);
+  assert.match((await tool(adminToken, "update_doc", { doc: made.id, markdown: "stale", base_rev: 1 })).refused!, /Changed since base_rev 1 \(now rev 2\)/);
+  assert.equal((await tool(adminToken, "get_doc", { doc: "checkout notes" })).data.id, made.id);
+  assert.ok((await tool(adminToken, "search_docs", { query: "extra det" })).data.some((h: { id: string }) => h.id === made.id));
+  const child: Meta = (await tool(adminToken, "create_doc", { title: "Payment flow", space: "CH", parent: made.id })).data;
+  assert.equal(child.parent, made.id);
+  assert.match((await tool(devToken, "archive_doc", { doc: made.id })).refused!, /Not allowed/);
+  assert.equal((await tool(adminToken, "archive_doc", { doc: made.id })).data.archived, true);
+  assert.match((await tool(devToken, "get_doc", { doc: child.id })).refused!, /No doc/); // archived with its parent
+  assert.equal((await tool(adminToken, "restore_doc", { doc: made.id })).data.archived, false);
+  assert.equal((await tool(devToken, "get_doc", { doc: child.id })).data.title, "Payment flow");
+  await applySteps(admin, [{ name: "createProduct", args: [{ key: "XY", name: "Secret", type: "internal", pmId: ayla, projectManagerId: ayla }] }]);
+  const secret: Meta = (await tool(adminToken, "create_doc", { title: "Secret plan", space: "XY" })).data;
+  assert.match((await tool(devToken, "get_doc", { doc: secret.id })).refused!, /No doc/);
+  assert.ok((await tool(devToken, "list_docs", {})).data.every((d: Meta) => d.id !== secret.id));
+  assert.equal((await tool(devToken, "create_doc", { title: "Handbook" })).data.space, "company");
 });
 
 test("a token stops working when its owner is turned off, or their password changes", async () => {

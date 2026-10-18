@@ -1,6 +1,8 @@
 // Every change to a company's data is one of these named commands: pure (db, me, ...args) → db.
 // The browser store runs them now; the backend (and the MCP server's tools) will run the same names.
-import { addDecision, addDoc, deleteDoc, upsertMilestone } from "./docs.ts";
+import {
+  addDecision, addDoc, archiveDocs, createDoc, deleteDoc, deleteDocs, moveDoc, restoreDocs, touchDoc, updateDoc, upsertMilestone,
+} from "./docs.ts";
 import { addStatus, deleteStatus, moveStatus, updateStatus } from "./lists.ts";
 import { inviteMembers, revokeInvite, updateOrg } from "./org.ts";
 import {
@@ -22,8 +24,8 @@ export const commands = {
   // products
   createProduct, updateProduct, setProductLook, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
-  // product docs
-  addDoc, deleteDoc, addDecision, upsertMilestone,
+  // docs
+  addDoc, deleteDoc, addDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc,
   // people + company
   updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
@@ -36,7 +38,7 @@ export {
   addStatus, updateStatus, moveStatus, deleteStatus,
   createProduct, updateProduct, setProductLook, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
-  addDoc, deleteDoc, addDecision, upsertMilestone,
+  addDoc, deleteDoc, addDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc,
   updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
 };
@@ -47,6 +49,8 @@ export type CommandName = keyof Commands;
 export { AccessError, ValidationError } from "./shared.ts";
 export { deletePhrase } from "./products.ts";
 export { ticketDeletePhrase } from "./tickets.ts";
+export { docDeletePhrase, withSubpages } from "./docs.ts";
+export type { DocPatch, NewDoc } from "./docs.ts";
 export { acceptInvite, inviteProblem, inviteState, isFreeMail, signUp, slugError, slugify, INVITE_DAYS } from "./org.ts";
 export { EMAIL_RE, MIN_PASSWORD, domainOf } from "./shared.ts";
 export type { InviteInput, NewInvite, SignUpInput } from "./org.ts";
