@@ -163,7 +163,7 @@ test("moving a ticket to Done cheers: a toast and a burst of confetti", async ({
   // A new ticket opens in its panel; change its status there.
   await page.getByRole("dialog").getByRole("button", { name: /^Status: .+ Change status$/ }).click();
   await page.getByRole("menuitemradio", { name: "Done" }).click();
-  await expect(page.getByText("🎉 LA-1 is done — nice work!")).toBeVisible();
+  await expect(page.getByText("LA-1 is done — nice work!")).toBeVisible();
   await expect(page.locator("canvas.confetti")).toHaveCount(1); // and it cleans up after itself
   await expect(page.locator("canvas.confetti")).toHaveCount(0, { timeout: 6000 });
 });

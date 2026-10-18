@@ -1,5 +1,5 @@
-// Confetti on a throwaway canvas over the page, removed when it lands: a burst for a finished ticket, two cannons and a
-// trophy for a whole epic. Nothing moves for people who asked for less motion — the toast still cheers.
+// Confetti on a throwaway canvas over the page, removed when it lands: a burst for a finished ticket, two cannons for a
+// whole epic. The words are in the toast (top right). Nothing moves for people who asked for less motion.
 // ponytail: hand-rolled (~60 lines) instead of a confetti package; swap in canvas-confetti if we want shapes/emoji.
 const COLORS = ["#0073ea", "#00c875", "#fdab3d", "#e2445c", "#a25ddc", "#ffcb00", "#66ccff", "#ff7575"];
 const SMALL = { pieces: 110, ms: 2200, speed: 19 };
@@ -8,7 +8,7 @@ const FRAME_MS = 1000 / 60;
 
 interface Piece { x: number; y: number; vx: number; vy: number; size: number; color: string; angle: number; spin: number; round: boolean }
 
-export function celebrate(big: boolean, title?: string) {
+export function celebrate(big: boolean) {
   if (typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const canvas = document.createElement("canvas");
@@ -19,7 +19,6 @@ export function celebrate(big: boolean, title?: string) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   document.body.append(canvas);
-  if (big) trophy(title);
 
   const { pieces, ms, speed } = big ? BIG : SMALL;
   const { width: w, height: h } = canvas;
@@ -68,19 +67,3 @@ export function celebrate(big: boolean, title?: string) {
   requestAnimationFrame(frame);
 }
 
-/** The big moment: a trophy card in the middle of the screen for a couple of seconds. The toast says it for screen readers. */
-function trophy(title?: string) {
-  const card = document.createElement("div");
-  card.className = "celebrate-badge";
-  card.setAttribute("aria-hidden", "true");
-  const parts: [string, string][] = [["celebrate-emoji", "🏆"], ["celebrate-title", "Epic complete!"], ["celebrate-sub", title ?? ""]];
-  for (const [className, text] of parts) {
-    if (!text) continue;
-    const el = document.createElement("span");
-    el.className = className;
-    el.textContent = text; // never HTML: a title is whatever someone typed
-    card.append(el);
-  }
-  document.body.append(card);
-  card.addEventListener("animationend", () => card.remove(), { once: true });
-}
