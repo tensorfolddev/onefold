@@ -98,7 +98,7 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
     <Popover
       width={220} align="right" floating
       trigger={({ open: o, toggle: t }) => (
-        <button type="button" className={`doc-row-btn${o ? " is-open" : ""}`} aria-label={`More for ${doc.title}`} aria-expanded={o} onClick={t}><MoreHorizontal aria-hidden /></button>
+        <button type="button" className={`doc-row-btn${o ? " is-open" : ""}`} aria-label={`More for ${doc.title}`} data-tip="More actions" aria-expanded={o} onClick={t}><MoreHorizontal aria-hidden /></button>
       )}
     >
       {(close) => (
@@ -167,7 +167,7 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
               )}
               <span className="doc-row-actions">
                 {rowMenu(doc)}
-                {canEdit && <button type="button" className="doc-row-btn" aria-label={`New page inside ${doc.title}`} onClick={() => onNewPage({ parentId: doc.id })}><Plus aria-hidden /></button>}
+                {canEdit && <button type="button" className="doc-row-btn" aria-label={`New page inside ${doc.title}`} data-tip="Add a page inside" onClick={() => onNewPage({ parentId: doc.id })}><Plus aria-hidden /></button>}
               </span>
             </div>
             {kids.length > 0 && isOpen && rows(kids, depth + 1)}
@@ -201,10 +201,10 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
             </button>
             {canEdit && (
               <span className="doc-group-actions">
-                <button type="button" className="doc-row-btn" aria-label={`New page in ${name}`} onClick={() => onNewPage({ groupId: g?.id })}><Plus aria-hidden /></button>
+                <button type="button" className="doc-row-btn" aria-label={`New page in ${name}`} data-tip="Add a page" onClick={() => onNewPage({ groupId: g?.id })}><Plus aria-hidden /></button>
                 {g && (
                   <Popover align="right" width={200} floating trigger={({ open: o, toggle: t }) => (
-                    <button type="button" className={`doc-row-btn${o ? " is-open" : ""}`} aria-label={`${name} group options`} aria-expanded={o} onClick={t}><MoreHorizontal aria-hidden /></button>
+                    <button type="button" className={`doc-row-btn${o ? " is-open" : ""}`} aria-label={`${name} group options`} data-tip="Group options" aria-expanded={o} onClick={t}><MoreHorizontal aria-hidden /></button>
                   )}>
                     {(close) => (
                       <>

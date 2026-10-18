@@ -440,8 +440,10 @@ test("tickets are archived, not deleted: off the board, in Settings → Archived
   await page.goto(`${productUrl}/settings`);
   const archived = page.locator(".archived-tickets");
   await expect(archived).toContainText("Old idea");
+  const saved = page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok());
   await archived.getByRole("button", { name: `Restore ${key}` }).click(); // one click
   await expect(archived).toContainText("Nothing archived");
+  await saved; // on the server before the page reloads
   await page.goto(`${productUrl}/tickets`);
   await page.getByRole("button", { name: "Old idea" }).first().click();
   await archiveFromPanel();
@@ -503,6 +505,7 @@ test("docs: a project page written with Markdown shortcuts is saved as you type 
   await page.goto(`${new URL(page.url()).pathname}/docs`);
   await expect(page.getByRole("heading", { name: "Radar docs" })).toBeVisible();
   await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
   await expect(page).toHaveURL(/\/docs\/.+/);
   const prose = page.locator('.doc-prose[contenteditable="true"]');
   await prose.click();
@@ -526,7 +529,7 @@ test("docs: a teammate sees a save live and who's editing; only an admin archive
   const link = (await page.locator(".inv-link-url").first().textContent())!;
   await page.getByRole("button", { name: "Go to Sigma" }).click();
   await page.goto("/admin/docs");
-  await page.locator(".docs-home-head").getByRole("button", { name: /From a template/ }).click();
+  await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
   await page.getByRole("dialog").getByRole("button", { name: /Handbook page/ }).click();
   await expect(page).toHaveURL(/\/admin\/docs\/.+/);
   const docId = page.url().split("/").pop()!;
@@ -608,12 +611,13 @@ test("docs connect: an @mention notifies, a ticket key becomes a live chip, and 
 
   // A target doc, then a doc that mentions Tia, links the ticket and links the target.
   await page.goto("/admin/docs");
-  await page.locator(".docs-home-head").getByRole("button", { name: /From a template/ }).click();
+  await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
   await page.getByRole("dialog").getByRole("button", { name: /Handbook page/ }).click();
   await expect(page).toHaveURL(/\/admin\/docs\/.+/);
   const targetUrl = page.url();
   await page.goto("/admin/docs");
   await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
   const prose = page.locator('.doc-prose[contenteditable="true"]');
   await prose.click();
   await page.keyboard.type("Hi @Tia");

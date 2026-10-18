@@ -55,7 +55,7 @@ export function BubbleToolbar({ editor }: { editor: Editor }) {
           {MARKS.map((m) => (
             <button
               key={m.mark} type="button" className={`doc-bubble-btn${editor.isActive(m.mark) ? " is-on" : ""}`}
-              aria-label={m.label} aria-pressed={editor.isActive(m.mark)} title={`${m.label} ${m.keys}`}
+              aria-label={m.label} aria-pressed={editor.isActive(m.mark)} data-tip={`${m.label}  ${m.keys}`} data-tip-pos="top"
               onMouseDown={(ev) => ev.preventDefault()} onClick={() => m.run(editor)}
             >
               <m.icon aria-hidden />
@@ -63,12 +63,12 @@ export function BubbleToolbar({ editor }: { editor: Editor }) {
           ))}
           <span className="doc-bubble-sep" aria-hidden />
           {editor.isActive("link") ? (
-            <button type="button" className="doc-bubble-btn is-on" aria-label="Remove link" title="Remove link"
+            <button type="button" className="doc-bubble-btn is-on" aria-label="Remove link" data-tip="Remove link" data-tip-pos="top"
               onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()}>
               <Unlink aria-hidden />
             </button>
           ) : (
-            <button type="button" className="doc-bubble-btn" aria-label="Add link" title="Link"
+            <button type="button" className="doc-bubble-btn" aria-label="Add link" data-tip="Link  ⌘K" data-tip-pos="top"
               onMouseDown={(ev) => ev.preventDefault()} onClick={() => setLinking(String(editor.getAttributes("link").href ?? ""))}>
               <Link2 aria-hidden />
             </button>

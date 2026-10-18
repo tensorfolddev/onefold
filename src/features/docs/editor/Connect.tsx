@@ -38,11 +38,11 @@ const insertRef = (editor: Editor, from: number, to: number, attrs: { kind: "tic
   editor.chain().focus().insertContentAt({ from, to }, [{ type: "ref", attrs }, { type: "text", text: " " }]).run();
 
 /** Pickable tickets and docs for a query (used by "@" and "[["). */
-function refItems(get: Get, q: string): MenuItem[] {
+function refItems(get: Get, q: string, limit = LIMIT): MenuItem[] {
   const { tickets, docs } = get();
   return [
-    ...docs.filter((d) => has(d.title, q)).slice(0, LIMIT).map((d) => ({ key: `doc:${d.id}`, label: d.title, hint: "Doc", icon: d.icon ? <span>{d.icon}</span> : <FileText /> })),
-    ...tickets.filter((t) => has(`${t.key} ${t.title}`, q)).slice(0, LIMIT).map((t) => ({ key: `ticket:${t.key}`, label: t.key, hint: t.title, icon: <SquareCheck /> })),
+    ...docs.filter((d) => has(d.title, q)).slice(0, limit).map((d) => ({ key: `doc:${d.id}`, label: d.title, hint: "Doc", icon: d.icon ? <span>{d.icon}</span> : <FileText /> })),
+    ...tickets.filter((t) => has(`${t.key} ${t.title}`, q)).slice(0, limit).map((t) => ({ key: `ticket:${t.key}`, label: t.key, hint: t.title, icon: <SquareCheck /> })),
   ];
 }
 const pickRef = (editor: Editor, range: { from: number; to: number }, item: MenuItem) => {
@@ -58,8 +58,8 @@ const MentionPicker = (get: Get) => Extension.create({
       editor: this.editor, char: "@", title: "Mention a person, doc or ticket", empty: "Nothing matches",
       allow: ({ editor, range }) => !editor.isActive("codeBlock") && /(^|[\s(])$/.test(editor.state.doc.textBetween(Math.max(0, range.from - 1), range.from, "\n", " ")),
       items: (q) => [
-        ...get().people.filter((p) => has(p.name, q)).slice(0, LIMIT).map((p) => ({ key: `person:${p.id}`, label: p.name, hint: p.role })),
-        ...(q.trim() ? refItems(get, q) : []),
+        ...get().people.filter((p) => has(p.name, q)).slice(0, q.trim() ? LIMIT : 4).map((p) => ({ key: `person:${p.id}`, label: p.name, hint: p.role })),
+        ...refItems(get, q, q.trim() ? LIMIT : 4),
       ],
       pick: (editor, range, item: MenuItem) => {
         if (!item.key.startsWith("person:")) return pickRef(editor, range, item);

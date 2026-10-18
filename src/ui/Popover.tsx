@@ -19,7 +19,7 @@ function place(r: DOMRect, align: "left" | "right", width?: number): React.CSSPr
 
 /**
  * Anchor + floating menu. Closes on outside click and Escape. `floating` puts the menu on <body> at a fixed spot,
- * so a parent that clips (a board card) can't cut it off; it closes if the page scrolls under it.
+ * so a parent that clips (a board card) can't cut it off; it follows its anchor when the page scrolls.
  */
 export function Popover({
   trigger,
@@ -53,7 +53,12 @@ export function Popover({
     const inside = (t: EventTarget | null) => !!t && (anchor?.contains(t as Node) || menuRef.current?.contains(t as Node));
     const onDown = (e: MouseEvent) => { if (!inside(e.target)) close(); };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
-    const onScroll = (e: Event) => { if (!inside(e.target)) close(); }; // the anchor moved away from the menu
+    // The page scrolled (or shifted) under the menu: follow the anchor; once it's off screen, close.
+    const onScroll = (e: Event) => {
+      if (inside(e.target) || !anchor) return;
+      const r = anchor.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) close(); else setSpot(place(r, align, width));
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     if (floating) { addEventListener("scroll", onScroll, true); addEventListener("resize", close); }
@@ -63,7 +68,7 @@ export function Popover({
       removeEventListener("scroll", onScroll, true);
       removeEventListener("resize", close);
     };
-  }, [open, floating, anchor]);
+  }, [open, floating, anchor, align, width]);
 
   const menu = open && (
     <div ref={menuRef} className={`menu ${className}`} role="menu" style={spot}>

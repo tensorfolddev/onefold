@@ -21,7 +21,7 @@ function MentionView({ node }: NodeViewProps) {
   const { personById } = useDb();
   const p = personById(node.attrs.id);
   return (
-    <NodeViewWrapper as="span" className={`doc-chip is-person${p ? "" : " is-missing"}`} title={p ? `${p.name} · ${p.role}` : undefined}>
+    <NodeViewWrapper as="span" className={`doc-chip is-person${p ? "" : " is-missing"}`} data-tip={p ? `${p.name} · ${p.role}` : undefined} data-tip-pos="top">
       {p && <Avatar personId={p.id} size="sm" />}@{p?.name ?? node.attrs.label}
     </NodeViewWrapper>
   );
@@ -34,10 +34,10 @@ function RefView({ node }: NodeViewProps) {
   const { kind, id, label } = node.attrs as { kind: "ticket" | "doc"; id: string; label: string };
   if (kind === "ticket") {
     const t = db.tickets.find((x) => x.key === id);
-    if (!t) return <NodeViewWrapper as="span" className="doc-chip is-missing" title="Not found, or not yours to see">{label}</NodeViewWrapper>;
+    if (!t) return <NodeViewWrapper as="span" className="doc-chip is-missing" data-tip="Not found, or not yours to see" data-tip-pos="top">{label}</NodeViewWrapper>;
     const status = statusById(t.statusId);
     return (
-      <NodeViewWrapper as="span" className="doc-chip is-ticket" role="link" title={`${t.key} · ${t.title}${status ? ` — ${status.name}` : ""}`} onClick={() => openTicket(t.key)}>
+      <NodeViewWrapper as="span" className="doc-chip is-ticket" role="link" data-tip={`Open ${t.key}${status ? ` · ${status.name}` : ""}`} data-tip-pos="top" onClick={() => openTicket(t.key)}>
         <TypeIcon type={t.type} />
         <span className="doc-chip-key">{t.key}</span>
         <span className="doc-chip-title">{t.title}</span>
@@ -47,9 +47,9 @@ function RefView({ node }: NodeViewProps) {
     );
   }
   const d = db.docs.find((x) => x.id === id && !x.archivedAt);
-  if (!d) return <NodeViewWrapper as="span" className="doc-chip is-missing" title="Not found, or not yours to see">{label}</NodeViewWrapper>;
+  if (!d) return <NodeViewWrapper as="span" className="doc-chip is-missing" data-tip="Not found, or not yours to see" data-tip-pos="top">{label}</NodeViewWrapper>;
   return (
-    <NodeViewWrapper as="span" className="doc-chip is-doc" role="link" title={d.title} onClick={() => router.push(href(docPath(d)))}>
+    <NodeViewWrapper as="span" className="doc-chip is-doc" role="link" data-tip="Open page" data-tip-pos="top" onClick={() => router.push(href(docPath(d)))}>
       <span aria-hidden>{d.icon ?? <FileText />}</span><span className="doc-chip-title">{d.title}</span>
     </NodeViewWrapper>
   );

@@ -39,7 +39,7 @@ export function ArchivedDocs({ productKey }: { productKey: string }) {
                 onClick={() => act((x, m) => restoreDocs(x, m, [d.id]), { success: `${d.title} is back` })}>
                 <ArchiveRestore aria-hidden /> Restore
               </button>
-              <button type="button" className="btn btn-tertiary is-danger" aria-label={`Delete ${d.title} forever`} title="Delete forever" onClick={() => setDeleting(d)}>
+              <button type="button" className="btn btn-tertiary is-danger" aria-label={`Delete ${d.title} forever`} data-tip="Delete forever" onClick={() => setDeleting(d)}>
                 <Trash2 aria-hidden />
               </button>
             </li>
