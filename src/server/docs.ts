@@ -4,7 +4,8 @@
 // Who has a doc open is kept in memory and sent the same way ("org:presence:…").
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../data/db.ts";
-import { AccessError, createDoc as createDocCommand, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
+import { AccessError, createDoc as createDocCommand, notifyDocMentions, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
+import { refsIn } from "../features/docs/editor/links.ts";
 import { templateFor } from "../domain/docTemplates.ts";
 import { can } from "../domain/permissions.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
@@ -43,6 +44,38 @@ async function notify(tx: Tx, orgId: string, kind: "doc" | "presence", data: obj
   await tx.execute(sql`select pg_notify(${CHANNEL}, ${`${orgId}:${kind}:${JSON.stringify(data)}`})`);
 }
 
+/** Rewrites a doc's link index from its body; returns the people it mentions now that it didn't before. */
+async function relink(tx: Tx, orgId: string, docId: string, body: string): Promise<string[]> {
+  const before = new Set((await tx.select({ target: s.docLinks.target }).from(s.docLinks)
+    .where(and(eq(s.docLinks.orgId, orgId), eq(s.docLinks.docId, docId), eq(s.docLinks.kind, "person")))).map((r) => r.target));
+  const refs = refsIn(body);
+  await tx.delete(s.docLinks).where(and(eq(s.docLinks.orgId, orgId), eq(s.docLinks.docId, docId)));
+  const rows = [
+    ...refs.people.map((target) => ({ orgId, docId, kind: "person", target })),
+    ...refs.tickets.map((target) => ({ orgId, docId, kind: "ticket", target })),
+    ...refs.docs.filter((t) => t !== docId).map((target) => ({ orgId, docId, kind: "doc", target })),
+  ];
+  if (rows.length) await tx.insert(s.docLinks).values(rows);
+  return refs.people.filter((p) => !before.has(p));
+}
+
+/** Docs (visible to this person, not archived) whose body links to `target`. */
+async function linkedFrom(tx: Tx, db: Db, me: Person, orgId: string, kind: "doc" | "ticket", target: string) {
+  const ids = new Set((await tx.select({ docId: s.docLinks.docId }).from(s.docLinks)
+    .where(and(eq(s.docLinks.orgId, orgId), eq(s.docLinks.kind, kind), eq(s.docLinks.target, target)))).map((r) => r.docId));
+  return snapshotFor(db, me).docs.filter((d) => ids.has(d.id) && !d.archivedAt).map((d) => ({ id: d.id, title: d.title, icon: d.icon, productKey: d.productKey }));
+}
+
+/** A model's "[@Hina](mention:hina@acme.com)" → the person's id; someone unknown stays plain "@Hina". */
+export function normalizeMentions(db: Db, markdown: string): string {
+  return markdown.replace(/\[@([^\]\n]*)\]\(mention:([^)\n]+)\)/g, (_m, label: string, who: string) => {
+    const w = who.trim().toLowerCase();
+    const p = db.people.find((x) => x.id === who) ?? db.people.find((x) => x.email && x.email.toLowerCase() === w)
+      ?? db.people.find((x) => x.name.toLowerCase() === w || x.name.toLowerCase() === label.trim().toLowerCase());
+    return p?.active ? `[@${p.name}](mention:${p.id})` : `@${label}`;
+  });
+}
+
 async function bodyRow(tx: Tx, orgId: string, docId: string) {
   const [row] = await tx.select().from(s.docBodies).where(and(eq(s.docBodies.orgId, orgId), eq(s.docBodies.docId, docId)));
   return row;
@@ -58,12 +91,16 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
   return inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
-    const { db, key: id } = createDocCommand(loaded.db, me, {
+    const made = createDocCommand(loaded.db, me, {
       productKey: input.productKey, parentId: input.parentId, title: input.title,
       icon: input.icon ?? template?.icon, template: template?.id, kind: template?.kind ?? input.kind,
     });
+    const id = made.key;
+    const mentioned = refsIn(body).people;
+    const db = mentioned.length ? notifyDocMentions(made.db, me, id, mentioned) : made.db;
     const version = await saveCompany(tx, loaded, db);
     await tx.insert(s.docBodies).values({ orgId: who.orgId, docId: id, body, rev: 1, updatedBy: me.id });
+    await relink(tx, who.orgId, id, body);
     const doc = db.docs.find((d) => d.id === id)!;
     await tx.insert(s.docVersions).values({ orgId: who.orgId, id: newId("ver"), docId: id, rev: 1, title: doc.title, body, authorId: me.id });
     await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source },
@@ -74,14 +111,17 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
 
 // ---------- read ----------
 
-export interface OpenDoc { doc: Doc; body: string; rev: number; presence: Presence[] }
+export interface DocLink { id: string; title: string; icon?: string; productKey: string }
+export interface OpenDoc { doc: Doc; body: string; rev: number; presence: Presence[]; backlinks: DocLink[] }
 
 export async function readDoc(who: SessionRow, id: string): Promise<OpenDoc> {
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
     const loaded = await mustLoad(tx, who);
-    const doc = visibleDoc(loaded.db, personFor(loaded, who.userId), id);
+    const me = personFor(loaded, who.userId);
+    const doc = visibleDoc(loaded.db, me, id);
     const row = await bodyRow(tx, who.orgId, id);
-    return { doc, body: row?.body ?? "", rev: row?.rev ?? 0, presence: presenceOf(who.orgId, id) };
+    const backlinks = await linkedFrom(tx, loaded.db, me, who.orgId, "doc", id);
+    return { doc, body: row?.body ?? "", rev: row?.rev ?? 0, presence: presenceOf(who.orgId, id), backlinks };
   });
 }
 
@@ -107,19 +147,27 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
     if (cur.rev !== input.baseRev && !input.force) {
       throw new DocConflict({ body: cur.body, rev: cur.rev, updatedBy: cur.updated_by ?? undefined, updatedAt: String(cur.updated_at) });
     }
-    if (cur.body === input.body) return { rev: cur.rev, doc, me, changed: false };
+    if (cur.body === input.body) return { rev: cur.rev, doc, me, changed: false, mentioned: [] as string[] };
     const rev = cur.rev + 1;
     const now = new Date();
     if (input.force && cur.rev !== input.baseRev) await addVersion(tx, who.orgId, id, cur.rev, doc.title, cur.body, cur.updated_by, now, false);
     await tx.update(s.docBodies).set({ body: input.body, rev, updatedAt: now.toISOString(), updatedBy: me.id })
       .where(and(eq(s.docBodies.orgId, who.orgId), eq(s.docBodies.docId, id)));
     await addVersion(tx, who.orgId, id, rev, doc.title, input.body, me.id, now, true);
+    const mentioned = await relink(tx, who.orgId, id, input.body);
     await notify(tx, who.orgId, "doc", { docId: id, productKey: doc.productKey, rev, personId: me.id });
-    return { rev, doc, me, changed: true };
+    return { rev, doc, me, changed: true, mentioned };
   });
-  if (saved.changed && Date.now() - Date.parse(saved.doc.updatedAt ?? "1970-01-01") > TOUCH_EVERY_MS) {
+  const touch = saved.changed && Date.now() - Date.parse(saved.doc.updatedAt ?? "1970-01-01") > TOUCH_EVERY_MS;
+  if (touch || saved.mentioned.length) {
     const at = new Date().toISOString();
-    await applyComposed(who, "web", (db, me) => ({ db: touchDoc(db, me, id, at, saved.rev), steps: [{ name: "touchDoc", args: [id, saved.rev] }] }));
+    await applyComposed(who, "web", (db, me) => {
+      let next = db;
+      const steps = [];
+      if (touch) { next = touchDoc(next, me, id, at, saved.rev); steps.push({ name: "touchDoc", args: [id, saved.rev] }); }
+      if (saved.mentioned.length) { next = notifyDocMentions(next, me, id, saved.mentioned); steps.push({ name: "notifyDocMentions", args: [id, saved.mentioned] }); }
+      return { db: next, steps };
+    });
   }
   return { rev: saved.rev };
 }
@@ -135,6 +183,14 @@ async function addVersion(tx: Tx, orgId: string, docId: string, rev: number, tit
     }
   }
   await tx.insert(s.docVersions).values({ orgId, id: newId("ver"), docId, rev, title, body, authorId, at: at.toISOString() });
+}
+
+/** The docs this person can see that link to a ticket: the ticket panel's "Mentioned in docs". */
+export async function docsLinkingTicket(who: SessionRow, ticketKey: string): Promise<DocLink[]> {
+  return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+    const loaded = await mustLoad(tx, who);
+    return linkedFrom(tx, loaded.db, personFor(loaded, who.userId), who.orgId, "ticket", ticketKey.toUpperCase());
+  });
 }
 
 // ---------- search ----------

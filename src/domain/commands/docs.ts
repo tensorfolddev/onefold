@@ -1,5 +1,5 @@
 import { now, today } from "../clock.ts";
-import { can } from "../permissions.ts";
+import { can, isOnProduct } from "../permissions.ts";
 import type { Doc, DocKind, Person } from "../types.ts";
 import type { Db } from "../../data/db.ts";
 import { check, fail, id, productOf, replace, requiredError, ValidationError } from "./shared.ts";
@@ -171,4 +171,22 @@ export function touchDoc(db: Db, me: Person, docId: string, at: string, rev: num
   const doc = docOf(db, docId);
   check(me, "doc.edit", { product: spaceOf(db, doc) });
   return { ...db, docs: replace(db.docs, (d) => d.id === docId, (d) => ({ ...d, updatedAt: at, updatedBy: me.id, rev, updated: at.slice(0, 10) })) };
+}
+
+/** Server only: tells the people newly mentioned in a doc — if they can see it, and never you. */
+export function notifyDocMentions(db: Db, me: Person, docId: string, personIds: string[]): Db {
+  const doc = docOf(db, docId);
+  const product = spaceOf(db, doc);
+  const at = now();
+  const told = [...new Set(personIds)]
+    .map((pid) => db.people.find((p) => p.id === pid))
+    .filter((p): p is Person => !!p && p.id !== me.id && p.active && !!p.panel && (!product || p.panel === "admin" || isOnProduct(p.id, product)));
+  if (!told.length) return db;
+  return {
+    ...db,
+    notifications: [
+      ...told.map((p) => ({ id: id(), personId: p.id, kind: "mention" as const, actorId: me.id, text: `mentioned you in ${doc.title}`, target: `/d/${doc.id}`, at, read: false })),
+      ...db.notifications,
+    ],
+  };
 }

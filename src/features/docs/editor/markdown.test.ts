@@ -71,7 +71,7 @@ test("an empty list item or trailing blank lines are never stored (Markdown can'
 });
 
 test("mentions, ticket and doc chips, and link cards keep their Markdown; ordinary links stay links", async () => {
-  const { refsIn } = await import("./nodes.ts");
+  const { refsIn } = await import("./links.ts");
   for (const md of [
     "Ask [@Hina Raza](mention:u-hina) about it",
     "Blocked by [EN-12](ticket:EN-12) and see [Design spec](doc:d-1a2b)",

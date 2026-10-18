@@ -90,14 +90,3 @@ export const LinkCard = Node.create({
   parseMarkdown: (token, h) => h.createNode("linkCard", { url: token.url }),
   renderMarkdown: (node: JSONContent) => `<${node.attrs?.url}>`,
 });
-
-/** People, tickets and docs a body points at (outside code), for the link index and mention notifications. */
-export function refsIn(markdown: string): { people: string[]; tickets: string[]; docs: string[] } {
-  const text = markdown.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
-  const all = (re: RegExp) => [...new Set([...text.matchAll(re)].map((m) => m[1]))];
-  return {
-    people: all(/\]\(mention:([^)\s]+)\)/g),
-    tickets: all(/\]\(ticket:([^)\s]+)\)/g),
-    docs: all(/\]\(doc:([^)\s]+)\)/g),
-  };
-}

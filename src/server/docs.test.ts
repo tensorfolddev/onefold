@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { acceptInvitation, readSession, signUpCompany, type SessionRow } from "./accounts.ts";
 import { applySteps, createInvites, viewFor } from "./changes.ts";
-import { createDoc, DocConflict, presenceOf, readDoc, saveBody, searchDocs, setPresence } from "./docs.ts";
+import { createDoc, DocConflict, docsLinkingTicket, normalizeMentions, presenceOf, readDoc, saveBody, searchDocs, setPresence } from "./docs.ts";
 import { freshDatabase } from "./testing/db.ts";
 
 let pg: Awaited<ReturnType<typeof freshDatabase>>;
@@ -91,4 +91,36 @@ test("presence: who has a doc open, and who's typing", async () => {
   await setPresence(sam, docId, { editing: false, open: false });
   assert.equal(presenceOf(admin.orgId, docId).length, 1);
   await assert.rejects(setPresence(lee, docId, { editing: false }), /not found/);
+});
+
+test("a mention notifies the person once, never yourself, and never someone who can't see the doc", async () => {
+  const view = await viewFor(admin);
+  const id = (name: string) => view.db.people.find((p) => p.name === name)!.id;
+  const notices = async (who: SessionRow) => (await viewFor(who)).db.notifications.filter((n) => n.kind === "mention" && n.target === `/d/${docId}`);
+  const rev = (await readDoc(sam, docId)).rev;
+  const mentions = `Ask [@Ayla Khan](mention:${id("Ayla Khan")}) and [@Lee Dev](mention:${id("Lee Dev")}) and me [@Sam Dev](mention:${id("Sam Dev")})`;
+  const r = await saveBody(sam, docId, { body: mentions, baseRev: rev });
+  assert.equal((await notices(admin)).length, 1);
+  assert.match((await notices(admin))[0].text, /mentioned you in Kickoff/);
+  assert.equal((await notices(lee)).length, 0); // Lee isn't on the project
+  assert.equal((await notices(sam)).length, 0); // not yourself
+  await saveBody(sam, docId, { body: `${mentions} — again`, baseRev: r.rev });
+  assert.equal((await notices(admin)).length, 1, "saving again doesn't notify again");
+});
+
+test("backlinks: docs that link here (if you can see them), and docs that link a ticket", async () => {
+  const target = await createDoc(sam, { productKey: "DC", title: "Target" });
+  await createDoc(sam, { productKey: "DC", title: "Points at it", body: `See [Target](doc:${target.id}) and [DC-1](ticket:DC-1)` });
+  await createDoc(admin, { title: "Company note", body: `Also [Target](doc:${target.id})` });
+  assert.deepEqual((await readDoc(sam, target.id)).backlinks.map((b) => b.title).sort(), ["Company note", "Points at it"]);
+  assert.deepEqual((await docsLinkingTicket(sam, "dc-1")).map((d) => d.title), ["Points at it"]);
+  assert.deepEqual(await docsLinkingTicket(lee, "DC-1"), []); // not Lee's project
+});
+
+test("mentions written by a model (an email or a name) become the person's id; unknown ones stay plain text", async () => {
+  const { db } = await viewFor(admin);
+  const ayla = db.people.find((p) => p.name === "Ayla Khan")!;
+  assert.equal(normalizeMentions(db, "Hi [@A](mention:ayla@docs.example)"), `Hi [@Ayla Khan](mention:${ayla.id})`);
+  assert.equal(normalizeMentions(db, "Hi [@Ayla Khan](mention:Ayla Khan)"), `Hi [@Ayla Khan](mention:${ayla.id})`);
+  assert.equal(normalizeMentions(db, "Hi [@Nobody](mention:nobody@x.y)"), "Hi @Nobody");
 });
