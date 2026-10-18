@@ -366,9 +366,11 @@ test("sidebar groups: every count lines up, and a group's ⋯ shows only on hove
 
   const alpha = sidebar.locator(".sidebar-group-head").filter({ hasText: "Alpha" });
   const ungrouped = sidebar.locator(".sidebar-group-head").filter({ hasText: "Ungrouped" });
-  const countEnd = async (head: typeof alpha) => { const b = (await head.locator(".sidebar-group-count").boundingBox())!; return b.x + b.width; };
+  // Its layout box (visible or not): a hovered group hides its count under the ⋯ on purpose.
+  const countEnd = (head: typeof alpha) => head.locator(".sidebar-group-count").evaluate((el) => el.getBoundingClientRect().right);
   await expect(alpha).toBeVisible();
   await expect(ungrouped).toBeVisible();
+  await page.mouse.move(0, 0); // the new group may have appeared under the pointer
   expect(Math.abs((await countEnd(alpha)) - (await countEnd(ungrouped)))).toBeLessThan(1); // one column, ⋯ or not
 
   const more = alpha.getByRole("button", { name: "Alpha group options" });
