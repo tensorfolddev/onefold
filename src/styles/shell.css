@@ -270,3 +270,9 @@
 .delete-product p { margin: 0; }
 .delete-product .input { width: 100%; }
 .delete-product-agree { display: flex; align-items: center; gap: 8px; color: var(--primary-text-color); }
+
+/* The app itself never scrolls or rubber-bands sideways (or up and down): only its panes do (the work area, lists,
+   boards). Pages without the app shell (sign-in, sign-up) scroll normally. */
+html:has(body .app), body:has(.app) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+.app { height: 100dvh; overflow: hidden; }
+.work-area { overscroll-behavior: contain; }

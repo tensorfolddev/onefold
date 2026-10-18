@@ -22,7 +22,8 @@
 .docs-space.is-folded { grid-template-columns: minmax(0, 1fr); }
 .docs-side {
   display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow-y: auto; padding: 14px 10px 24px;
-  border-right: 1px solid var(--layout-border-color); background: var(--allgrey-background-color);
+  border-right: 1px solid var(--layout-border-color);
+  background: color-mix(in srgb, var(--primary-color) 4%, var(--primary-background-color));
 }
 .docs-main { position: relative; min-width: 0; min-height: 0; overflow-y: auto; }
 .docs-side-head { display: flex; align-items: center; gap: 6px; padding: 0 2px 10px 4px; }
@@ -43,7 +44,7 @@
 .doc-group .sidebar-group-head { position: relative; display: flex; align-items: center; border-radius: 6px; }
 .doc-group .sidebar-group-head.is-drop { box-shadow: inset 0 0 0 2px var(--primary-color); }
 /* A group's + and ⋯ float over its count (so every count lines up), and show on hover — like project groups. */
-.doc-group-actions { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; padding-left: 6px; background: var(--allgrey-background-color); opacity: 0; transition: opacity var(--motion-productive-short); }
+.doc-group-actions { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; padding-left: 6px; background: color-mix(in srgb, var(--primary-color) 4%, var(--primary-background-color)); opacity: 0; transition: opacity var(--motion-productive-short); }
 .doc-group .sidebar-group-head:hover .doc-group-actions, .doc-group-actions:focus-within, .doc-group-actions:has(.is-open) { opacity: 1; }
 .doc-group .sidebar-group-head:hover .sidebar-group-count, .doc-group .sidebar-group-head:has(.is-open) .sidebar-group-count { visibility: hidden; }
 .doc-group .sidebar-group-count { min-width: 24px; text-align: right; padding-right: 4px; }
@@ -440,7 +441,6 @@
 .table-color.is-none { background: repeating-linear-gradient(45deg, transparent 0 4px, var(--layout-border-color) 4px 5px); }
 .table-color:hover, .table-color:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-color); }
 .table-color.is-current { box-shadow: inset 0 0 0 2px var(--primary-text-color); }
-.table-color[data-color], .doc-prose table[data-header-color] { --hc: transparent; }
 [data-color="gray"], [data-header-color="gray"] { --hc: #e5e7eb; }
 [data-color="blue"], [data-header-color="blue"] { --hc: #dbeafe; }
 [data-color="green"], [data-header-color="green"] { --hc: #dcfce7; }
@@ -449,7 +449,7 @@
 [data-color="red"], [data-header-color="red"] { --hc: #fee2e2; }
 [data-color="purple"], [data-header-color="purple"] { --hc: #ede9fe; }
 [data-color="pink"], [data-header-color="pink"] { --hc: #fce7f3; }
-.doc-prose table[data-header-color] th { background: var(--hc); }
+.doc-prose table[data-header-color] th, .doc-prose table[data-header-color] tr:first-child > td { background: var(--hc); }
 :is(.dark-app-theme, .black-app-theme) .doc-prose table[data-header-color] th { background: color-mix(in srgb, var(--hc) 22%, transparent); }
 
 /* ---------- Images and files ---------- */

@@ -10,7 +10,7 @@ import { archiveDocs, moveDoc, restoreDocs, updateDoc, ValidationError } from ".
 import { DOC_TEMPLATES } from "../../domain/docTemplates.ts";
 import type { Doc, Panel, Person, Product } from "../../domain/types.ts";
 import type { SessionRow } from "../accounts.ts";
-import { createDoc, DocConflict, normalizeMentions, readDoc, saveBody, searchDocs } from "../docs.ts";
+import { createDoc, DocConflict, listVersions, normalizeMentions, readDoc, restoreVersion, saveBody, searchDocs } from "../docs.ts";
 
 interface DocCtx { db: Db; me: Person; meId: string; panel: Panel; appUrl: string }
 type Change = (db: Db, me: Person) => { db: Db; steps: { name: string; args: unknown[] }[] };
@@ -150,6 +150,28 @@ export function registerDocTools(server: McpServer, { who, context, changeCompan
       ...(a.before && { beforeId: findDoc(c, a.before).id }),
     };
     return changeCompany(() => (db, me) => ({ db: moveDoc(db, me, doc.id, to), steps: [{ name: "moveDoc", args: [doc.id, to] }] }), (after) => meta(after, findDoc(after, doc.id)));
+  }));
+
+  server.registerTool("list_doc_versions", {
+    title: "List a doc's versions",
+    description: "A doc's history, newest first: each version's id, who saved it, when, and its length in words. Use restore_doc_version to go back to one.",
+    inputSchema: { doc: z.string().describe("Doc id, link or exact title") },
+    annotations: READ,
+  }, (a) => attempt(async () => {
+    const c = await context();
+    const doc = findDoc(c, a.doc);
+    return (await listVersions(who, doc.id)).map((v) => ({ id: v.id, at: v.at, by: personName(c, v.authorId ?? undefined) ?? null, words: v.words }));
+  }));
+
+  server.registerTool("restore_doc_version", {
+    title: "Restore a doc version",
+    description: "Make an earlier version (from list_doc_versions) the doc's current text. What it replaces is kept as a version, so nothing is lost.",
+    inputSchema: { doc: z.string().describe("Doc id, link or exact title"), version: z.string().describe("The version id") },
+    annotations: { ...WRITE, idempotentHint: false },
+  }, (a) => attempt(async () => {
+    const doc = findDoc(await context(), a.doc);
+    await restoreVersion(who, doc.id, a.version);
+    return full(doc.id);
   }));
 
   server.registerTool("archive_doc", {

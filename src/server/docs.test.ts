@@ -142,3 +142,21 @@ test("any file can go in a doc; only people who can see the doc fetch it; anythi
   assert.equal(img.type, "image/png");
   assert.equal((await readImage(sam, img.id))?.download, false);
 });
+
+test("history: every save is a version with who and when; restoring keeps what it replaced", async () => {
+  const { listVersions, getVersion, restoreVersion } = await import("./docs.ts");
+  const made = await createDoc(sam, { productKey: "DC", title: "History", body: "first" });
+  const one = await saveBody(sam, made.id, { body: "second", baseRev: 1 });
+  await saveBody(admin, made.id, { body: "third", baseRev: one.rev });
+  const list = await listVersions(sam, made.id);
+  assert.ok(list.length >= 2);
+  assert.ok(list[0].at >= list[list.length - 1].at, "newest first");
+  const oldest = list[list.length - 1]; // Sam's first two saves within ten minutes are one version
+  assert.equal((await getVersion(sam, made.id, oldest.id)).body, "second");
+  assert.equal(list[0].authorId, (await viewFor(admin)).meId); // the latest is the admin's
+  await restoreVersion(sam, made.id, oldest.id);
+  assert.equal((await readDoc(sam, made.id)).body, "second");
+  const after = await listVersions(sam, made.id);
+  assert.ok((await Promise.all(after.map((v) => getVersion(sam, made.id, v.id)))).some((v) => v.body === "third"), "the replaced text is kept");
+  await assert.rejects(listVersions(lee, made.id), /not found/);
+});

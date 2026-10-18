@@ -4,7 +4,7 @@
 // Who has a doc open is kept in memory and sent the same way ("org:presence:…").
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../data/db.ts";
-import { AccessError, createDoc as createDocCommand, notifyDocMentions, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
+import { AccessError, createDoc as createDocCommand, mentionable, notifyDocMentions, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
 import { refsIn } from "../features/docs/editor/links.ts";
 import { templateFor } from "../domain/docTemplates.ts";
 import { can } from "../domain/permissions.ts";
@@ -17,6 +17,7 @@ import { saveCompany } from "./company/store.ts";
 import { inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
 import { CHANNEL, journal, type Source } from "./journal.ts";
+import { queueMentionAlerts } from "./whatsapp/outbox.ts";
 
 export const MAX_BODY_CHARS = 1_000_000;
 const VERSION_WINDOW_MS = 10 * 60_000; // one version per author per ten minutes of editing
@@ -57,6 +58,15 @@ async function relink(tx: Tx, orgId: string, docId: string, body: string): Promi
   ];
   if (rows.length) await tx.insert(s.docLinks).values(rows);
   return refs.people.filter((p) => !before.has(p));
+}
+
+/** WhatsApp alerts for the people a doc now mentions (the in-app notices are made by notifyDocMentions). */
+async function alertMentioned(db: Db, me: Person, orgId: string, doc: Doc, mentioned: string[]) {
+  const visible = mentionable(db, me, doc.id, mentioned).map((p) => p.id);
+  if (!visible.length) return;
+  const space = doc.productKey ? db.products.find((p) => p.key === doc.productKey)?.name ?? doc.productKey : "Company docs";
+  await queueMentionAlerts({ orgId, memberIds: visible, actor: me.name, docId: doc.id, docTitle: doc.title, space })
+    .catch((e: unknown) => console.error("[docs] couldn't queue WhatsApp alerts", e)); // the in-app notice stands
 }
 
 /** Docs (visible to this person, not archived) whose body links to `target`. */
@@ -101,6 +111,7 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
     const version = await saveCompany(tx, loaded, db);
     await tx.insert(s.docBodies).values({ orgId: who.orgId, docId: id, body, rev: 1, updatedBy: me.id });
     await relink(tx, who.orgId, id, body);
+    if (mentioned.length) await alertMentioned(made.db, me, who.orgId, db.docs.find((d) => d.id === id)!, mentioned);
     const doc = db.docs.find((d) => d.id === id)!;
     await tx.insert(s.docVersions).values({ orgId: who.orgId, id: newId("ver"), docId: id, rev: 1, title: doc.title, body, authorId: me.id });
     await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source },
@@ -147,7 +158,7 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
     if (cur.rev !== input.baseRev && !input.force) {
       throw new DocConflict({ body: cur.body, rev: cur.rev, updatedBy: cur.updated_by ?? undefined, updatedAt: String(cur.updated_at) });
     }
-    if (cur.body === input.body) return { rev: cur.rev, doc, me, changed: false, mentioned: [] as string[] };
+    if (cur.body === input.body) return { rev: cur.rev, doc, me, db: loaded.db, changed: false, mentioned: [] as string[] };
     const rev = cur.rev + 1;
     const now = new Date();
     if (input.force && cur.rev !== input.baseRev) await addVersion(tx, who.orgId, id, cur.rev, doc.title, cur.body, cur.updated_by, now, false);
@@ -156,7 +167,7 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
     await addVersion(tx, who.orgId, id, rev, doc.title, input.body, me.id, now, true);
     const mentioned = await relink(tx, who.orgId, id, input.body);
     await notify(tx, who.orgId, "doc", { docId: id, productKey: doc.productKey, rev, personId: me.id });
-    return { rev, doc, me, changed: true, mentioned };
+    return { rev, doc, me, db: loaded.db, changed: true, mentioned };
   });
   const touch = saved.changed && Date.now() - Date.parse(saved.doc.updatedAt ?? "1970-01-01") > TOUCH_EVERY_MS;
   if (touch || saved.mentioned.length) {
@@ -168,6 +179,7 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
       if (saved.mentioned.length) { next = notifyDocMentions(next, me, id, saved.mentioned); steps.push({ name: "notifyDocMentions", args: [id, saved.mentioned] }); }
       return { db: next, steps };
     });
+    if (saved.mentioned.length) await alertMentioned(saved.db, saved.me, who.orgId, saved.doc, saved.mentioned);
   }
   return { rev: saved.rev };
 }
@@ -191,6 +203,64 @@ export async function docsLinkingTicket(who: SessionRow, ticketKey: string): Pro
     const loaded = await mustLoad(tx, who);
     return linkedFrom(tx, loaded.db, personFor(loaded, who.userId), who.orgId, "ticket", ticketKey.toUpperCase());
   });
+}
+
+// ---------- version history ----------
+
+export interface VersionInfo { id: string; rev: number; at: string; authorId: string | null; title: string; words: number }
+const MAX_VERSIONS_LISTED = 200;
+const wordCount = (md: string) => md.split(/\s+/).filter(Boolean).length;
+
+/** A doc's versions, newest first: who, when, how long. */
+export async function listVersions(who: SessionRow, docId: string): Promise<VersionInfo[]> {
+  return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+    const loaded = await mustLoad(tx, who);
+    visibleDoc(loaded.db, personFor(loaded, who.userId), docId);
+    const rows = await tx.select().from(s.docVersions).where(and(eq(s.docVersions.orgId, who.orgId), eq(s.docVersions.docId, docId)))
+      .orderBy(desc(s.docVersions.at)).limit(MAX_VERSIONS_LISTED);
+    return rows.map((v) => ({ id: v.id, rev: v.rev, at: v.at, authorId: v.authorId, title: v.title, words: wordCount(v.body) }));
+  });
+}
+
+/** One version's text. */
+export async function getVersion(who: SessionRow, docId: string, versionId: string): Promise<VersionInfo & { body: string }> {
+  return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+    const loaded = await mustLoad(tx, who);
+    visibleDoc(loaded.db, personFor(loaded, who.userId), docId);
+    const [v] = await tx.select().from(s.docVersions)
+      .where(and(eq(s.docVersions.orgId, who.orgId), eq(s.docVersions.docId, docId), eq(s.docVersions.id, versionId)));
+    if (!v) throw new ValidationError("That version isn't there any more");
+    return { id: v.id, rev: v.rev, at: v.at, authorId: v.authorId, title: v.title, body: v.body, words: wordCount(v.body) };
+  });
+}
+
+/** Makes an earlier version the current text. What it replaces is kept as a version first: nothing is lost. */
+export async function restoreVersion(who: SessionRow, docId: string, versionId: string): Promise<{ rev: number }> {
+  const done = await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+    const loaded = await mustLoad(tx, who);
+    const me = personFor(loaded, who.userId);
+    const doc = visibleDoc(loaded.db, me, docId);
+    if (doc.archivedAt) throw new ValidationError(`${doc.title} is archived — restore it first`);
+    if (!can(me, "doc.edit", { product: spaceOf(loaded.db, doc) })) throw new AccessError();
+    const [v] = await tx.select().from(s.docVersions)
+      .where(and(eq(s.docVersions.orgId, who.orgId), eq(s.docVersions.docId, docId), eq(s.docVersions.id, versionId)));
+    if (!v) throw new ValidationError("That version isn't there any more");
+    await tx.insert(s.docBodies).values({ orgId: who.orgId, docId, body: "", rev: 0 }).onConflictDoNothing();
+    const [cur] = (await tx.execute(sql`select body, rev, updated_by from doc_bodies where org_id = ${who.orgId} and doc_id = ${docId} for update`))
+      .rows as { body: string; rev: number; updated_by: string | null }[];
+    const now = new Date();
+    await addVersion(tx, who.orgId, docId, cur.rev, doc.title, cur.body, cur.updated_by, now, false);
+    const rev = cur.rev + 1;
+    await tx.update(s.docBodies).set({ body: v.body, rev, updatedAt: now.toISOString(), updatedBy: me.id })
+      .where(and(eq(s.docBodies.orgId, who.orgId), eq(s.docBodies.docId, docId)));
+    await addVersion(tx, who.orgId, docId, rev, doc.title, v.body, me.id, new Date(now.getTime() + 1), false);
+    await relink(tx, who.orgId, docId, v.body);
+    await notify(tx, who.orgId, "doc", { docId, productKey: doc.productKey, rev, personId: me.id });
+    return { rev };
+  });
+  const at = new Date().toISOString();
+  await applyComposed(who, "web", (db, me) => ({ db: touchDoc(db, me, docId, at, done.rev), steps: [{ name: "touchDoc", args: [docId, done.rev] }] }));
+  return done;
 }
 
 // ---------- search ----------

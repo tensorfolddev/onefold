@@ -74,8 +74,9 @@ test("only a token gets in, and never from another website", async () => {
   const names = (await rpc(adminToken, "tools/list")).body.result!.tools!.map((t) => t.name).sort();
   assert.deepEqual(names, [
     "add_comment", "add_dependency", "add_member", "archive_doc", "archive_product", "archive_ticket", "create_doc", "create_group",
-    "create_ticket", "delete_group", "get_doc", "get_ticket", "list_docs", "list_groups", "list_members", "list_products", "list_tickets",
-    "move_doc", "move_product", "move_ticket", "remove_member", "rename_group", "restore_doc", "restore_product", "restore_ticket",
+    "create_ticket", "delete_group", "get_doc", "get_ticket", "list_doc_versions", "list_docs", "list_groups", "list_members", "list_products",
+    "list_tickets", "move_doc", "move_product", "move_ticket", "remove_member", "rename_group", "restore_doc", "restore_doc_version",
+    "restore_product", "restore_ticket",
     "search_docs", "set_section", "update_doc", "update_ticket",
   ]);
   assert.ok(!names.some((n) => /(delete|remove)_(ticket|product|doc)/.test(n))); // no ticket, product or doc is ever deleted over MCP

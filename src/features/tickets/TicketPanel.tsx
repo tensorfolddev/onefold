@@ -118,14 +118,14 @@ function PanelHeader({ ticket, product, editable, onClose }: PanelProps & { onCl
         <span className="spacer" />
         {canArchive && !ticket.archivedAt && (
           <Popover
-            align="right" width={200}
+            align="right" width={200} floating
             trigger={({ open, toggle }) => (
               <IconButton label="More actions" active={open} onClick={toggle}><Ellipsis /></IconButton>
             )}
           >
             {(close) => (
               <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); archive(); }}>
-                <Archive aria-hidden /> {ticket.type === "epic" ? "Archive epic and its tickets" : "Archive ticket"}
+                <Archive aria-hidden /> {ticket.type === "epic" ? "Archive epic" : "Archive ticket"}
               </button>
             )}
           </Popover>
