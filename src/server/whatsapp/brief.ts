@@ -56,7 +56,7 @@ export interface ProjectTasks { name: string; tickets: Ticket[] }
 export function pendingByProject(db: Db, personId: string): ProjectTasks[] {
   const pending = db.tickets.filter((t) => {
     const category = statusOf(db, t)?.category;
-    return t.assigneeId === personId && t.type !== "epic" && !!category && category !== "done" && category !== "cancelled";
+    return !!t.assigneeIds?.includes(personId) && t.type !== "epic" && !!category && category !== "done" && category !== "cancelled";
   });
   const number = (t: Ticket) => Number(t.key.split("-").pop());
   const due = (t: Ticket) => t.due ?? "9999-12-31"; // undated last

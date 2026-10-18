@@ -163,7 +163,16 @@ button.priority-cell:hover { filter: brightness(0.94); }
 .kanban-card:hover { border-color: var(--ui-border-color); }
 .kanban-card-key { display: inline-flex; align-items: center; gap: 6px; }
 .kanban-card-title { padding: 0 8px 0 2px; font-size: 14px; line-height: 18px; }
-.kanban-card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kanban-card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; margin-top: auto; }
+.kanban-card-meta > * { flex-shrink: 0; }
+/* Every card is one size, whatever its title: at most two lines of it, and nothing can stretch the card. */
+.kanban-card { box-sizing: border-box; height: 116px; overflow: hidden; }
+.kanban-card.is-epic { height: 172px; }
+.kanban-card > * { flex-shrink: 0; } /* the parts keep their size; the bottom row sits at the bottom */
+.kanban-card-title, .epic-card-title {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+}
+.epic-card-foot { margin-top: auto; }
 .kanban-card-meta .spacer { flex: 1; }
 .due-chip {
   display: inline-flex; align-items: center; height: 24px; padding: 0 4px;

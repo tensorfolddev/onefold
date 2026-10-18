@@ -50,6 +50,13 @@
       "when": 1792172174858,
       "tag": "0006_product_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792310094670,
+      "tag": "0007_ticket_assignees",
+      "breakpoints": true
     }
   ]
 }

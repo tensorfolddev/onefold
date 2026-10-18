@@ -106,7 +106,7 @@ export interface Ticket {
   title: string;
   type: TicketType;
   statusId: string;
-  assigneeId?: string;
+  assigneeIds?: string[]; // everyone on it — any number of people; none = unassigned
   priority: Priority;
   estimateH: number;
   due?: string; // ISO date

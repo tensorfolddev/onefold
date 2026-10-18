@@ -6,9 +6,9 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { useDb } from "@/data/StoreProvider";
 import { heldUp, openBlockers } from "@/domain/selectors/blocked";
+import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
-import { Avatar, StatusPill } from "@/ui/primitives";
-import { DueDate, EpicChip, TypeIcon } from "./TicketBits";
+import { Assignees, DueDate, EpicChip, TypeIcon } from "./TicketBits";
 import { ListHeader, TaskComposer } from "./KanbanLists";
 import { useIsDone } from "./TemplateRelations";
 
@@ -47,19 +47,20 @@ function EpicProgress({ epic }: { epic: Ticket }) {
 
 /** Epic face: colour wash in the epic's colour, icon badge, "Epic" pill, bold title. */
 const EpicCardView = memo(function EpicCardView({ ticket }: { ticket: Ticket }) {
+  const { db } = useDb();
   return (
     <>
       <span className="epic-card-head">
         <span className="epic-card-badge" aria-hidden><Layers /></span>
         <span className="key">{ticket.key}</span>
-        <span className="epic-card-pill">Epic</span>
+        <span className="epic-card-pill">{epicLabel(db, ticket)}</span>
       </span>
       <span className="epic-card-title">{ticket.title}</span>
       <EpicProgress epic={ticket} />
       <span className="epic-card-foot">
         {ticket.due ? <DueDate ticket={ticket} done={false} /> : <span className="muted">No due date</span>}
         <span className="spacer" />
-        <Avatar personId={ticket.assigneeId} size="sm" />
+        <Assignees ids={ticket.assigneeIds} />
       </span>
     </>
   );
@@ -75,11 +76,10 @@ export const CardView = memo(function CardView({ ticket }: { ticket: Ticket }) {
       <span className="kanban-card-key"><TypeIcon type={ticket.type} /><span className="key">{ticket.key}</span><EpicChip ticket={ticket} /></span>
       <span className="kanban-card-title">{ticket.title}</span>
       <span className="kanban-card-meta">
-        {status && <StatusPill name={status.name} tone={status.tone} />}
         {ticket.due && <span className="due-chip"><DueDate ticket={ticket} done={status?.category === "done"} /></span>}
         <BlockedChip ticket={ticket} />
         <span className="spacer" />
-        <Avatar personId={ticket.assigneeId} size="sm" />
+        <Assignees ids={ticket.assigneeIds} />
       </span>
     </>
   );

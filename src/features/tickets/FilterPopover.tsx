@@ -1,18 +1,19 @@
 "use client";
 
-import { Filter } from "lucide-react";
-import type { Lookups } from "@/data/db";
+import { Filter, Layers } from "lucide-react";
+import type { Db, Lookups } from "@/data/db";
 import { toneVar } from "@/domain/status";
 import type { Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
-import { EMPTY_FILTERS, FILTER_COLS, fieldOf, type FilterCol, type Filters } from "./filters";
+import { EMPTY_FILTERS, FILTER_COLS, valuesOf, type FilterCol, type Filters } from "./filters";
 import { PRIORITY_LABEL, TYPE_LABEL, TypeIcon } from "./TicketBits";
 import { useDb } from "@/data/StoreProvider";
+import { epicLabel, epicsOf } from "@/domain/selectors/epics";
 
 interface Option { value: string; label: string; icon: React.ReactNode }
 
-function optionsFor(col: FilterCol, productKey: string, all: Ticket[], { personById, statusesFor }: Lookups): Option[] {
+function optionsFor(col: FilterCol, productKey: string, all: Ticket[], { db, personById, statusesFor }: Lookups & { db: Db }): Option[] {
   switch (col) {
     case "status":
       return statusesFor(productKey).map((s) => ({
@@ -20,7 +21,7 @@ function optionsFor(col: FilterCol, productKey: string, all: Ticket[], { personB
         icon: <span className="chip-dot" style={{ background: toneVar(s.tone) }} aria-hidden />,
       }));
     case "assignee":
-      return [...new Set(all.map((t) => fieldOf(t, "assignee")))].map((id) => ({
+      return [...new Set(all.flatMap((t) => valuesOf(t, "assignee")))].map((id) => ({
         value: id, label: personById(id)?.name ?? "Unassigned",
         icon: <Avatar personId={id === "none" ? undefined : id} size="sm" />,
       }));
@@ -30,10 +31,18 @@ function optionsFor(col: FilterCol, productKey: string, all: Ticket[], { personB
       return (Object.keys(PRIORITY_LABEL) as Ticket["priority"][]).map((pr) => ({
         value: pr, label: PRIORITY_LABEL[pr], icon: <span className="chip-dot priority-dot" data-priority={pr} aria-hidden />,
       }));
+    case "epic":
+      return [
+        ...epicsOf(db, productKey).map((e) => ({
+          value: e.key, label: `${epicLabel(db, e)} · ${e.title}`,
+          icon: <Layers className="epic-filter-icon" style={{ color: e.color }} aria-hidden />,
+        })),
+        { value: "none", label: "No epic", icon: <Layers className="epic-filter-icon" aria-hidden /> },
+      ];
   }
 }
 
-const COL_TITLE: Record<FilterCol, string> = { status: "Status", assignee: "Assignee", type: "Type", priority: "Priority" };
+const COL_TITLE: Record<FilterCol, string> = { status: "Status", assignee: "Assignee", type: "Type", priority: "Priority", epic: "Epic" };
 
 /** monday "Quick filters": one chip column per field; OR within a column, AND across columns. */
 export function FilterPopover({
@@ -79,7 +88,7 @@ export function FilterPopover({
                 <ul>
                   {optionsFor(col, productKey, all, lookups).map((o) => {
                     const on = filters[col].includes(o.value);
-                    const n = all.filter((t) => fieldOf(t, col) === o.value).length;
+                    const n = all.filter((t) => valuesOf(t, col).includes(o.value)).length;
                     return (
                       <li key={o.value}>
                         <button

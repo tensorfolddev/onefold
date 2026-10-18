@@ -1,6 +1,8 @@
 import { Bug, CircleAlert, CircleCheck, GitMerge, GitPullRequest, Layers, SquareCheck } from "lucide-react";
 import { today } from "@/domain/clock";
 import { useDb } from "@/data/StoreProvider";
+import { Avatar } from "@/ui/primitives";
+import { epicLabel } from "@/domain/selectors/epics";
 import { shortDate } from "@/domain/status";
 import type { Priority, PullRequest, Requirement, Ticket, TicketType } from "@/domain/types";
 
@@ -22,8 +24,21 @@ export function EpicChip({ ticket }: { ticket: Ticket }) {
   const epic = ticket.epicKey ? db.tickets.find((t) => t.key === ticket.epicKey) : undefined;
   if (!epic) return null;
   return (
-    <span className="epic-chip" style={{ "--epic": epic.color } as React.CSSProperties} title={`Epic ${epic.key} · ${epic.title}`}>
-      <Layers aria-hidden /><span className="epic-chip-name">{epic.title}</span>
+    <span className="epic-chip" style={{ "--epic": epic.color } as React.CSSProperties} title={`${epicLabel(db, epic)} · ${epic.title}`}>
+      <Layers aria-hidden /><span className="epic-chip-name">{epicLabel(db, epic)}</span>
+    </span>
+  );
+}
+
+/** Everyone on a ticket as overlapping avatars: the first few, then "+N". */
+export function Assignees({ ids, max = 3 }: { ids?: string[]; max?: number }) {
+  const { personById } = useDb();
+  if (!ids?.length) return <Avatar size="sm" />;
+  const names = ids.map((pid) => personById(pid)?.name).filter(Boolean).join(", ");
+  return (
+    <span className="avatar-stack assignees" title={names} aria-label={names}>
+      {ids.slice(0, max).map((pid) => <Avatar key={pid} personId={pid} size="sm" />)}
+      {ids.length > max && <span className="avatar sm assignees-more" aria-hidden>+{ids.length - max}</span>}
     </span>
   );
 }

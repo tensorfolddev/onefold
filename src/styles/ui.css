@@ -286,3 +286,4 @@ button.chip.is-selected { background: var(--primary-selected-color); }
 
 /* ---------- Celebrations: a ticket reached Done, or a whole epic did (src/ui/celebrate.ts) ---------- */
 .confetti { position: fixed; inset: 0; z-index: 80; width: 100vw; height: 100vh; pointer-events: none; }
+.assignees-more { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--primary-text-color); background: var(--allgrey-background-color); }

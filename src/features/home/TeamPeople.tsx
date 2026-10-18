@@ -22,7 +22,7 @@ export function TeamPeople({ team }: { team: TeamId }) {
       </thead>
       <tbody>
         {membersOf(db, team).map((p) => {
-          const mine = tickets.filter((t) => t.assigneeId === p.id);
+          const mine = tickets.filter((t) => t.assigneeIds?.includes(p.id));
           const booked = bookedH(db, p.id);
           const pct = p.capacityH ? Math.round((booked / p.capacityH) * 100) : 0;
           const blocked = mine.filter((t) => isBlocked(db, t)).length;

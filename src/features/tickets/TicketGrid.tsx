@@ -8,8 +8,8 @@ import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { CATEGORY_LABEL, CATEGORY_ORDER, CATEGORY_TONE, formatHours, shortDate, toneVar } from "@/domain/status";
 import type { StatusCategory, Ticket, Tone } from "@/domain/types";
 import { StatusCell } from "@/ui/StatusCell";
-import { Avatar, Battery, IconButton } from "@/ui/primitives";
-import { DueDate, EpicChip, PrBadge, PriorityCell, requirementById, TypeIcon } from "./TicketBits";
+import { Battery, IconButton } from "@/ui/primitives";
+import { Assignees, DueDate, EpicChip, PrBadge, PriorityCell, requirementById, TypeIcon } from "./TicketBits";
 import { useDb } from "@/data/StoreProvider";
 
 const COLUMNS = [
@@ -157,7 +157,7 @@ function GridRow({ ticket, selected, onSelect }: { ticket: Ticket; selected: boo
           <IconButton label="Open ticket" onClick={open}><Maximize2 /></IconButton>
         </span>
       </span>
-      <span className="grid-cell col-owner" role="cell"><Avatar personId={ticket.assigneeId} size="sm" /></span>
+      <span className="grid-cell col-owner" role="cell"><Assignees ids={ticket.assigneeIds} /></span>
       <span className="grid-cell col-status" role="cell"><StatusCell ticket={ticket} /></span>
       <span className="grid-cell col-priority" role="cell"><PriorityCell priority={ticket.priority} /></span>
       <span className="grid-cell col-due" role="cell"><DueDate ticket={ticket} done={done} /></span>
