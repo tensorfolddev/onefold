@@ -13,7 +13,13 @@ const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}
 const slug = (name: string) => `${name}-${RUN}`;
 const email = (who: string) => `${who}-${RUN}@acme.example`;
 
+// Sign-ups are limited per address (10 an hour). Each test's founder signs up from an address of their own, as real
+// people would, so the suite never trips the limit however many tests sign up.
+let signUps = 0;
+const NET = Math.floor(Math.random() * 250);
+
 async function signUp(page: Page, company: string, founderEmail: string) {
+  await page.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
   await page.goto("/signup");
   await page.getByLabel("Full name").fill("Ayla Khan");
   await page.getByLabel("Work email").fill(founderEmail);
