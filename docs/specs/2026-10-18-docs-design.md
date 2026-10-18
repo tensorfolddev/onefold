@@ -44,7 +44,7 @@ when it opens that doc.
 ```ts
 interface Doc {
   id: string;
-  productKey: string;        // "" = the company space (a column can't become nullable under §12)
+  productKey: string;        // "" = the company space, stored as NULL (product_id made nullable: allowed, nothing lost)
   parentId?: string;         // nesting; undefined = top level of its space
   title: string;
   icon?: string;             // one emoji
@@ -57,7 +57,6 @@ interface Doc {
   updatedAt?: string;        // ISO; "edited 2 min ago"
   updatedBy?: string;
   rev?: number;              // body revision, mirrors doc_bodies.rev (throttled, §6)
-  position?: number;         // order among siblings
   archivedAt?: string; archivedBy?: string;
 }
 ```

@@ -49,7 +49,7 @@ export default function DocEditor({ body, editable, onChange, onHeadings, placeh
 
   useEffect(() => { editor?.setEditable(editable); }, [editor, editable]);
 
-  if (!editor) return <div className="doc-prose is-loading" aria-busy="true" />;
+  if (!editor) return <div className="doc-skeleton" aria-busy="true" />;
   return (
     <div className="doc-editor">
       <EditorContent editor={editor} />

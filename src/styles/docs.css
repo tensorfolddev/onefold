@@ -62,10 +62,11 @@
 
 /* The page. */
 .doc-page { position: relative; padding-bottom: 120px; }
+.doc-crumbs { margin: 0; padding: 12px 24px; }
 .doc-cover { height: 180px; background: var(--cover, linear-gradient(120deg, #e0e7ff, #fae8ff)); }
-.doc-cover-actions { position: absolute; right: 24px; top: 140px; display: flex; gap: 6px; opacity: 0; transition: opacity var(--motion-productive-short); }
+.doc-cover-actions { position: absolute; right: 24px; top: 180px; display: flex; gap: 6px; opacity: 0; transition: opacity var(--motion-productive-short); }
 .doc-page:hover .doc-cover-actions, .doc-cover-actions:focus-within { opacity: 1; }
-.doc-head { position: relative; max-width: var(--doc-column); margin: 0 auto; padding: 48px 24px 0; }
+.doc-head { position: relative; max-width: var(--doc-column); margin: 0 auto; padding: 32px 24px 0; }
 .doc-page.has-cover .doc-head { padding-top: 0; }
 .doc-icon-btn { display: inline-grid; place-items: center; width: 72px; height: 72px; margin-bottom: 8px; border-radius: 12px; font-size: 56px; line-height: 1; transition: background var(--motion-productive-short); }
 .doc-page.has-cover .doc-icon-btn { margin-top: -40px; }
@@ -112,7 +113,7 @@
 /* ---------- the writing itself ---------- */
 .doc-editor { position: relative; }
 .doc-prose { min-height: 240px; font-size: var(--doc-text); line-height: var(--doc-leading); color: var(--primary-text-color); outline: none; caret-color: var(--primary-color); }
-.doc-prose.is-loading { background: linear-gradient(90deg, var(--allgrey-background-color) 0 60%, transparent 0) 0 8px / 100% 28px repeat-y; opacity: 0.6; }
+.doc-skeleton { min-height: 240px; background: linear-gradient(90deg, var(--allgrey-background-color) 0 60%, transparent 0) 0 8px / 100% 28px repeat-y; opacity: 0.6; }
 .doc-prose > * + * { margin-top: 0.6em; }
 .doc-prose p { margin: 0; }
 .doc-prose h1, .doc-prose h2, .doc-prose h3 { font-family: var(--title-font-family); letter-spacing: -0.01em; line-height: 1.3; }

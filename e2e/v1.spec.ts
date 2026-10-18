@@ -492,6 +492,93 @@ test("a card's priority, date and people change right on the board, without open
   await expect(card.getByRole("button", { name: "Assignees: Ayla Khan. Change assignees" })).toBeVisible();
 });
 
+test("docs: a project page written with Markdown shortcuts is saved as you type and survives a reload", async ({ page }) => {
+  await signUp(page, "Rho", email("rho"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Radar");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  await page.goto(`${new URL(page.url()).pathname}/docs`);
+  await expect(page.getByRole("heading", { name: "Radar docs" })).toBeVisible();
+  await page.getByRole("button", { name: /Blank page/ }).click();
+  await expect(page).toHaveURL(/\/docs\/.+/);
+  const prose = page.locator('.doc-prose[contenteditable="true"]');
+  await prose.click();
+  await page.keyboard.type("## Launch plan");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("[] ship it");
+  await expect(prose.locator("h2")).toHaveText("Launch plan"); // the shortcuts became blocks
+  await expect(prose.locator('ul[data-type="taskList"] li > div')).toHaveText("ship it");
+  await expect(page.locator(".doc-saving", { hasText: "Saved" })).toBeVisible({ timeout: 10_000 });
+  await page.reload();
+  await expect(prose.locator("h2")).toHaveText("Launch plan");
+  await expect(prose.locator('ul[data-type="taskList"] li > div')).toHaveText("ship it");
+  await expect(page.locator(".doc-tree")).toContainText("Untitled");
+});
+
+test("docs: a teammate sees a save live and who's editing; only an admin archives, and deleting needs the name typed", async ({ page, browser }) => {
+  await signUp(page, "Sigma", email("sig"));
+  await confirmEmail(page, email("sig"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("sid"));
+  await page.getByRole("button", { name: "Create invite links" }).click();
+  const link = (await page.locator(".inv-link-url").first().textContent())!;
+  await page.getByRole("button", { name: "Go to Sigma" }).click();
+  await page.goto("/admin/docs");
+  await page.getByRole("button", { name: /Handbook page/ }).click();
+  await expect(page).toHaveURL(/\/admin\/docs\/.+/);
+  const docId = page.url().split("/").pop()!;
+
+  const sid = await freshPage(browser);
+  await sid.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
+  await sid.goto(new URL(link).pathname);
+  await sid.getByLabel("Full name").fill("Sid Dev");
+  await sid.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await sid.getByRole("button", { name: "Join Sigma" }).click();
+  await expect(sid).toHaveURL(/\/dev$/, { timeout: 20_000 });
+  await sid.goto(`/dev/docs/${docId}`);
+  await expect(sid.locator(".doc-prose")).toContainText("Why this exists");
+
+  // The admin writes; the developer's open page shows it without a reload.
+  await page.locator('.doc-prose[contenteditable="true"] h2').first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" — welcome aboard");
+  await expect(page.locator(".doc-saving", { hasText: "Saved" })).toBeVisible({ timeout: 10_000 });
+  await expect(sid.locator(".doc-prose")).toContainText("welcome aboard", { timeout: 15_000 });
+  // The developer types; the admin is told who's editing.
+  await sid.locator('.doc-prose[contenteditable="true"] h2').last().click();
+  await sid.keyboard.press("End");
+  await sid.keyboard.type(" (ask Sid)");
+  await expect(page.getByText(/Sid is editing/)).toBeVisible({ timeout: 15_000 });
+
+  // Archiving is for admins only.
+  await sid.getByRole("button", { name: "Page actions" }).click();
+  await expect(sid.getByRole("menuitem", { name: "Copy link" })).toBeVisible();
+  await expect(sid.getByRole("menuitem", { name: "Archive page" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Page actions" }).click();
+  await page.getByRole("menuitem", { name: "Archive page" }).click();
+  await expect(page).toHaveURL(/\/admin\/docs$/);
+  await expect(page.locator(".doc-tree")).not.toContainText("Handbook page");
+
+  await page.goto("/admin/settings");
+  const archived = page.locator(".archived-docs");
+  await expect(archived).toContainText("Handbook page");
+  await archived.getByRole("button", { name: "Restore Handbook page" }).click();
+  await expect(archived).toContainText("Nothing archived");
+  await page.goto("/admin/docs");
+  await page.getByRole("button", { name: "More for Handbook page" }).click();
+  await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
+  await expect(page.locator(".doc-tree")).not.toContainText("Handbook page");
+  await page.goto("/admin/settings");
+  await archived.getByRole("button", { name: "Delete Handbook page forever" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete Handbook page for good?" });
+  await expect(dialog.getByRole("button", { name: "Delete forever" })).toBeDisabled();
+  await dialog.getByLabel("Type Delete Handbook page to confirm").fill("Delete Handbook page");
+  await dialog.getByRole("button", { name: "Delete forever" }).click();
+  await expect(archived).toContainText("Nothing archived");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

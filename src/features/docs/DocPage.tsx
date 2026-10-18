@@ -18,7 +18,7 @@ import type { Heading } from "./editor/DocEditor";
 import { ancestorsOf, COVERS, coverCss, docPath, downloadMarkdown, readingMinutes } from "./tree";
 import { useDocBody } from "./useDocBody";
 
-const DocEditor = dynamic(() => import("./editor/DocEditor"), { ssr: false, loading: () => <div className="doc-prose is-loading" aria-busy="true" /> });
+const DocEditor = dynamic(() => import("./editor/DocEditor"), { ssr: false, loading: () => <div className="doc-skeleton" aria-busy="true" /> });
 const sameHeadings = (a: Heading[], b: Heading[]) => a.length === b.length && a.every((h, i) => h.text === b[i].text && h.level === b[i].level && h.pos === b[i].pos);
 
 export function DocPage({ id }: { id: string }) {
@@ -66,12 +66,12 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
 
   return (
     <article className={`doc-page${doc.cover ? " has-cover" : ""}`} aria-labelledby="doc-title">
+      <nav className="doc-meta doc-crumbs" aria-label="Breadcrumb">
+        <Link href={href(product ? `/products/${product.key}/docs` : "/docs")}>{product ? product.name : "Company docs"}</Link>
+        {crumbs.map((c) => (<span key={c.id} style={{ display: "contents" }}><span aria-hidden>/</span><Link href={href(docPath(c))}>{c.icon ?? ""} {c.title}</Link></span>))}
+      </nav>
       {doc.cover && <div className="doc-cover" style={{ "--cover": coverCss(doc.cover) } as React.CSSProperties} aria-hidden />}
       <header className="doc-head">
-        <nav className="doc-meta" aria-label="Breadcrumb" style={{ marginTop: doc.cover ? 12 : 0, marginBottom: 12 }}>
-          <Link href={href(product ? `/products/${product.key}/docs` : "/docs")}>{product ? product.name : "Company docs"}</Link>
-          {crumbs.map((c) => (<span key={c.id} style={{ display: "contents" }}><span aria-hidden>/</span><Link href={href(docPath(c))}>{c.icon ?? ""} {c.title}</Link></span>))}
-        </nav>
 
         {doc.icon && (
           editable ? (
@@ -132,13 +132,13 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
             )}>
               {(close) => (
                 <>
-                  <button type="button" className="menu-item" onClick={() => { close(); void copy("Link", `${location.origin}${href(`/d/${doc.id}`)}`); }}><Link2 aria-hidden /> Copy link</button>
-                  <button type="button" className="menu-item" onClick={() => { close(); void copy("Markdown", `# ${doc.title}\n\n${text}`); }}><Copy aria-hidden /> Copy as Markdown</button>
-                  <button type="button" className="menu-item" onClick={() => { close(); downloadMarkdown(doc.title, text); }}><Download aria-hidden /> Export as Markdown</button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copy("Link", `${location.origin}${href(`/d/${doc.id}`)}`); }}><Link2 aria-hidden /> Copy link</button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copy("Markdown", `# ${doc.title}\n\n${text}`); }}><Copy aria-hidden /> Copy as Markdown</button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); downloadMarkdown(doc.title, text); }}><Download aria-hidden /> Export as Markdown</button>
                   {isAdmin && !doc.archivedAt && (
                     <>
                       <div className="menu-divider" />
-                      <button type="button" className="menu-item is-danger" onClick={() => {
+                      <button type="button" role="menuitem" className="menu-item is-danger" onClick={() => {
                         close();
                         if (act((d, m) => archiveDocs(d, m, [doc.id]))) {
                           toast(`${doc.title} archived — find it in Settings → Archived`, undefined, "success");
@@ -182,7 +182,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
 
       <div className="doc-body">
         {b.status === "error" ? <div className="docs-empty">{b.error}</div>
-          : b.status === "loading" ? <div className="doc-prose is-loading" aria-busy="true" />
+          : b.status === "loading" ? <div className="doc-skeleton" aria-busy="true" />
           : <DocEditor key={b.reloadKey} body={b.body} editable={editable} onChange={onChange} onHeadings={onHeadings} />}
       </div>
 
