@@ -20,3 +20,12 @@ export function refsIn(markdown: string): { people: string[]; tickets: string[];
     docs: all(/\]\(doc:([^)\s]+)\)/g),
   };
 }
+
+/**
+ * For a block-level Markdown tokenizer's `start`: marked asks with the paragraph minus its first character, so a block
+ * may only begin right after a line break — never mid-line (which would split "![img](…)" at its "[").
+ */
+export function lineStart(src: string, afterNewline: RegExp): number {
+  const i = src.search(afterNewline);
+  return i < 0 ? -1 : i + 1;
+}
