@@ -2,9 +2,12 @@
 // plain message (or a connection message), ready to show to the person.
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** What the server sent along with the refusal, if anything (e.g. a doc's newer text on a 409). */
+  data?: unknown;
+  constructor(message: string, status: number, data?: unknown) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -16,7 +19,7 @@ async function call<T>(path: string, init: RequestInit): Promise<T> {
     throw new ApiError("Can't reach 1Fold — check your connection and try again", 0);
   }
   const json = (await res.json().catch(() => null)) as { ok?: boolean; data?: T; error?: string } | null;
-  if (!res.ok || !json?.ok) throw new ApiError(json?.error ?? "Something went wrong — please try again", res.status);
+  if (!res.ok || !json?.ok) throw new ApiError(json?.error ?? "Something went wrong — please try again", res.status, json?.data);
   return json.data as T;
 }
 
@@ -27,3 +30,6 @@ export const api = <T>(path: string, body?: unknown): Promise<T> => call<T>(path
 /** Sends a file's bytes as the request body. */
 export const upload = <T>(path: string, file: Blob): Promise<T> =>
   call<T>(path, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+
+/** What to tell the person about a failed call. */
+export const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong — please try again");

@@ -49,7 +49,11 @@ export interface Store extends Lookups {
   sendVerification: () => Promise<string | null>;
   /** Uploads an image onto a ticket (after any changes still on their way). Resolves to an error message, or null. */
   uploadImage: (ticketKey: string, file: Blob, name: string) => Promise<string | null>;
+  /** Makes a doc (and its first body) after any changes still on their way. Resolves to its id, or null (said in a toast). */
+  createDoc: (input: NewDocInput) => Promise<string | null>;
 }
+
+export interface NewDocInput { title: string; productKey?: string; parentId?: string; template?: string; icon?: string; body?: string }
 
 export type SignInResult =
   | { ok: true; home: string }
@@ -132,6 +136,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     events.addEventListener("version", (e) => {
       if (Number((e as MessageEvent).data) > (viewRef.current?.version ?? 0) && pending.current === 0) void refreshOrSay();
     });
+    // A doc's body was saved, or who has a doc open changed: open doc pages listen for these (features/docs).
+    for (const kind of ["doc", "presence"] as const) {
+      events.addEventListener(kind, (e) => {
+        try { window.dispatchEvent(new CustomEvent(`onefold:${kind}`, { detail: JSON.parse((e as MessageEvent).data) })); } catch { /* malformed: ignore */ }
+      });
+    }
     const onVisible = () => { if (document.visibilityState === "visible") void refreshOrSay(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => { events.close(); document.removeEventListener("visibilitychange", onVisible); };
@@ -169,6 +179,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const undo = useCallback(() => send("/api/org/undo", {}), [send]);
 
   // In the same queue as changes, so an image added to a ticket made a moment ago arrives after that ticket.
+  const createDoc = useCallback((input: NewDocInput) => {
+    pending.current += 1;
+    const done = queue.current.then(async () => {
+      try {
+        return (await api<{ id: string }>("/api/docs", input)).id;
+      } catch (e) {
+        toast(message(e), undefined, "error");
+        return null;
+      } finally {
+        pending.current -= 1;
+        if (pending.current === 0) await refreshOrSay();
+      }
+    });
+    queue.current = done.then(() => undefined);
+    return done;
+  }, [refreshOrSay, toast]);
+
   const uploadImage = useCallback((ticketKey: string, file: Blob, name: string) => {
     pending.current += 1;
     const done = queue.current.then(async () => {
@@ -299,9 +326,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...lookups, db: live.db, archivedTickets: live.archived, me, panel: view.panel,
       href: (path: string) => `/${PANEL_SLUG[view.panel]}${path}`,
       can: (action, ctx = {}) => canFor(me, action, ctx),
-      run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification, uploadImage,
+      run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification, uploadImage, createDoc,
     };
-  }, [view, live, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage]);
+  }, [view, live, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage, createDoc]);
 
   return (
     <StoreCtx.Provider value={{ store, auth }}>
