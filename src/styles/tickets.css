@@ -535,15 +535,16 @@ button.ticket-description:hover { background-color: var(--primary-background-hov
 .epic-chip-btn:hover .epic-chip { background: color-mix(in srgb, var(--e) 22%, var(--primary-background-color)); }
 .epic-chip-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 .kanban-card-key { min-width: 0; width: 100%; }
-.kanban-card-key .epic-chip { margin-left: auto; max-width: 104px; }
-/* Priority on a card: a small tag in its colour at the end of the top row (after the epic, if any). */
+.kanban-card-key .epic-chip { margin-left: auto; max-width: 150px; }
+/* Priority on a card: a small tag in its colour, first in the bottom row — then the due date, then the people. */
 .card-priority {
-  flex: none; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap;
+  flex: none; display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap;
   color: var(--prio); background: color-mix(in srgb, var(--prio) 13%, var(--primary-background-color));
 }
 .card-priority svg { width: 11px; height: 11px; }
-.kanban-card-key > .key + .card-priority { margin-left: auto; } /* no epic: still at the end */
+/* A crowded bottom row shortens its "Blocked by…" chip, never pushes the people off the card. */
+.kanban-card-meta > .blocked-chip { flex-shrink: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ticket-grid .col-ticket .ticket-title { flex: 1 1 0; min-width: 72px; } /* the title always wins the space */
 .ticket-grid .col-ticket .epic-chip { flex: 0 1 auto; max-width: 40%; }
 .mw-cell-name { gap: 8px; }
