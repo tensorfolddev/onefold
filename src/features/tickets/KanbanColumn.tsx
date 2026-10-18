@@ -5,6 +5,7 @@ import { Ban, Layers, Plus } from "lucide-react";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDb } from "@/data/StoreProvider";
+import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
 import { Avatar, StatusPill } from "@/ui/primitives";
 import { DueDate, EpicChip, TypeIcon } from "./TicketBits";
@@ -43,12 +44,13 @@ function EpicProgress({ epic }: { epic: Ticket }) {
 
 /** Epic face: colour wash in the epic's colour, icon badge, "Epic" pill, bold title. */
 const EpicCardView = memo(function EpicCardView({ ticket }: { ticket: Ticket }) {
+  const { db } = useDb();
   return (
     <>
       <span className="epic-card-head">
         <span className="epic-card-badge" aria-hidden><Layers /></span>
         <span className="key">{ticket.key}</span>
-        <span className="epic-card-pill">Epic</span>
+        <span className="epic-card-pill">{epicLabel(db, ticket)}</span>
       </span>
       <span className="epic-card-title">{ticket.title}</span>
       <EpicProgress epic={ticket} />

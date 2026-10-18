@@ -6,6 +6,7 @@ import { Plus, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
 import { addDependency, createTicket, removeDependency, updateTicket } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
+import { epicLabel } from "@/domain/selectors/epics";
 import type { Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { IconButton, Progress, StatusPill } from "@/ui/primitives";
@@ -23,7 +24,7 @@ export function useIsDone() {
 }
 
 function TicketRow({ t, onRemove, removeLabel }: { t: Ticket; onRemove?: () => void; removeLabel?: string }) {
-  const { statusById } = useDb();
+  const { db, statusById } = useDb();
   const { openTicket } = useAppState();
   const isDone = useIsDone();
   const status = t.type === "epic" ? undefined : statusById(t.statusId);
@@ -34,7 +35,7 @@ function TicketRow({ t, onRemove, removeLabel }: { t: Ticket; onRemove?: () => v
         <span className="key">{t.key}</span>
         <span className="tpl-ref-title">{t.title}</span>
       </button>
-      {status ? <StatusPill name={status.name} tone={status.tone} /> : <span className="tpl-ref-epic">Epic</span>}
+      {status ? <StatusPill name={status.name} tone={status.tone} /> : <span className="tpl-ref-epic">{epicLabel(db, t)}</span>}
       {onRemove && <span className="tpl-item-x"><IconButton label={removeLabel ?? "Remove"} onClick={onRemove}><X /></IconButton></span>}
     </li>
   );

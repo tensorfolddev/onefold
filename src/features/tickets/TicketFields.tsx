@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
 import { isOnProduct } from "@/domain/permissions";
 import { useDb } from "@/data/StoreProvider";
+import { epicLabel, epicsOf } from "@/domain/selectors/epics";
 import type { Priority, Product, Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { Avatar, IconButton } from "@/ui/primitives";
@@ -78,12 +79,12 @@ export function TypeField({ ticket }: { ticket: Ticket }) {
 export function EpicField({ ticket }: { ticket: Ticket }) {
   const { updateTicket } = useAppState();
   const { db } = useDb();
-  const epics = db.tickets.filter((t) => t.type === "epic" && t.productKey === ticket.productKey);
+  const epics = epicsOf(db, ticket.productKey);
   return (
     <select className="meta-select" aria-label="Epic" value={ticket.epicKey ?? ""}
       onChange={(e) => updateTicket(ticket.key, { epicKey: e.target.value || undefined })}>
       <option value="">No epic</option>
-      {epics.map((t) => <option key={t.key} value={t.key}>{t.key} · {t.title}</option>)}
+      {epics.map((t) => <option key={t.key} value={t.key}>{epicLabel(db, t)} · {t.title}</option>)}
     </select>
   );
 }

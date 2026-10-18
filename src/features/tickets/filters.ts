@@ -3,15 +3,17 @@ import { PRIORITY_RANK } from "./TicketBits";
 
 export type ViewMode = "table" | "kanban";
 export type SortKey = "none" | "due" | "priority" | "key";
-export type FilterCol = "status" | "assignee" | "type" | "priority";
+export type FilterCol = "status" | "assignee" | "type" | "priority" | "epic";
 export type Filters = Record<FilterCol, string[]>;
 
-export const EMPTY_FILTERS: Filters = { status: [], assignee: [], type: [], priority: [] };
+export const EMPTY_FILTERS: Filters = { status: [], assignee: [], type: [], priority: [], epic: [] };
 export const FILTER_COLS = Object.keys(EMPTY_FILTERS) as FilterCol[];
 
 /** The value a ticket contributes to a quick-filter column ("none" = unassigned). */
 export const fieldOf = (t: Ticket, col: FilterCol): string =>
-  col === "status" ? t.statusId : col === "assignee" ? t.assigneeId ?? "none" : t[col];
+  col === "status" ? t.statusId : col === "assignee" ? t.assigneeId ?? "none"
+  : col === "epic" ? (t.type === "epic" ? t.key : t.epicKey ?? "none") // an epic shows with its own tickets
+  : t[col];
 
 const keyNum = (key: string) => Number(key.split("-")[1]);
 const COMPARE: Record<Exclude<SortKey, "none">, (a: Ticket, b: Ticket) => number> = {

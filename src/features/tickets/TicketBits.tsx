@@ -1,6 +1,7 @@
 import { Bug, CircleAlert, CircleCheck, GitMerge, GitPullRequest, Layers, SquareCheck } from "lucide-react";
 import { today } from "@/domain/clock";
 import { useDb } from "@/data/StoreProvider";
+import { epicLabel } from "@/domain/selectors/epics";
 import { shortDate } from "@/domain/status";
 import type { Priority, PullRequest, Requirement, Ticket, TicketType } from "@/domain/types";
 
@@ -22,8 +23,8 @@ export function EpicChip({ ticket }: { ticket: Ticket }) {
   const epic = ticket.epicKey ? db.tickets.find((t) => t.key === ticket.epicKey) : undefined;
   if (!epic) return null;
   return (
-    <span className="epic-chip" style={{ "--epic": epic.color } as React.CSSProperties} title={`Epic ${epic.key} · ${epic.title}`}>
-      <Layers aria-hidden /><span className="epic-chip-name">{epic.title}</span>
+    <span className="epic-chip" style={{ "--epic": epic.color } as React.CSSProperties} title={`${epicLabel(db, epic)} · ${epic.title}`}>
+      <Layers aria-hidden /><span className="epic-chip-name">{epicLabel(db, epic)}</span>
     </span>
   );
 }
