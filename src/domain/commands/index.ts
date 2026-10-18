@@ -52,7 +52,7 @@ export type CommandName = keyof Commands;
 export { AccessError, ValidationError } from "./shared.ts";
 export { deletePhrase } from "./products.ts";
 export { ticketDeletePhrase } from "./tickets.ts";
-export { docDeletePhrase, withSubpages } from "./docs.ts";
+export { docDeletePhrase, mentionable, withSubpages } from "./docs.ts";
 export type { DocPatch, NewDoc } from "./docs.ts";
 export { acceptInvite, inviteProblem, inviteState, isFreeMail, signUp, slugError, slugify, INVITE_DAYS } from "./org.ts";
 export { EMAIL_RE, MIN_PASSWORD, domainOf } from "./shared.ts";

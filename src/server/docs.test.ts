@@ -142,3 +142,36 @@ test("any file can go in a doc; only people who can see the doc fetch it; anythi
   assert.equal(img.type, "image/png");
   assert.equal((await readImage(sam, img.id))?.download, false);
 });
+
+test("history: every save is a version with who and when; restoring keeps what it replaced", async () => {
+  const { listVersions, getVersion, restoreVersion } = await import("./docs.ts");
+  const made = await createDoc(sam, { productKey: "DC", title: "History", body: "first" });
+  const one = await saveBody(sam, made.id, { body: "second", baseRev: 1 });
+  await saveBody(admin, made.id, { body: "third", baseRev: one.rev });
+  const list = await listVersions(sam, made.id);
+  assert.ok(list.length >= 2);
+  assert.ok(list[0].at >= list[list.length - 1].at, "newest first");
+  const oldest = list[list.length - 1]; // Sam's first two saves within ten minutes are one version
+  assert.equal((await getVersion(sam, made.id, oldest.id)).body, "second");
+  assert.equal(list[0].authorId, (await viewFor(admin)).meId); // the latest is the admin's
+  await restoreVersion(sam, made.id, oldest.id);
+  assert.equal((await readDoc(sam, made.id)).body, "second");
+  const after = await listVersions(sam, made.id);
+  assert.ok((await Promise.all(after.map((v) => getVersion(sam, made.id, v.id)))).some((v) => v.body === "third"), "the replaced text is kept");
+  await assert.rejects(listVersions(lee, made.id), /not found/);
+});
+
+test("a mention also goes to the person's linked WhatsApp, once", async () => {
+  const { sendOutbox } = await import("./whatsapp/outbox.ts");
+  const view = await viewFor(admin);
+  const aylaId = view.meId;
+  await pg.asOwner("insert into whatsapp_links (org_id, member_id, user_id, jid, phone) values ($1, $2, $3, $4, $5)", [admin.orgId, aylaId, admin.userId, "923001234567@s.whatsapp.net", "923001234567"]);
+  const made = await createDoc(sam, { productKey: "DC", title: "Launch plan" });
+  await saveBody(sam, made.id, { body: `Over to [@Ayla Khan](mention:${aylaId})`, baseRev: 1 });
+  const sent: { jid: string; text: string }[] = [];
+  const run = await sendOutbox({ send: async (jid, text) => { sent.push({ jid, text }); } });
+  assert.deepEqual(run, { sent: 1, failed: 0 });
+  assert.equal(sent[0].jid, "923001234567@s.whatsapp.net");
+  assert.match(sent[0].text, /Sam Dev\* mentioned you in \*Launch plan\* \(Docs\)/);
+  assert.equal(await sendOutbox({ send: async () => {} }), undefined, "nothing left to send");
+});

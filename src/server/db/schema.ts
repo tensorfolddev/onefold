@@ -393,6 +393,16 @@ export const whatsappLinks = pgTable("whatsapp_links", {
   linkedAt: ts("linked_at").notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.memberId] }), index("whatsapp_links_jid").on(t.jid)]);
 
+/** Messages waiting for the bot to send (e.g. "Ayla mentioned you in Design spec"): the worker sends them within seconds. */
+export const whatsappOutbox = pgTable("whatsapp_outbox", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  jid: text("jid").notNull(),
+  text: text("text").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  sentAt: ts("sent_at"),
+  attempts: integer("attempts").notNull().default(0),
+}, (t) => [index("whatsapp_outbox_pending").on(t.sentAt, t.id)]);
+
 /** The one-time code a teammate sends the bot to link their number ("1FOLD-7K2QXM"). Only its hash is kept. */
 export const whatsappLinkCodes = pgTable("whatsapp_link_codes", {
   id: text("id").primaryKey(), // SHA-256 of the code

@@ -174,14 +174,19 @@ export function touchDoc(db: Db, me: Person, docId: string, at: string, rev: num
   return { ...db, docs: replace(db.docs, (d) => d.id === docId, (d) => ({ ...d, updatedAt: at, updatedBy: me.id, rev, updated: at.slice(0, 10) })) };
 }
 
+/** Of these people, the ones a mention in this doc reaches: they can see it, and it isn't you. */
+export function mentionable(db: Db, me: Person, docId: string, personIds: string[]): Person[] {
+  const product = spaceOf(db, docOf(db, docId));
+  return [...new Set(personIds)]
+    .map((pid) => db.people.find((p) => p.id === pid))
+    .filter((p): p is Person => !!p && p.id !== me.id && p.active && !!p.panel && (!product || p.panel === "admin" || isOnProduct(p.id, product)));
+}
+
 /** Server only: tells the people newly mentioned in a doc — if they can see it, and never you. */
 export function notifyDocMentions(db: Db, me: Person, docId: string, personIds: string[]): Db {
   const doc = docOf(db, docId);
-  const product = spaceOf(db, doc);
   const at = now();
-  const told = [...new Set(personIds)]
-    .map((pid) => db.people.find((p) => p.id === pid))
-    .filter((p): p is Person => !!p && p.id !== me.id && p.active && !!p.panel && (!product || p.panel === "admin" || isOnProduct(p.id, product)));
+  const told = mentionable(db, me, docId, personIds);
   if (!told.length) return db;
   return {
     ...db,

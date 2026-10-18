@@ -41,8 +41,7 @@ function RefView({ node }: NodeViewProps) {
         <TypeIcon type={t.type} />
         <span className="doc-chip-key">{t.key}</span>
         <span className="doc-chip-title">{t.title}</span>
-        {status && <span className="doc-chip-dot" style={{ background: toneVar(status.tone) }} aria-label={status.name} />}
-        {t.assigneeIds?.[0] && <Avatar personId={t.assigneeIds[0]} size="sm" />}
+        {status && <span className="doc-chip-status" style={{ background: toneVar(status.tone) }}>{status.name}</span>}
       </NodeViewWrapper>
     );
   }

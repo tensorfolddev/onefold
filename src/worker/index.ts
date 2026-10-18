@@ -4,6 +4,7 @@ import { closeDatabase } from "../server/db/client.ts";
 import { cleanupFiles } from "../server/files.ts";
 import { botStatus, cleanupLinkCodes, handleMessage, setBotState, takeBotRequest } from "../server/whatsapp/bot.ts";
 import { sendDueBriefs } from "../server/whatsapp/brief.ts";
+import { sendOutbox } from "../server/whatsapp/outbox.ts";
 import { createBridge } from "../server/whatsapp/bridge.ts";
 
 const HOUR = 60 * 60_000;
@@ -49,6 +50,9 @@ every("WhatsApp requests", 3000, async () => {
   if (request === "logout") { await bridge.logout(); await setBotState("off", { phone: null }); }
   return request ?? undefined;
 });
+// Alerts like "Ayla mentioned you in Design spec": within seconds, while the bot is connected.
+every("whatsapp alerts", 5_000, async () => (bridge.connected() ? sendOutbox(bridge) : undefined));
+
 every("daily briefs", MINUTE, async () => {
   const run = await sendDueBriefs({ whatsapp: bridge, appUrl: APP_URL });
   return run.whatsapp + run.email + run.none + run.failed > 0 ? run : undefined;

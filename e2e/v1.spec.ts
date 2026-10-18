@@ -633,7 +633,7 @@ test("docs connect: an @mention notifies, a ticket key becomes a live chip, and 
 
   await expect(tia.getByRole("button", { name: /Notifications, 1 unread/ })).toBeVisible({ timeout: 15_000 });
   await tia.getByRole("button", { name: /Notifications/ }).click();
-  await expect(tia.getByText(/mentioned you in Untitled/)).toBeVisible();
+  await expect(tia.getByRole("dialog", { name: "Notifications" }).getByText(/mentioned you in Untitled/)).toBeVisible();
 
   await prose.locator(".doc-chip.is-ticket").click();
   await expect(page.getByRole("dialog").getByText("Build the cart").first()).toBeVisible(); // the ticket opens

@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AtSign, Bold, ChevronRight, Clock, History, Italic, LayoutList, Link2, List, MessageSquare } from "lucide-react";
+import { AtSign, Bold, ChevronRight, Clock, FileText, History, Italic, LayoutList, Link2, List, MessageSquare } from "lucide-react";
 import { addComment } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import { useAppState } from "@/features/shell/state";
 import { relativeTime } from "@/domain/status";
 import type { Ticket } from "@/domain/types";
-import { Avatar, EmptyState, IconButton, Tabs, WithMentions } from "@/ui/primitives";
+import { RichText } from "@/features/docs/RichText";
+import { Avatar, EmptyState, IconButton, Tabs } from "@/ui/primitives";
 import { TemplateSections } from "./TemplateSections";
 
 export const OVERVIEW = "Overview";
@@ -57,7 +58,7 @@ export function TicketPanelTabs({ ticket, editable, tab, onTab }: {
                       <span className="spacer" />
                       <span className="update-time"><Clock aria-hidden /> {relativeTime(c.at)}</span>
                     </header>
-                    <p className="update-body"><WithMentions text={c.body} /></p>
+                    <p className="update-body"><RichText text={c.body} /></p>
                   </li>
                 ))}
               </ul>
@@ -108,6 +109,17 @@ function Composer({ onPost }: { onPost: (body: string) => void }) {
     onPost(text.trim());
     setText("");
   };
+  // Link a doc: from the toolbar, or by typing "[[" — a small list of pages; the pick goes in as [Title](doc:<id>).
+  const [picking, setPicking] = useState(false);
+  const insertDoc = (doc: { id: string; title: string }) => {
+    const el = ref.current;
+    const at = el?.selectionStart ?? text.length;
+    const before = text.slice(0, at).replace(/\[\[$/, "");
+    const link = `[${doc.title.replace(/[[\]]/g, "")}](doc:${doc.id}) `;
+    setText(before + link + text.slice(at));
+    setPicking(false);
+    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(before.length + link.length, before.length + link.length); });
+  };
 
   return (
     <div className="composer">
@@ -117,11 +129,16 @@ function Composer({ onPost }: { onPost: (body: string) => void }) {
         <IconButton label="Bulleted list" onClick={() => wrap("\n- ")}><List /></IconButton>
         <IconButton label="Link" onClick={() => wrap("[", "](https://)")}><Link2 /></IconButton>
         <IconButton label="Mention someone" onClick={() => wrap("@")}><AtSign /></IconButton>
+        <IconButton label="Link a doc" active={picking} onClick={() => setPicking((p) => !p)}><FileText /></IconButton>
       </div>
+      {picking && <DocPicker onPick={insertDoc} onClose={() => setPicking(false)} />}
       <textarea
         ref={ref} rows={3} value={text} aria-label="Write an update"
         placeholder="Write an update and mention others with @"
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          if (e.target.value.slice(0, e.target.selectionStart ?? 0).endsWith("[[")) setPicking(true);
+        }}
         onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && post()}
       />
       <div className="composer-footer">
@@ -129,6 +146,26 @@ function Composer({ onPost }: { onPost: (body: string) => void }) {
         <span className="spacer" />
         <button type="button" className="btn btn-primary" disabled={!text.trim()} onClick={post}>Update</button>
       </div>
+    </div>
+  );
+}
+
+/** The docs you can link from an update: this ticket's project's first, then the company's, then the rest. */
+function DocPicker({ onPick, onClose }: { onPick: (doc: { id: string; title: string }) => void; onClose: () => void }) {
+  const { db, href } = useDb();
+  const [q, setQ] = useState("");
+  const docs = db.docs.filter((d) => !d.archivedAt && d.title.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8);
+  return (
+    <div className="composer-picker" role="dialog" aria-label="Link a doc">
+      <input autoFocus className="composer-picker-search" placeholder="Search docs to link…" aria-label="Search docs" value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Escape") onClose(); if (e.key === "Enter" && docs[0]) { e.preventDefault(); onPick(docs[0]); } }} />
+      {docs.length ? docs.map((d) => (
+        <button key={d.id} type="button" className="menu-item" onClick={() => onPick(d)}>
+          <span aria-hidden>{d.icon ?? <FileText />}</span> {d.title}
+          <span className="menu-item-end">{d.productKey ? db.products.find((p) => p.key === d.productKey)?.name ?? d.productKey : "Company"}</span>
+        </button>
+      )) : <p className="sidebar-empty">No doc matches{q ? ` “${q}”` : ""} — <a href={href("/docs")}>open Docs</a></p>}
     </div>
   );
 }
