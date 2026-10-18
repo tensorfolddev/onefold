@@ -15,10 +15,10 @@ export function ProductTabs({ product }: { product: Product }) {
   const tickets: TabItem = { label: "Tickets", href: `${base}/tickets`, count: openCount };
   const items: TabItem[] = panel === "developer" ? [tickets] : [
     { label: "Overview", href: base },
+    tickets, // second: it's where most of the work is
     { label: "Docs", href: `${base}/docs` },
     { label: "Decisions", href: `${base}/decisions` },
     { label: "Roadmap", href: `${base}/roadmap` },
-    tickets,
     { label: "Members", href: `${base}/members` },
     ...(can("product.requestStage", { product }) ? [{ label: "Settings", href: `${base}/settings` }] : []),
   ];

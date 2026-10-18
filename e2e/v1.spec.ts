@@ -278,6 +278,36 @@ test("Claude connects with a personal token: an MCP tool makes a ticket that sho
   await expect(page.getByRole("button", { name: "Made by Claude" }).first()).toBeVisible();
 });
 
+test("tickets: the second tab, opening on the board, which a sideways scroll over a list moves", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 800 }); // narrower than the board's lists
+  await signUp(page, "Nu", email("nu"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Rover");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+
+  const tabs = page.getByRole("tablist", { name: "Rover sections" }).getByRole("tab");
+  await expect(tabs.nth(0)).toHaveText("Overview");
+  await expect(tabs.nth(1)).toContainText("Tickets");
+  await tabs.nth(1).click();
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Scout the route");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.keyboard.press("Escape"); // a new ticket opens itself
+  const board = page.locator(".kanban");
+  await expect(board).toBeVisible(); // the board, not the table
+
+  // A two-finger sideways scroll over a list scrolls the board (the list only keeps its own up/down scrolling).
+  const list = (await page.locator(".kanban-col-body").first().boundingBox())!;
+  await page.mouse.move(list.x + list.width / 2, list.y + 80);
+  await page.mouse.wheel(400, 0);
+  await expect.poll(() => board.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  await page.mouse.wheel(-400, 0);
+  await expect.poll(() => board.evaluate((el) => el.scrollLeft)).toBe(0);
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
