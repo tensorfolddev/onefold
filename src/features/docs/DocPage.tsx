@@ -5,7 +5,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, Copy, Download, ImagePlus, Link2, MoreHorizontal, RefreshCw, Smile, Trash2, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Copy, Download, FileDown, ImagePlus, Link2, MoreHorizontal, RefreshCw, Smile, Trash2, Users } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { archiveDocs, restoreDocs, updateDoc } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
@@ -16,7 +16,7 @@ import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
 import { upload } from "@/data/api";
 import type { DocLinks, Heading, Uploaded } from "./editor/DocEditor";
-import { ancestorsOf, COVERS, coverCss, docPath, downloadMarkdown, readingMinutes } from "./tree";
+import { ancestorsOf, COVERS, coverCss, docPath, downloadMarkdown, printDoc, readingMinutes } from "./tree";
 import { DocsTopBar } from "./DocsSpace";
 import { useDocBody } from "./useDocBody";
 
@@ -46,9 +46,13 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
   const links: DocLinks = useMemo(() => ({
     people: db.people.filter((p) => p.active && p.panel && (!product || p.panel === "admin" || p.id === product.pmId || p.id === product.projectManagerId || product.memberIds.includes(p.id)))
       .map((p) => ({ id: p.id, name: p.name, role: p.role })),
-    tickets: db.tickets.map((t) => ({ key: t.key, title: t.title })),
-    docs: db.docs.filter((d) => !d.archivedAt && d.id !== doc.id).map((d) => ({ id: d.id, title: d.title, icon: d.icon })),
-  }), [db.people, db.tickets, db.docs, product, doc.id]);
+    // This space's pages first (a project's own docs), then the rest you can see.
+    docs: db.docs.filter((d) => !d.archivedAt && d.id !== doc.id)
+      .sort((a, b) => Number(b.productKey === doc.productKey) - Number(a.productKey === doc.productKey))
+      .map((d) => ({ id: d.id, title: d.title, icon: d.icon })),
+    tickets: (product ? db.tickets.filter((t) => t.productKey === product.key) : []).concat(db.tickets.filter((t) => !product || t.productKey !== product.key))
+      .map((t) => ({ key: t.key, title: t.title })),
+  }), [db.people, db.tickets, db.docs, product, doc.id, doc.productKey]);
 
   const onChange = useCallback((md: string) => { setLatest(md); b.setDraft(md); }, [b]);
   const uploadFile = useCallback(async (file: File): Promise<Uploaded | null> => {
@@ -92,7 +96,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
         {status && <span className={`doc-saving ${status.cls}`} role="status">{status.text}</span>}
 
             {others.length > 0 && (
-              <span className="avatar-stack" title={others.map((p) => personById(p.personId)?.name).join(", ")} aria-label={`Also here: ${others.map((p) => personById(p.personId)?.name).join(", ")}`}>
+              <span className="avatar-stack" data-tip={others.map((p) => personById(p.personId)?.name).join(", ")} aria-label={`Also here: ${others.map((p) => personById(p.personId)?.name).join(", ")}`}>
                 {others.slice(0, 4).map((p) => <Avatar key={p.personId} personId={p.personId} size="sm" />)}
               </span>
             )}
@@ -104,6 +108,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
                   <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copy("Link", `${location.origin}${href(`/d/${doc.id}`)}`); }}><Link2 aria-hidden /> Copy link</button>
                   <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copy("Markdown", `# ${doc.title}\n\n${text}`); }}><Copy aria-hidden /> Copy as Markdown</button>
                   <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); downloadMarkdown(doc.title, text); }}><Download aria-hidden /> Export as Markdown</button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); printDoc(doc.title); }}><FileDown aria-hidden /> Download as PDF</button>
                   {isAdmin && !doc.archivedAt && (
                     <>
                       <div className="menu-divider" />
@@ -148,7 +153,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
                   <div className="cover-swatches">
                     {COVERS.map((c) => (
                       <button key={c.id} type="button" className={`cover-swatch${doc.cover === c.id ? " is-current" : ""}`} style={{ background: c.css }}
-                        aria-label={c.label} title={c.label} onClick={() => { look({ cover: c.id }); close(); }} />
+                        aria-label={c.label} data-tip={c.label} onClick={() => { look({ cover: c.id }); close(); }} />
                     ))}
                   </div>
                   {doc.cover && <button type="button" className="menu-item" onClick={() => { look({ cover: null }); close(); }}><Trash2 aria-hidden /> Remove cover</button>}

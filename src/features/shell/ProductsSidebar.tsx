@@ -71,7 +71,7 @@ function GroupSection({ group, label, empty = "No products yet", className, prod
           </button>
           {canManage && (
             <Popover
-              align="right" width={200}
+              align="right" width={200} floating
               trigger={({ open, toggle }) => (
                 <button type="button" className="sidebar-group-more" aria-label={`${name} group options`} aria-expanded={open} onClick={toggle}>
                   <MoreHorizontal aria-hidden />
@@ -119,7 +119,7 @@ function ProductMenu({ product }: { product: Product }) {
     act((d, m) => moveProduct(d, m, product.key, groupId), { success: `${product.name} → ${label}`, undoable: true });
   const inGroup = product.groupId && db.productGroups.some((g) => g.id === product.groupId);
   return (
-    <Popover align="right" width={232} className="sidebar-product-menu" trigger={rowMenuTrigger(product)}>
+    <Popover align="right" width={232} floating className="sidebar-product-menu" trigger={rowMenuTrigger(product)}>
       {(close) => (
         <>
           {canMove && (
@@ -174,7 +174,7 @@ function ArchivedRow({ product, active, onNavigate }: { product: Product; active
         </button>
       )}
       {canDelete && (
-        <Popover align="right" width={200} className="sidebar-product-menu" trigger={rowMenuTrigger(product)}>
+        <Popover align="right" width={200} floating className="sidebar-product-menu" trigger={rowMenuTrigger(product)}>
           {(close) => (
             <button type="button" className="menu-item is-danger" onClick={() => { close(); setDeleting(true); }}>
               <Trash2 /> Delete forever…

@@ -30,7 +30,7 @@ export function DocsTopBar({ crumbs, children }: { crumbs: Crumb[]; children?: R
   return (
     <div className="docs-topbar">
       {folded && (
-        <button type="button" className="docs-topbar-btn" aria-label="Show the sidebar" title="Show the sidebar" onClick={() => setFolded(false)}>
+        <button type="button" className="docs-topbar-btn" aria-label="Show the sidebar" data-tip="Show sidebar" onClick={() => setFolded(false)}>
           <ChevronsRight aria-hidden />
         </button>
       )}
@@ -93,14 +93,14 @@ export function DocsSpace({ productKey, activeId, children }: { productKey: stri
                 <span className="docs-side-mark" aria-hidden><FileText /></span>
                 {product ? `${product.name} docs` : "Company docs"}
               </Link>
-              <button type="button" className="doc-row-btn" aria-label="Hide the sidebar" title="Hide the sidebar" onClick={() => setFolded(true)}><ChevronsLeft aria-hidden /></button>
+              <button type="button" className="doc-row-btn" aria-label="Hide the sidebar" data-tip="Hide sidebar" onClick={() => setFolded(true)}><ChevronsLeft aria-hidden /></button>
             </div>
             <label className="docs-search">
               <Search aria-hidden />
               <input type="search" placeholder="Search docs" aria-label="Search docs" value={q} onChange={(e) => setQ(e.target.value)} />
             </label>
             {canCreate && (
-              <button type="button" className="docs-new" onClick={() => void newDoc.blank()}>
+              <button type="button" className="docs-new" onClick={() => newDoc.open()}>
                 <Plus aria-hidden /> New page
               </button>
             )}
@@ -114,7 +114,7 @@ export function DocsSpace({ productKey, activeId, children }: { productKey: stri
                 )) : <p className="sidebar-empty">Nothing found for “{q}”</p>}
               </div>
             )}
-            <DocTree productKey={productKey} activeId={activeId} onNewPage={(where) => void newDoc.blank(where)} />
+            <DocTree productKey={productKey} activeId={activeId} onNewPage={(where) => newDoc.open(where)} />
             {canCreate && <p className="docs-side-hint">Tip: drop a .md file here to import it</p>}
           </aside>
         )}

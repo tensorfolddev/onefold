@@ -42,8 +42,11 @@
 .doc-group { margin-top: 6px; }
 .doc-group .sidebar-group-head { position: relative; display: flex; align-items: center; border-radius: 6px; }
 .doc-group .sidebar-group-head.is-drop { box-shadow: inset 0 0 0 2px var(--primary-color); }
-.doc-group-actions { display: flex; opacity: 0; transition: opacity var(--motion-productive-short); }
+/* A group's + and ⋯ float over its count (so every count lines up), and show on hover — like project groups. */
+.doc-group-actions { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; padding-left: 6px; background: var(--allgrey-background-color); opacity: 0; transition: opacity var(--motion-productive-short); }
 .doc-group .sidebar-group-head:hover .doc-group-actions, .doc-group-actions:focus-within, .doc-group-actions:has(.is-open) { opacity: 1; }
+.doc-group .sidebar-group-head:hover .sidebar-group-count, .doc-group .sidebar-group-head:has(.is-open) .sidebar-group-count { visibility: hidden; }
+.doc-group .sidebar-group-count { min-width: 24px; text-align: right; padding-right: 4px; }
 
 /* The bar over a docs page: where you are, and the page's own controls. */
 .docs-topbar {
@@ -151,14 +154,17 @@
 
 /* The writing column, with the contents beside it when the doc area (not the window) is wide enough. */
 .docs-main { container-type: inline-size; }
-.doc-grid { display: grid; grid-template-columns: minmax(0, var(--doc-column)); justify-content: center; column-gap: 56px; padding: 0 24px; }
-.doc-col { min-width: 0; }
+/* Three columns: a gutter, the writing column (centred), and the right side — where "On this page" sits, flush right. */
+.doc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, var(--doc-column)) minmax(0, 1fr); column-gap: 40px; padding: 0 28px; }
+.doc-col { grid-column: 2; min-width: 0; }
 .doc-col .doc-head, .doc-col .doc-body, .doc-col .doc-banner { max-width: none; margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
 .doc-col .doc-banner { padding: 10px 14px; }
 .doc-toc { display: none; }
+@container (max-width: 820px) { .doc-grid { grid-template-columns: minmax(0, 1fr); padding: 0 20px; } .doc-col { grid-column: 1; } }
 @container (min-width: 1040px) {
-  .doc-grid.has-toc { grid-template-columns: minmax(0, var(--doc-column)) 200px; }
+  .doc-grid.has-toc { grid-template-columns: minmax(0, 1fr) minmax(0, var(--doc-column)) minmax(220px, 1fr); }
   .doc-grid.has-toc .doc-toc {
+    grid-column: 3; justify-self: end; width: 230px;
     display: block; position: sticky; top: 70px; align-self: start; margin-top: 40px;
     max-height: calc(100vh - var(--topbar-height, 64px) - 120px); overflow-y: auto;
   }
@@ -281,8 +287,8 @@
 .block-menu { top: 30px; left: 0; width: 220px; }
 
 /* Home: recent docs, mine, templates. */
-.docs-home { max-width: 1040px; margin: 0 auto; padding: 32px 32px 80px; }
-.docs-home-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 28px; }
+.docs-home { padding: 28px 40px 80px; }
+.docs-home-head { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
 .docs-home-head > div { flex: 1; min-width: 0; }
 .docs-home-head h1 { margin: 0; font: 700 32px/1.2 var(--title-font-family); letter-spacing: -0.02em; }
 .docs-home-head p { margin: 4px 0 0; color: var(--secondary-text-color); }
@@ -464,3 +470,57 @@
 .file-card-name { font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .file-card-meta { font-size: 12.5px; color: var(--secondary-text-color); }
 .file-card-dl { flex: none; width: 18px; height: 18px; color: var(--secondary-text-color); }
+
+/* ---------- Docs home: pages by group, as monday.com-style group tables ---------- */
+.docs-board { display: grid; gap: 28px; }
+.docs-board-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; color: var(--group); }
+.docs-board-head:hover { background: var(--primary-background-hover-color); }
+.docs-board-head svg { width: 18px; height: 18px; transition: transform var(--motion-productive-short); }
+.docs-board-head svg.is-collapsed { transform: rotate(-90deg); }
+.docs-board-name { font: 600 18px/24px var(--title-font-family); }
+.docs-board-count { font-size: 13px; color: var(--secondary-text-color); }
+.docs-board-table { margin-top: 8px; border: 1px solid var(--layout-border-color); border-radius: 8px; overflow: hidden; }
+.docs-board-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 220px 200px; align-items: center; min-height: 40px;
+  border-top: 1px solid var(--layout-border-color); box-shadow: inset 6px 0 0 var(--group);
+  color: var(--primary-text-color); text-decoration: none; font-size: 14px; transition: background var(--motion-productive-short);
+}
+.docs-board-row:first-child { border-top: 0; }
+.docs-board-row > span { padding: 0 14px; min-width: 0; }
+.docs-board-row > span + span { align-self: stretch; display: flex; align-items: center; border-left: 1px solid var(--layout-border-color); }
+.docs-board-row.is-head { min-height: 36px; font-size: 13px; color: var(--secondary-text-color); background: var(--primary-background-color); }
+.docs-board-row.is-head > span:first-child { padding-left: 20px; }
+a.docs-board-row:hover { background: var(--primary-background-hover-color); }
+.docs-board-row.is-empty { color: var(--secondary-text-color); font-size: 13px; }
+.docs-board-row.is-empty > span { padding-left: 20px; }
+.docs-board-page { display: flex; align-items: center; gap: 10px; }
+.docs-board-icon { flex: none; width: 20px; text-align: center; font-size: 16px; }
+.docs-board-icon svg { width: 16px; height: 16px; color: var(--secondary-text-color); }
+.docs-board-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; }
+.docs-board-person { gap: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.docs-board-when { color: var(--secondary-text-color); white-space: nowrap; }
+@media (max-width: 900px) {
+  .docs-home { padding: 20px 16px 64px; }
+  .docs-board-row { grid-template-columns: minmax(0, 1fr) 120px; }
+  .docs-board-row > span:nth-child(2) { display: none; }
+}
+
+/* ---------- Download as PDF (the browser's print, body.print-doc): just the doc, nothing split awkwardly ---------- */
+@media print {
+  @page { margin: 16mm 14mm; }
+  body.print-doc { background: #fff !important; }
+  body.print-doc :is(.app-topbar, .app-rail, .app-sidebar, .docs-side, .docs-topbar, .doc-toc, .doc-banner, .doc-head-tools,
+    .block-handle-layer, .table-menu, .doc-bubble, .link-card-tools, .slash-layer, .toaster, .product-space > :not(.product-body),
+    .slide-over, .scrim, .doc-backlinks, nextjs-portal) { display: none !important; }
+  body.print-doc :is(html, .app, .work-area, .page, .product-space, .product-body, .docs-space, .docs-main, .doc-grid, .doc-col) {
+    display: block !important; height: auto !important; min-height: 0 !important; overflow: visible !important;
+    position: static !important; padding: 0 !important; margin: 0 !important; border: 0 !important; box-shadow: none !important;
+  }
+  body.print-doc .doc-cover { height: 90px; }
+  body.print-doc * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body.print-doc .doc-prose :is(pre, blockquote, img, tr, li, .doc-callout, .doc-file-card, .doc-link-card, .doc-chip) { break-inside: avoid; }
+  body.print-doc .doc-prose :is(h1, h2, h3) { break-after: avoid; break-inside: avoid; }
+  body.print-doc .doc-prose pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  body.print-doc .doc-prose table { break-inside: auto; }
+  body.print-doc .doc-prose a { color: inherit; }
+}

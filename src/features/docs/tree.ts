@@ -51,3 +51,20 @@ export function downloadMarkdown(title: string, body: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+/**
+ * Saves the open doc as a PDF through the browser's own print ("Save as PDF"): real text, links kept, and print styles
+ * that never split a code block, image, callout, quote or table row across two pages (docs.css, body.print-doc).
+ */
+export function printDoc(title: string) {
+  const before = document.title;
+  document.title = title; // the PDF's file name
+  document.body.classList.add("print-doc");
+  const done = () => {
+    document.body.classList.remove("print-doc");
+    document.title = before;
+    window.removeEventListener("afterprint", done);
+  };
+  window.addEventListener("afterprint", done);
+  window.print();
+}

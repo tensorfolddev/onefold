@@ -3,6 +3,7 @@
 // The toolbar over a table while the caret is in it: rows and columns on any side (one or several at a time), delete
 // rows / columns / the table, the header row on or off, and the header's colour.
 import type { Editor } from "@tiptap/core";
+import { CellSelection } from "@tiptap/pm/tables";
 import {
   ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Heading, PaintBucket, Rows3, Columns3, Trash2,
 } from "lucide-react";
@@ -27,7 +28,7 @@ function tableAt(editor: Editor): { pos: number; dom: HTMLElement; color: string
 
 function Btn({ label, onClick, children, danger }: { label: string; onClick: () => void; children: React.ReactNode; danger?: boolean }) {
   return (
-    <button type="button" className={`table-menu-btn${danger ? " is-danger" : ""}`} aria-label={label} title={label}
+    <button type="button" className={`table-menu-btn${danger ? " is-danger" : ""}`} aria-label={label} data-tip={label} data-tip-pos="top"
       onMouseDown={(e) => e.preventDefault()} onClick={onClick}>
       {children}
     </button>
@@ -43,7 +44,10 @@ export function TableMenu({ editor }: { editor: Editor }) {
     return () => { editor.off("transaction", redraw); editor.off("blur", redraw); };
   }, [editor]);
 
-  const t = editor.isEditable ? tableAt(editor) : null;
+  // While text is selected the formatting toolbar is up: step aside so the two never overlap.
+  const sel = editor.state.selection;
+  const texting = !sel.empty && !(sel instanceof CellSelection);
+  const t = editor.isEditable && !texting ? tableAt(editor) : null;
   if (!t) return null;
   const host = t.dom.closest(".doc-editor") as HTMLElement | null;
   if (!host) return null;
@@ -86,7 +90,7 @@ export function TableMenu({ editor }: { editor: Editor }) {
               <button type="button" className={`table-color is-none${t.color ? "" : " is-current"}`} aria-label="No colour"
                 onClick={() => { c().updateAttributes("table", { headerColor: null }).run(); close(); }} />
               {HEADER_COLORS.map((col) => (
-                <button key={col} type="button" className={`table-color${t.color === col ? " is-current" : ""}`} data-color={col} aria-label={col} title={col}
+                <button key={col} type="button" className={`table-color${t.color === col ? " is-current" : ""}`} data-color={col} aria-label={col} data-tip={col}
                   onClick={() => { c().updateAttributes("table", { headerColor: col }).run(); close(); }} />
               ))}
             </div>

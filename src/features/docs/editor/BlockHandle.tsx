@@ -46,14 +46,16 @@ export function BlockHandle({ editor }: { editor: Editor }) {
   // Typing changes the document under the handle: hide it until the mouse moves again (its position may be stale).
   useEffect(() => {
     const hide = () => { if (!menu) setTarget(null); };
+    const onSelect = () => { if (!editor.state.selection.empty) hide(); }; // the formatting toolbar is up
     editor.on("update", hide);
-    return () => { editor.off("update", hide); };
+    editor.on("selectionUpdate", onSelect);
+    return () => { editor.off("update", hide); editor.off("selectionUpdate", onSelect); };
   }, [editor, menu]);
 
   useEffect(() => {
     const dom = editor.view.dom;
     const host = dom.parentElement!;
-    const onMove = (e: MouseEvent) => { if (!menu) setTarget(blockAt(editor, e.clientX, e.clientY)); };
+    const onMove = (e: MouseEvent) => { if (!menu && editor.state.selection.empty) setTarget(blockAt(editor, e.clientX, e.clientY)); };
     const onLeave = (e: MouseEvent) => { if (!menu && !host.contains(e.relatedTarget as Node)) setTarget(null); };
     host.addEventListener("mousemove", onMove);
     host.addEventListener("mouseleave", onLeave);
