@@ -201,6 +201,22 @@ export const docBodies = pgTable("doc_bodies", {
   updatedBy: text("updated_by"),
 }, (t) => [primaryKey({ columns: [t.orgId, t.docId] }), companyRows()]);
 
+/** What each doc's body points at — people (mentions), tickets and docs — rebuilt on every save: backlinks and notices. */
+export const docLinks = pgTable("doc_links", {
+  orgId: text("org_id").notNull(),
+  docId: text("doc_id").notNull(),
+  kind: text("kind").notNull(), // person | ticket | doc
+  target: text("target").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.docId, t.kind, t.target] }), index("doc_links_target").on(t.orgId, t.kind, t.target), companyRows()]);
+
+/** Web page previews (title, image…) for link cards, shared by every company: the same page looks the same to all. */
+export const linkPreviews = pgTable("link_previews", {
+  urlHash: text("url_hash").primaryKey(), // SHA-256 of the URL
+  url: text("url").notNull(),
+  data: jsonb("data").notNull(),
+  fetchedAt: ts("fetched_at").notNull().defaultNow(),
+});
+
 /** Earlier versions of a doc: one per author per ten minutes of editing, plus one before every overwrite or restore. */
 export const docVersions = pgTable("doc_versions", {
   ...keyed,

@@ -69,3 +69,20 @@ test("an empty list item or trailing blank lines are never stored (Markdown can'
   }
   assert.equal(roundTrip("1. \n\nAfter"), "After");
 });
+
+test("mentions, ticket and doc chips, and link cards keep their Markdown; ordinary links stay links", async () => {
+  const { refsIn } = await import("./links.ts");
+  for (const md of [
+    "Ask [@Hina Raza](mention:u-hina) about it",
+    "Blocked by [EN-12](ticket:EN-12) and see [Design spec](doc:d-1a2b)",
+    "Before\n\n<https://github.com/tensorfold/onefold>\n\nAfter",
+    "Read [the guide](https://example.com/guide) first",
+  ]) assert.equal(roundTrip(md), md);
+  const json = toDocJson("Ask [@Hina](mention:u-hina) and [EN-12](ticket:EN-12)\n\n<https://example.com>");
+  const types = JSON.stringify(json);
+  assert.match(types, /"type":"mention"/);
+  assert.match(types, /"type":"ref"/);
+  assert.match(types, /"type":"linkCard"/);
+  assert.deepEqual(refsIn("[@A](mention:u-a) [@A](mention:u-a) [X-1](ticket:X-1) [D](doc:d1)\n\n```\n[@B](mention:u-b)\n```\n`[@C](mention:u-c)`"),
+    { people: ["u-a"], tickets: ["X-1"], docs: ["d1"] });
+});

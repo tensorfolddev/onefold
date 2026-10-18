@@ -17,6 +17,7 @@ import { scrollToSection, TemplateOutline } from "./TemplateSections";
 import { OVERVIEW, TicketPanelTabs } from "./TicketPanelTabs";
 import { useDb } from "@/data/StoreProvider";
 import { formatHours, shortDate } from "@/domain/status";
+import { LinkedDocs } from "@/features/docs/LinkedDocs";
 
 /** Global ticket panel (mounted once by AppShell; opened via openTicket(key)). */
 export function TicketPanelHost() {
@@ -75,6 +76,7 @@ function TicketView({ ticket, product, editable, onClose }: PanelProps & { onClo
             <MetaGrid ticket={ticket} product={product} editable={editable} onNavigate={onClose} />
           </section>
           <TemplateOutline ticket={ticket} onGo={go} />
+          <LinkedDocs ticketKey={ticket.key} onNavigate={onClose} />
         </div>
       </div>
     </>

@@ -4,7 +4,7 @@
 import type { Editor } from "@tiptap/core";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { Bold, Code, Highlighter, Italic, Link2, Strikethrough, Unlink } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { safeHref } from "./links";
 
 const MARKS = [
@@ -18,6 +18,11 @@ const MARKS = [
 export function BubbleToolbar({ editor }: { editor: Editor }) {
   const [linking, setLinking] = useState<string | null>(null);
   const [bad, setBad] = useState(false);
+  useEffect(() => {
+    const open = () => setLinking(String(editor.getAttributes("link").href ?? ""));
+    window.addEventListener("doc:link", open);
+    return () => window.removeEventListener("doc:link", open);
+  }, [editor]);
 
   const saveLink = () => {
     const url = (linking ?? "").trim();

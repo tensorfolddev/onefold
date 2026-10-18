@@ -10,7 +10,7 @@ import { archiveDocs, moveDoc, restoreDocs, updateDoc, ValidationError } from ".
 import { DOC_TEMPLATES } from "../../domain/docTemplates.ts";
 import type { Doc, Panel, Person, Product } from "../../domain/types.ts";
 import type { SessionRow } from "../accounts.ts";
-import { createDoc, DocConflict, readDoc, saveBody, searchDocs } from "../docs.ts";
+import { createDoc, DocConflict, normalizeMentions, readDoc, saveBody, searchDocs } from "../docs.ts";
 
 interface DocCtx { db: Db; me: Person; meId: string; panel: Panel; appUrl: string }
 type Change = (db: Db, me: Person) => { db: Db; steps: { name: string; args: unknown[] }[] };
@@ -50,7 +50,7 @@ export function registerDocTools(server: McpServer, { who, context, changeCompan
   });
   const full = async (id: string) => {
     const [c, open] = await Promise.all([context(), readDoc(who, id)]);
-    return { ...meta(c, open.doc), rev: open.rev, markdown: open.body };
+    return { ...meta(c, open.doc), rev: open.rev, markdown: open.body, backlinks: open.backlinks.map((b) => ({ id: b.id, title: b.title, url: url(c, b.id) })) };
   };
 
   server.registerTool("list_docs", {
@@ -89,14 +89,15 @@ export function registerDocTools(server: McpServer, { who, context, changeCompan
       space: z.string().optional().describe("Project key or name, or \"company\" (the default)"),
       parent: z.string().optional().describe("The page to put it inside: id, link or exact title"),
       template: z.enum(DOC_TEMPLATES.map((t) => t.id) as [string, ...string[]]).optional(),
-      markdown: z.string().max(1_000_000).optional().describe("The body as Markdown (replaces the template's)"),
+      markdown: z.string().max(1_000_000).optional().describe("The body as Markdown (replaces the template's). Mention someone with [@Name](mention:their@email) — they're notified; link a ticket with [EN-12](ticket:EN-12), a doc with [Title](doc:<id>)"),
     },
     annotations: { ...WRITE, idempotentHint: false },
   }, (a) => attempt(async () => {
     const c = await context();
     const productKey = spaceKey(c, a.space);
     const parentId = a.parent ? findDoc(c, a.parent).id : undefined;
-    const { id } = await createDoc(who, { title: a.title, productKey: productKey || undefined, parentId, template: a.template, body: a.markdown }, "mcp");
+    const body = a.markdown === undefined ? undefined : normalizeMentions(c.db, a.markdown);
+    const { id } = await createDoc(who, { title: a.title, productKey: productKey || undefined, parentId, template: a.template, body }, "mcp");
     return full(id);
   }));
 
@@ -121,7 +122,7 @@ export function registerDocTools(server: McpServer, { who, context, changeCompan
     }
     if (a.markdown !== undefined || a.append !== undefined) {
       const open = await readDoc(who, doc.id);
-      const body = a.markdown ?? [open.body.trimEnd(), a.append ?? ""].filter(Boolean).join("\n\n");
+      const body = normalizeMentions(c.db, a.markdown ?? [open.body.trimEnd(), a.append ?? ""].filter(Boolean).join("\n\n"));
       try {
         await saveBody(who, doc.id, { body, baseRev: a.base_rev ?? open.rev });
       } catch (e) {

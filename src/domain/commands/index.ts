@@ -1,7 +1,7 @@
 // Every change to a company's data is one of these named commands: pure (db, me, ...args) → db.
 // The browser store runs them now; the backend (and the MCP server's tools) will run the same names.
 import {
-  addDecision, addDoc, archiveDocs, createDoc, deleteDoc, deleteDocs, moveDoc, restoreDocs, touchDoc, updateDoc, upsertMilestone,
+  addDecision, addDoc, archiveDocs, createDoc, deleteDoc, deleteDocs, moveDoc, notifyDocMentions, restoreDocs, touchDoc, updateDoc, upsertMilestone,
 } from "./docs.ts";
 import { addStatus, deleteStatus, moveStatus, updateStatus } from "./lists.ts";
 import { inviteMembers, revokeInvite, updateOrg } from "./org.ts";
@@ -25,7 +25,7 @@ export const commands = {
   createProduct, updateProduct, setProductLook, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
   // docs
-  addDoc, deleteDoc, addDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc,
+  addDoc, deleteDoc, addDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, notifyDocMentions,
   // people + company
   updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
@@ -38,7 +38,7 @@ export {
   addStatus, updateStatus, moveStatus, deleteStatus,
   createProduct, updateProduct, setProductLook, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
-  addDoc, deleteDoc, addDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc,
+  addDoc, deleteDoc, addDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, notifyDocMentions,
   updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
 };

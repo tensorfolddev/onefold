@@ -23,8 +23,9 @@ export function NotificationsPanel() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const { db, me, personById, href } = useMe();
   const router = useRouter();
-  // ponytail: read/unread lives in this panel only; it resets on sign-in.
-  const [items, setItems] = useState(() => db.notifications.filter((n) => n.personId === me.id));
+  // The list is live (new notices appear as they arrive). ponytail: "read" lives in this panel only; it resets on sign-in.
+  const [readIds, setReadIds] = useState<ReadonlySet<string>>(() => new Set());
+  const items = db.notifications.filter((n) => n.personId === me.id).map((n) => (readIds.has(n.id) ? { ...n, read: true } : n));
 
   useEffect(() => {
     if (!notificationsOpen) return;
@@ -40,7 +41,7 @@ export function NotificationsPanel() {
   );
 
   const open = (n: Notification) => {
-    setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+    setReadIds((prev) => new Set(prev).add(n.id));
     if (/^[A-Z]+-\d+$/.test(n.target)) {
       setNotificationsOpen(false);
       openTicket(n.target);
@@ -57,7 +58,7 @@ export function NotificationsPanel() {
         <div className="panel-header" style={{ marginBottom: 16 }}>
           <h2 className="panel-title">Notifications</h2>
           <span className="spacer" />
-          <IconButton label="Mark all as read" onClick={() => setItems((p) => p.map((x) => ({ ...x, read: true })))}>
+          <IconButton label="Mark all as read" onClick={() => setReadIds(new Set(items.map((x) => x.id)))}>
             <CheckCheck />
           </IconButton>
           <IconButton label="Close" onClick={() => setNotificationsOpen(false)}><X /></IconButton>

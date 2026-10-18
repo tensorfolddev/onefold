@@ -579,6 +579,63 @@ test("docs: a teammate sees a save live and who's editing; only an admin archive
   await expect(archived).toContainText("Nothing archived");
 });
 
+test("docs connect: an @mention notifies, a ticket key becomes a live chip, and [[ links a doc that then shows the backlink", async ({ page, browser }) => {
+  await signUp(page, "Tau", email("tau"));
+  await confirmEmail(page, email("tau"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("tia"));
+  await page.getByRole("button", { name: "Create invite links" }).click();
+  const link = (await page.locator(".inv-link-url").first().textContent())!;
+  await page.getByRole("button", { name: "Go to Tau" }).click();
+  const tia = await freshPage(browser);
+  await tia.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
+  await tia.goto(new URL(link).pathname);
+  await tia.getByLabel("Full name").fill("Tia Dev");
+  await tia.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await tia.getByRole("button", { name: "Join Tau" }).click();
+  await expect(tia).toHaveURL(/\/dev$/, { timeout: 20_000 });
+
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Checkout");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/CH$/);
+  await page.goto("/admin/products/CH/tickets");
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Build the cart");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.keyboard.press("Escape");
+
+  // A target doc, then a doc that mentions Tia, links the ticket and links the target.
+  await page.goto("/admin/docs");
+  await page.getByRole("button", { name: /Handbook page/ }).click();
+  await expect(page).toHaveURL(/\/admin\/docs\/.+/);
+  const targetUrl = page.url();
+  await page.goto("/admin/docs");
+  await page.getByRole("button", { name: /Blank page/ }).click();
+  const prose = page.locator('.doc-prose[contenteditable="true"]');
+  await prose.click();
+  await page.keyboard.type("Hi @Tia");
+  await expect(page.getByRole("option", { name: /Tia Dev/ })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("please build CH-1 ");
+  await expect(prose.locator(".doc-chip.is-person")).toContainText("@Tia Dev");
+  await expect(prose.locator(".doc-chip.is-ticket")).toContainText("Build the cart"); // live title from the ticket
+  await page.keyboard.type("and read [[Handb");
+  await page.getByRole("option", { name: /Handbook page/ }).click();
+  await expect(prose.locator(".doc-chip.is-doc")).toContainText("Handbook page");
+  await expect(page.locator(".doc-saving", { hasText: "Saved" })).toBeVisible({ timeout: 10_000 });
+
+  await expect(tia.getByRole("button", { name: /Notifications, 1 unread/ })).toBeVisible({ timeout: 15_000 });
+  await tia.getByRole("button", { name: /Notifications/ }).click();
+  await expect(tia.getByText(/mentioned you in Untitled/)).toBeVisible();
+
+  await prose.locator(".doc-chip.is-ticket").click();
+  await expect(page.getByRole("dialog").getByText("Build the cart").first()).toBeVisible(); // the ticket opens
+  await page.keyboard.press("Escape");
+  await page.goto(targetUrl);
+  await expect(page.locator(".doc-backlinks")).toContainText("Untitled");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
