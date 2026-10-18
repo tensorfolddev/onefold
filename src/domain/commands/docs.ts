@@ -228,7 +228,12 @@ export function deleteDocGroup(db: Db, me: Person, groupId: string): Db {
   return {
     ...db,
     docGroups: db.docGroups.filter((x) => x.id !== groupId),
-    docs: db.docs.map((d) => (d.groupId === groupId ? (({ groupId: _gone, ...rest }) => rest)(d) : d)),
+    docs: db.docs.map((d) => {
+      if (d.groupId !== groupId) return d;
+      const out = { ...d };
+      delete out.groupId;
+      return out;
+    }),
   };
 }
 
@@ -240,8 +245,11 @@ export function setDocGroup(db: Db, me: Person, docId: string, groupId: string |
   return {
     ...db,
     docs: replace(db.docs, (d) => d.id === docId, (d) => {
-      const { groupId: _old, parentId: _parent, ...rest } = d;
-      return groupId ? { ...rest, groupId } : rest;
+      const out = { ...d };
+      delete out.groupId;
+      delete out.parentId;
+      if (groupId) out.groupId = groupId;
+      return out;
     }),
   };
 }

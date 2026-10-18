@@ -53,7 +53,7 @@ export interface Store extends Lookups {
   createDoc: (input: NewDocInput) => Promise<string | null>;
 }
 
-export interface NewDocInput { title: string; productKey?: string; parentId?: string; template?: string; icon?: string; body?: string }
+export interface NewDocInput { title: string; productKey?: string; parentId?: string; groupId?: string; template?: string; icon?: string; body?: string }
 
 export type SignInResult =
   | { ok: true; home: string }

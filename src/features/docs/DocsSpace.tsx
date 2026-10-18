@@ -1,21 +1,51 @@
 "use client";
 
-// A docs space: its tree (with search and Markdown import by drag-and-drop) on the left, the home or a page on the right.
+// A docs space: its sidebar (groups and pages, search, Markdown import by drag-and-drop) on the left, the home or a
+// page on the right. The page stays put; the sidebar and the doc scroll on their own. The sidebar folds away (and
+// remembers that in this browser); a doc's top bar brings it back.
 import Link from "next/link";
-import { BookOpen, Plus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronRight, ChevronsLeft, ChevronsRight, FileText, Plus, Search } from "lucide-react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useDb } from "@/data/StoreProvider";
-import { IconButton } from "@/ui/primitives";
 import { searchDocs, type DocHit } from "./api";
 import { DocTree } from "./DocTree";
 import { useNewDoc } from "./NewDoc";
 import { docPath } from "./tree";
 
 const SEARCH_DELAY_MS = 200;
+const FOLDED_KEY = "onefold.docs.sidebar-folded";
+
+const Space = createContext<{ folded: boolean; setFolded: (f: boolean) => void; productKey: string }>({ folded: false, setFolded: () => {}, productKey: "" });
 
 /** "Plan «Postgres» search" → text with the matched words marked (never HTML from the server). */
 function Snippet({ text }: { text: string }) {
   return <>{text.split(/(«[^»]*»)/).map((part, i) => (part.startsWith("«") ? <mark key={i}>{part.slice(1, -1)}</mark> : part))}</>;
+}
+
+export interface Crumb { label: string; href?: string; icon?: React.ReactNode }
+
+/** The bar over a docs page: unfold the sidebar, where you are, and (right) whatever the page adds. */
+export function DocsTopBar({ crumbs, children }: { crumbs: Crumb[]; children?: React.ReactNode }) {
+  const { folded, setFolded } = useContext(Space);
+  return (
+    <div className="docs-topbar">
+      {folded && (
+        <button type="button" className="docs-topbar-btn" aria-label="Show the sidebar" title="Show the sidebar" onClick={() => setFolded(false)}>
+          <ChevronsRight aria-hidden />
+        </button>
+      )}
+      <nav className="docs-crumbs" aria-label="Breadcrumb">
+        {crumbs.map((c, i) => (
+          <span key={`${c.label}-${i}`} className="docs-crumb-wrap">
+            {i > 0 && <ChevronRight aria-hidden className="docs-crumb-sep" />}
+            {c.href ? <Link href={c.href} className="docs-crumb">{c.icon}<span>{c.label}</span></Link>
+              : <span className="docs-crumb is-current" aria-current="page">{c.icon}<span>{c.label}</span></span>}
+          </span>
+        ))}
+      </nav>
+      <span className="docs-topbar-end">{children}</span>
+    </div>
+  );
 }
 
 export function DocsSpace({ productKey, activeId, children }: { productKey: string; activeId?: string; children: React.ReactNode }) {
@@ -25,7 +55,16 @@ export function DocsSpace({ productKey, activeId, children }: { productKey: stri
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<DocHit[] | null>(null);
   const [over, setOver] = useState(false);
+  const [folded, setFoldedState] = useState(false);
   const canCreate = can("doc.create", { product });
+
+  useEffect(() => {
+    try { setFoldedState(localStorage.getItem(FOLDED_KEY) === "1"); } catch { /* per-browser convenience only */ } // eslint-disable-line react-hooks/set-state-in-effect -- this browser's choice
+  }, []);
+  const setFolded = (f: boolean) => {
+    setFoldedState(f);
+    try { localStorage.setItem(FOLDED_KEY, f ? "1" : "0"); } catch { /* per-browser convenience only */ }
+  };
 
   useEffect(() => {
     if (!q.trim()) { setHits(null); return; } // eslint-disable-line react-hooks/set-state-in-effect -- clearing the search
@@ -41,37 +80,47 @@ export function DocsSpace({ productKey, activeId, children }: { productKey: stri
   };
 
   return (
-    <div className="docs-space">
-      <aside
-        className={`docs-side docs-dropzone${over ? " is-over" : ""}`} aria-label={product ? `${product.name} docs` : "Company docs"}
-        onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setOver(true); } }}
-        onDragLeave={() => setOver(false)} onDrop={onDrop}
-      >
-        <div className="docs-side-head">
-          <Link href={href(productKey ? `/products/${productKey}/docs` : "/docs")} className="docs-side-title">
-            {product ? "Project docs" : "Company docs"}
-          </Link>
-          {canCreate && <IconButton label="New page" onClick={() => newDoc.open()}><Plus /></IconButton>}
-        </div>
-        <label className="docs-search">
-          <Search aria-hidden />
-          <input type="search" placeholder="Search docs" aria-label="Search docs" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
-        {hits && (
-          <div className="docs-hits" role="list" aria-label="Search results">
-            {hits.length ? hits.map((h) => (
-              <Link key={h.id} href={href(docPath(h))} className="docs-hit" role="listitem" onClick={() => setQ("")}>
-                <span className="docs-hit-title">{h.icon ? `${h.icon} ` : ""}{h.title}</span>
-                {h.snippet && <span className="docs-hit-snippet"><Snippet text={h.snippet} /></span>}
+    <Space.Provider value={{ folded, setFolded, productKey }}>
+      <div className={`docs-space${folded ? " is-folded" : ""}`}>
+        {!folded && (
+          <aside
+            className={`docs-side docs-dropzone${over ? " is-over" : ""}`} aria-label={product ? `${product.name} docs` : "Company docs"}
+            onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setOver(true); } }}
+            onDragLeave={() => setOver(false)} onDrop={onDrop}
+          >
+            <div className="docs-side-head">
+              <Link href={href(productKey ? `/products/${productKey}/docs` : "/docs")} className="docs-side-title">
+                <span className="docs-side-mark" aria-hidden><FileText /></span>
+                {product ? `${product.name} docs` : "Company docs"}
               </Link>
-            )) : <p className="doc-tree-empty">Nothing found for “{q}”</p>}
-          </div>
+              <button type="button" className="doc-row-btn" aria-label="Hide the sidebar" title="Hide the sidebar" onClick={() => setFolded(true)}><ChevronsLeft aria-hidden /></button>
+            </div>
+            <label className="docs-search">
+              <Search aria-hidden />
+              <input type="search" placeholder="Search docs" aria-label="Search docs" value={q} onChange={(e) => setQ(e.target.value)} />
+            </label>
+            {canCreate && (
+              <button type="button" className="docs-new" onClick={() => void newDoc.blank()}>
+                <Plus aria-hidden /> New page
+              </button>
+            )}
+            {hits && (
+              <div className="docs-hits" role="list" aria-label="Search results">
+                {hits.length ? hits.map((h) => (
+                  <Link key={h.id} href={href(docPath(h))} className="docs-hit" role="listitem" onClick={() => setQ("")}>
+                    <span className="docs-hit-title">{h.icon ? `${h.icon} ` : ""}{h.title}</span>
+                    {h.snippet && <span className="docs-hit-snippet"><Snippet text={h.snippet} /></span>}
+                  </Link>
+                )) : <p className="sidebar-empty">Nothing found for “{q}”</p>}
+              </div>
+            )}
+            <DocTree productKey={productKey} activeId={activeId} onNewPage={(where) => void newDoc.blank(where)} />
+            {canCreate && <p className="docs-side-hint">Tip: drop a .md file here to import it</p>}
+          </aside>
         )}
-        <DocTree productKey={productKey} activeId={activeId} onNewPage={(parentId) => newDoc.open(parentId)} />
-        {canCreate && <p className="doc-tree-empty"><BookOpen aria-hidden style={{ width: 14, height: 14, verticalAlign: -2 }} /> Drop a .md file here to import it</p>}
-      </aside>
-      <div className="docs-main">{children}</div>
-      {newDoc.picker}
-    </div>
+        <div className="docs-main">{children}</div>
+        {newDoc.picker}
+      </div>
+    </Space.Provider>
   );
 }

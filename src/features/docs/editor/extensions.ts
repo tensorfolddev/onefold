@@ -6,7 +6,8 @@ import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import { Markdown } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
@@ -18,6 +19,23 @@ export const lowlight = createLowlight(common);
 
 export const HEADER_COLORS = ["gray", "blue", "green", "yellow", "orange", "red", "purple", "pink"] as const;
 const STYLED_TABLE = /^<!-- table: header=([a-z]+) -->[ \t]*\n((?:[ \t]*\|.*(?:\n|$))+)/;
+
+/** The table's editor view, kept in step with its header colour (the stock view only updates column widths). */
+class ColoredTableView extends TableView {
+  constructor(...args: ConstructorParameters<typeof TableView>) {
+    super(...args);
+    this.paint(args[0]);
+  }
+  update(node: PMNode) {
+    const ok = super.update(node);
+    if (ok) this.paint(node);
+    return ok;
+  }
+  private paint(node: PMNode) {
+    const color = node.attrs.headerColor as string | null;
+    if (color) this.table.dataset.headerColor = color; else delete this.table.dataset.headerColor;
+  }
+}
 
 /**
  * Tables, with an optional header colour. Markdown has no colours, so a coloured table carries a one-line comment
@@ -39,7 +57,7 @@ const DocTable = Table.extend({
     const color = args[0]?.attrs?.headerColor;
     return color ? `<!-- table: header=${color} -->\n${md}` : md;
   },
-}).configure({ resizable: false });
+}).configure({ resizable: false, View: ColoredTableView });
 
 /** Reads the coloured-table comment and the table after it (its own token, since handlers go by token name). */
 const StyledTable = Extension.create({

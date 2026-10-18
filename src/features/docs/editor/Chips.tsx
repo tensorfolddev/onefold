@@ -4,7 +4,7 @@
 // ticket's current title and status. Anything you can't see (or that's gone) shows as its plain label.
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, FileText, Link2, Trash2 } from "lucide-react";
+import { Download, ExternalLink, File as FileIcon, FileArchive, FileImage, FileSpreadsheet, FileText, Link2, Presentation, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/data/api";
 import { useDb } from "@/data/StoreProvider";
@@ -15,7 +15,7 @@ import { Avatar } from "@/ui/primitives";
 import type { Preview } from "@/server/unfurl";
 import { docPath } from "../tree";
 import { safeHref } from "./links";
-import { LinkCard, Mention, Ref } from "./nodes";
+import { FileCard, LinkCard, Mention, Ref } from "./nodes";
 
 function MentionView({ node }: NodeViewProps) {
   const { personById } = useDb();
@@ -102,10 +102,42 @@ function LinkCardView({ node, editor, getPos, deleteNode, selected }: NodeViewPr
   );
 }
 
-/** The three nodes with their live views — the editor swaps these in for the plain ones. */
+/** A file's icon by its extension. */
+function FileTypeIcon({ name }: { name: string }) {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "heic"].includes(ext)) return <FileImage />;
+  if (["xls", "xlsx", "csv", "numbers"].includes(ext)) return <FileSpreadsheet />;
+  if (["ppt", "pptx", "key"].includes(ext)) return <Presentation />;
+  if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return <FileArchive />;
+  if (["pdf", "doc", "docx", "txt", "md", "rtf", "pages"].includes(ext)) return <FileText />;
+  return <FileIcon />;
+}
+
+function FileCardView({ node, editor, deleteNode, selected }: NodeViewProps) {
+  const href = safeHref(String(node.attrs.href)) ?? "";
+  const name = String(node.attrs.name || "file");
+  const ext = name.includes(".") ? name.split(".").pop()!.toUpperCase() : "FILE";
+  return (
+    <NodeViewWrapper className={`doc-file-card${selected ? " is-selected" : ""}`} data-drag-handle>
+      <a href={`${href}?download=1`} download={name} className="file-card" contentEditable={false}>
+        <span className="file-card-icon" aria-hidden><FileTypeIcon name={name} /></span>
+        <span className="file-card-text"><span className="file-card-name">{name}</span><span className="file-card-meta">{ext} · Download</span></span>
+        <Download aria-hidden className="file-card-dl" />
+      </a>
+      {editor.isEditable && (
+        <span className="link-card-tools" contentEditable={false}>
+          <button type="button" aria-label={`Remove ${name}`} onClick={deleteNode}><Trash2 aria-hidden /></button>
+        </span>
+      )}
+    </NodeViewWrapper>
+  );
+}
+
+/** The nodes with their live views — the editor swaps these in for the plain ones. */
 export const chipExtensions = [
   Mention.extend({ addNodeView: () => ReactNodeViewRenderer(MentionView) }),
   Ref.extend({ addNodeView: () => ReactNodeViewRenderer(RefView) }),
   LinkCard.extend({ addNodeView: () => ReactNodeViewRenderer(LinkCardView) }),
+  FileCard.extend({ addNodeView: () => ReactNodeViewRenderer(FileCardView) }),
 ];
-export const CHIP_NODES = new Set(["mention", "ref", "linkCard"]);
+export const CHIP_NODES = new Set(["mention", "ref", "linkCard", "fileCard"]);

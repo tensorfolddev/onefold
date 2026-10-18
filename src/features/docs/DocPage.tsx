@@ -14,8 +14,10 @@ import type { Doc } from "@/domain/types";
 import { EmojiGrid } from "@/ui/EmojiGrid";
 import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
-import type { DocLinks, Heading } from "./editor/DocEditor";
+import { upload } from "@/data/api";
+import type { DocLinks, Heading, Uploaded } from "./editor/DocEditor";
 import { ancestorsOf, COVERS, coverCss, docPath, downloadMarkdown, readingMinutes } from "./tree";
+import { DocsTopBar } from "./DocsSpace";
 import { useDocBody } from "./useDocBody";
 
 const DocEditor = dynamic(() => import("./editor/DocEditor"), { ssr: false, loading: () => <div className="doc-skeleton" aria-busy="true" /> });
@@ -49,6 +51,15 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
   }), [db.people, db.tickets, db.docs, product, doc.id]);
 
   const onChange = useCallback((md: string) => { setLatest(md); b.setDraft(md); }, [b]);
+  const uploadFile = useCallback(async (file: File): Promise<Uploaded | null> => {
+    if (file.size > 25 * 1024 * 1024) { toast(`${file.name} is over 25 MB`, undefined, "error"); return null; }
+    try {
+      return await upload<Uploaded>(`/api/files?doc=${encodeURIComponent(doc.id)}&name=${encodeURIComponent(file.name || "file")}`, file);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : `Couldn't upload ${file.name}`, undefined, "error");
+      return null;
+    }
+  }, [doc.id, toast]);
   const onHeadings = useCallback((h: Heading[]) => setHeadings((cur) => (sameHeadings(cur, h) ? cur : h)), []);
   const saveTitle = () => {
     const next = title.trim();
@@ -73,10 +84,42 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
 
   return (
     <article className={`doc-page${doc.cover ? " has-cover" : ""}`} aria-labelledby="doc-title">
-      <nav className="doc-meta doc-crumbs" aria-label="Breadcrumb">
-        <Link href={href(product ? `/products/${product.key}/docs` : "/docs")}>{product ? product.name : "Company docs"}</Link>
-        {crumbs.map((c) => (<span key={c.id} style={{ display: "contents" }}><span aria-hidden>/</span><Link href={href(docPath(c))}>{c.icon ?? ""} {c.title}</Link></span>))}
-      </nav>
+      <DocsTopBar crumbs={[
+        { label: product ? product.name : "Company docs", href: href(product ? `/products/${product.key}/docs` : "/docs") },
+        ...crumbs.map((c) => ({ label: c.title, href: href(docPath(c)), icon: c.icon ? <span aria-hidden>{c.icon}</span> : undefined })),
+        { label: doc.title, icon: doc.icon ? <span aria-hidden>{doc.icon}</span> : undefined },
+      ]}>
+        {status && <span className={`doc-saving ${status.cls}`} role="status">{status.text}</span>}
+
+            {others.length > 0 && (
+              <span className="avatar-stack" title={others.map((p) => personById(p.personId)?.name).join(", ")} aria-label={`Also here: ${others.map((p) => personById(p.personId)?.name).join(", ")}`}>
+                {others.slice(0, 4).map((p) => <Avatar key={p.personId} personId={p.personId} size="sm" />)}
+              </span>
+            )}
+            <Popover width={230} align="right" floating trigger={({ toggle }) => (
+              <button type="button" className="docs-topbar-btn" aria-label="Page actions" onClick={toggle}><MoreHorizontal aria-hidden /></button>
+            )}>
+              {(close) => (
+                <>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copy("Link", `${location.origin}${href(`/d/${doc.id}`)}`); }}><Link2 aria-hidden /> Copy link</button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copy("Markdown", `# ${doc.title}\n\n${text}`); }}><Copy aria-hidden /> Copy as Markdown</button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); downloadMarkdown(doc.title, text); }}><Download aria-hidden /> Export as Markdown</button>
+                  {isAdmin && !doc.archivedAt && (
+                    <>
+                      <div className="menu-divider" />
+                      <button type="button" role="menuitem" className="menu-item is-danger" onClick={() => {
+                        close();
+                        if (act((d, m) => archiveDocs(d, m, [doc.id]))) {
+                          toast(`${doc.title} archived — find it in Settings → Archived`, undefined, "success");
+                          router.push(href(product ? `/products/${product.key}/docs` : "/docs"));
+                        }
+                      }}><Archive aria-hidden /> Archive page</button>
+                    </>
+                  )}
+                </>
+              )}
+            </Popover>
+      </DocsTopBar>
       {doc.cover && <div className="doc-cover" style={{ "--cover": coverCss(doc.cover) } as React.CSSProperties} aria-hidden />}
       {/* The writing column, and beside it (when there's room) the contents, which stays in view as you scroll. */}
       <div className={`doc-grid${headings.length > 2 ? " has-toc" : ""}`}>
@@ -130,37 +173,6 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
           {editedBy && <><Avatar personId={editedBy.id} size="sm" /> <span>Edited {relativeTime(doc.updatedAt ?? `${doc.updated}T00:00:00Z`)} ago by {editedBy.name.split(" ")[0]}</span></>}
           <span className="dot" aria-hidden />
           <span>{readingMinutes(text)} min read</span>
-          {status && <><span className="dot" aria-hidden /><span className={`doc-saving ${status.cls}`} role="status">{status.text}</span></>}
-          <span className="doc-presence">
-            {others.length > 0 && (
-              <span className="avatar-stack" title={others.map((p) => personById(p.personId)?.name).join(", ")} aria-label={`Also here: ${others.map((p) => personById(p.personId)?.name).join(", ")}`}>
-                {others.slice(0, 4).map((p) => <Avatar key={p.personId} personId={p.personId} size="sm" />)}
-              </span>
-            )}
-            <Popover width={230} align="right" floating trigger={({ toggle }) => (
-              <button type="button" className="doc-head-tool" aria-label="Page actions" onClick={toggle}><MoreHorizontal aria-hidden /></button>
-            )}>
-              {(close) => (
-                <>
-                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copy("Link", `${location.origin}${href(`/d/${doc.id}`)}`); }}><Link2 aria-hidden /> Copy link</button>
-                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copy("Markdown", `# ${doc.title}\n\n${text}`); }}><Copy aria-hidden /> Copy as Markdown</button>
-                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); downloadMarkdown(doc.title, text); }}><Download aria-hidden /> Export as Markdown</button>
-                  {isAdmin && !doc.archivedAt && (
-                    <>
-                      <div className="menu-divider" />
-                      <button type="button" role="menuitem" className="menu-item is-danger" onClick={() => {
-                        close();
-                        if (act((d, m) => archiveDocs(d, m, [doc.id]))) {
-                          toast(`${doc.title} archived — find it in Settings → Archived`, undefined, "success");
-                          router.push(href(product ? `/products/${product.key}/docs` : "/docs"));
-                        }
-                      }}><Archive aria-hidden /> Archive page</button>
-                    </>
-                  )}
-                </>
-              )}
-            </Popover>
-          </span>
         </div>
       </header>
 
@@ -193,7 +205,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
       <div className="doc-body">
         {b.status === "error" ? <div className="docs-empty">{b.error}</div>
           : b.status === "loading" ? <div className="doc-skeleton" aria-busy="true" />
-          : <DocEditor key={b.reloadKey} body={b.body} editable={editable} onChange={onChange} onHeadings={onHeadings} links={links} />}
+          : <DocEditor key={b.reloadKey} body={b.body} editable={editable} onChange={onChange} onHeadings={onHeadings} links={links} uploadFile={uploadFile} />}
         {b.backlinks.length > 0 && (
           <footer className="doc-backlinks" aria-labelledby="backlinks-title">
             <h2 id="backlinks-title" className="doc-toc-title">Linked from</h2>
