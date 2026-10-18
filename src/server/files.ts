@@ -5,10 +5,12 @@
 // ponytail: local disk, one server. With several servers or lots of files, swap this for S3-compatible storage here.
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { eq, sql } from "drizzle-orm";
-import { addAttachment, ValidationError } from "../domain/commands/index.ts";
+import { and, eq, sql } from "drizzle-orm";
+import { AccessError, addAttachment, ValidationError } from "../domain/commands/index.ts";
+import { can } from "../domain/permissions.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
 import { personFor, type SessionRow } from "./accounts.ts";
+import type { Loaded } from "./company/store.ts";
 import { newId } from "./auth/secrets.ts";
 import { mustLoad } from "./changes.ts";
 import { saveCompany } from "./company/store.ts";
@@ -17,6 +19,7 @@ import * as s from "./db/schema.ts";
 import { journal } from "./journal.ts";
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_DOC_FILE_BYTES = 25 * 1024 * 1024; // any file in a doc; images show inline, the rest download
 const MAX_SIDE = 20_000; // px — anything bigger is a broken (or hostile) header
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/; // org and file ids (base64url): never "..", never a slash
 const CLEANUP_GRACE_MS = 60 * 60_000; // an upload is on disk a moment before its ticket mentions it
@@ -62,8 +65,8 @@ export function inspectImage(b: Buffer): ImageInfo | null {
 }
 
 /** A request body of at most `max` bytes — stops reading (and refuses) as soon as it's over. */
-export async function readUpTo(req: Request, max: number): Promise<Buffer> {
-  const tooBig = () => new ValidationError(`Images can be at most ${Math.round(max / 1024 / 1024)} MB`);
+export async function readUpTo(req: Request, max: number, what = "Images"): Promise<Buffer> {
+  const tooBig = () => new ValidationError(`${what} can be at most ${Math.round(max / 1024 / 1024)} MB`);
   if (Number(req.headers.get("content-length") ?? 0) > max) throw tooBig();
   const reader = req.body?.getReader();
   if (!reader) throw new ValidationError("No image was sent");
@@ -79,7 +82,7 @@ export async function readUpTo(req: Request, max: number): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-const cleanName = (name: string) => name.replace(/[\u0000-\u001f\u007f/\\]/g, "").trim().slice(0, 200) || "image";
+const cleanName = (name: string) => name.replace(/[\u0000-\u001f\u007f/\\]/g, "").trim().slice(0, 200) || "file";
 const PLACEHOLDER = { id: "check", name: "check", type: "image/png", size: 1, width: 1, height: 1 };
 
 /** Refuses an upload before any bytes are read: unknown ticket, no right to edit it, or no room for another image. */
@@ -118,18 +121,72 @@ export async function uploadImage(who: SessionRow, input: { ticketKey: string; n
   }
 }
 
-/** An image the signed-in person may see (it's on a ticket they can see), or null. */
-export async function readImage(who: SessionRow, id: string): Promise<{ bytes: Buffer; type: string; name: string } | null> {
+// ---------- files in docs: any kind, up to 25 MB ----------
+
+/** The doc, if this person may add files to it: they can see it, may edit it, and it isn't archived. */
+function editableDoc(loaded: Loaded, who: SessionRow, docId: string) {
+  const me = personFor(loaded, who.userId);
+  const doc = snapshotFor(loaded.db, me).docs.find((d) => d.id === docId);
+  if (!doc) throw new ValidationError("Document not found");
+  if (doc.archivedAt) throw new ValidationError(`${doc.title} is archived — restore it first`);
+  const product = doc.productKey ? loaded.db.products.find((p) => p.key === doc.productKey) : undefined;
+  if (!can(me, "doc.edit", { product })) throw new AccessError();
+  return { me, doc };
+}
+
+/** Refuses an upload to a doc before any bytes are read. */
+export async function checkDocUpload(who: SessionRow, docId: string): Promise<void> {
+  await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => { editableDoc(await mustLoad(tx, who), who, docId); });
+}
+
+/** What a doc file is, from its bytes: an image (by its header), a PDF, or anything else (always downloaded). */
+export function fileType(b: Buffer): string {
+  const image = inspectImage(b);
+  if (image) return image.type;
+  if (b.subarray(0, 5).toString("ascii") === "%PDF-") return "application/pdf";
+  return "application/octet-stream";
+}
+
+/** Adds any file to a doc: written to disk, then recorded against the doc (removed again if that fails). */
+export async function uploadDocFile(who: SessionRow, input: { docId: string; name: string }, bytes: Buffer): Promise<{ id: string; name: string; type: string; size: number }> {
+  if (!bytes.length) throw new ValidationError("That file is empty");
+  const type = fileType(bytes);
+  const id = newId("file");
+  const name = cleanName(input.name);
+  const path = fileAt(who.orgId, id);
+  await mkdir(/*turbopackIgnore: true*/ dirname(path), { recursive: true, mode: 0o750 });
+  await writeFile(/*turbopackIgnore: true*/ path, bytes, { mode: 0o640, flag: "wx" });
+  try {
+    await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+      const { me } = editableDoc(await mustLoad(tx, who), who, input.docId);
+      await tx.insert(s.docFiles).values({ orgId: who.orgId, id, docId: input.docId, name, type, size: bytes.length, uploadedBy: me.id });
+    });
+  } catch (e) {
+    await rm(/*turbopackIgnore: true*/ path, { force: true });
+    throw e;
+  }
+  return { id, name, type, size: bytes.length };
+}
+
+/**
+ * A ticket image or doc file the signed-in person may see (it's on a ticket or in a doc they can see), or null.
+ * `download`: not an image, so it's only ever saved, never shown in the browser.
+ */
+export async function readImage(who: SessionRow, id: string): Promise<{ bytes: Buffer; type: string; name: string; download?: boolean } | null> {
   if (!ID_RE.test(id)) return null;
   // ponytail: loads the whole company per image; browsers keep each image for an hour, so it stays rare.
   const att = await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
     const loaded = await mustLoad(tx, who);
-    const visible = snapshotFor(loaded.db, personFor(loaded, who.userId)).tickets;
-    return visible.flatMap((t) => t.attachments ?? []).find((a) => a.id === id) ?? null;
+    const view = snapshotFor(loaded.db, personFor(loaded, who.userId));
+    const onTicket = view.tickets.flatMap((t) => t.attachments ?? []).find((a) => a.id === id);
+    if (onTicket) return onTicket;
+    const [f] = await tx.select().from(s.docFiles).where(and(eq(s.docFiles.orgId, who.orgId), eq(s.docFiles.id, id)));
+    if (!f || !view.docs.some((d) => d.id === f.docId)) return null;
+    return { id: f.id, name: f.name, type: f.type, download: !f.type.startsWith("image/") };
   });
   if (!att) return null;
   try {
-    return { bytes: await readFile(/*turbopackIgnore: true*/ fileAt(who.orgId, id)), type: att.type, name: att.name };
+    return { bytes: await readFile(/*turbopackIgnore: true*/ fileAt(who.orgId, id)), type: att.type, name: att.name, download: "download" in att ? att.download : false };
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw e;
@@ -149,9 +206,10 @@ export async function cleanupFiles(now = Date.now()): Promise<number> {
     // Under the company's lock, so no upload, change or Undo can move an image while we decide and delete.
     removed += await inScope({ orgId, lock: true }, async (tx) => {
       const onTickets = await tx.select({ id: s.attachments.id }).from(s.attachments).where(eq(s.attachments.orgId, orgId));
+      const inDocs = await tx.select({ id: s.docFiles.id }).from(s.docFiles).where(eq(s.docFiles.orgId, orgId));
       const inUndo = await tx.execute(sql`select distinct jsonb_path_query(before, '$.tickets[*].attachments[*].id') #>> '{}' as id
         from undo_points where org_id = ${orgId}`);
-      const used = new Set([...onTickets.map((r) => r.id), ...(inUndo.rows as { id: string }[]).map((r) => r.id)]);
+      const used = new Set([...onTickets.map((r) => r.id), ...inDocs.map((r) => r.id), ...(inUndo.rows as { id: string }[]).map((r) => r.id)]);
       let n = 0;
       for (const name of names) {
         if (used.has(name)) continue;

@@ -212,6 +212,17 @@ export const docBodies = pgTable("doc_bodies", {
   updatedBy: text("updated_by"),
 }, (t) => [primaryKey({ columns: [t.orgId, t.docId] }), companyRows()]);
 
+/** Images and files in docs (the bytes live on disk like ticket images): which doc each belongs to, for access. */
+export const docFiles = pgTable("doc_files", {
+  ...keyed,
+  docId: text("doc_id").notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // what the bytes are (images by their header); other files are served as downloads
+  size: integer("size").notNull(),
+  uploadedBy: text("uploaded_by"),
+  at: ts("at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("doc_files_doc").on(t.orgId, t.docId), companyRows()]);
+
 /** What each doc's body points at — people (mentions), tickets and docs — rebuilt on every save: backlinks and notices. */
 export const docLinks = pgTable("doc_links", {
   orgId: text("org_id").notNull(),
