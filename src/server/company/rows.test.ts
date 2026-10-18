@@ -40,3 +40,18 @@ test("rows compare equal whatever order jsonb puts object keys in", () => {
   assert.equal(stableJson({ b: 1, a: { d: [1, { y: 2, x: 1 }], c: null } }), stableJson({ a: { c: null, d: [1, { x: 1, y: 2 }] }, b: 1 }));
   assert.equal(stableJson({ a: undefined, b: 1 }), stableJson({ b: 1 }));
 });
+
+test("docs keep their space, nesting, icon and archive through rows and back", () => {
+  const db = demoDb();
+  const extra = [
+    { id: "d-co", productKey: "", kind: "Brief" as const, title: "Handbook", icon: "📘", updated: "2026-10-18", authorId: "u-tayyab",
+      createdAt: "2026-10-18T09:00:00Z", updatedAt: "2026-10-18T09:05:00Z", updatedBy: "u-sara", rev: 4 },
+    { id: "d-kid", productKey: "AP", parentId: "d-co", kind: "Design" as const, title: "Child", template: "design", cover: "dawn",
+      updated: "2026-10-18", authorId: "u-sara", archivedAt: "2026-10-18T10:00:00Z", archivedBy: "u-tayyab" },
+  ];
+  const withDocs = { ...db, docs: [...db.docs, ...extra] };
+  const rows = toRows(withDocs);
+  assert.equal(rows.docs.find((r) => r.id === "d-co")!.productId, null); // the company's space is stored as NULL
+  const back = fromRows(orgRow(withDocs), withPositions(rows), new Map(db.people.map((p) => [p.id, p.email])));
+  assert.deepEqual(back.docs.slice(-2), extra);
+});
