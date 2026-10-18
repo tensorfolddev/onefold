@@ -210,7 +210,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const party = cheer(finished(cur.db, next));
     if (party) {
       toast(party.message, opts.success && opts.undoable ? undo : undefined);
-      celebrate(party.big, party.title);
+      celebrate(party.big);
     } else if (opts.success) toast(opts.success, opts.undoable ? undo : undefined);
     send("/api/org/changes", { steps, undoable: !!opts.undoable });
     return isKeyed ? (result as { key: K }).key : (true as const);

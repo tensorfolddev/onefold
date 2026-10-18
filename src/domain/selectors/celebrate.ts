@@ -28,11 +28,12 @@ export function finished(before: Db, after: Db): Finished {
 }
 
 /** The words for it, and whether it's a big one (a whole epic). Null when there's nothing to cheer. */
-export function cheer({ tickets, epics }: Finished): { message: string; big: boolean; title?: string } | null {
+export function cheer({ tickets, epics }: Finished): { message: string; big: boolean } | null {
   if (epics.length) {
     const { epic, count } = epics[0];
     const more = epics.length > 1 ? ` (and ${epics.length - 1} more epic${epics.length > 2 ? "s" : ""})` : "";
-    return { message: `🏆 Epic complete: ${epic.title} — all ${count} tickets finished${more}. Amazing work!`, big: true, title: epic.title };
+    const finishedAll = count === 1 ? "its only ticket is finished" : `all ${count} tickets finished`;
+    return { message: `🏆 Epic complete: ${epic.title} — ${finishedAll}${more}. Amazing work!`, big: true };
   }
   if (tickets.length === 1) return { message: `🎉 ${tickets[0].key} is done — nice work!`, big: false };
   if (tickets.length) return { message: `🎉 ${tickets.length} tickets done — great going!`, big: false };

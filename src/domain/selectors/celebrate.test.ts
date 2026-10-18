@@ -47,5 +47,7 @@ test("the cheer: one ticket, several, or a whole epic", () => {
   const epic = cheer(finished(almost, moveTicket(almost, admin, OPEN_IN_EPIC.at(-1)!, DONE)))!;
   assert.equal(epic.big, true);
   assert.match(epic.message, /^🏆 Epic complete: .+ — all 8 tickets finished/);
+  const ap3 = db0.tickets.find((t) => t.key === "AP-3")!;
+  assert.match(cheer({ tickets: [], epics: [{ epic: ap3, count: 1 }] })!.message, /— its only ticket is finished\. Amazing work!$/);
   assert.equal(cheer(finished(db0, db0)), null);
 });
