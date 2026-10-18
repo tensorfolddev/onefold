@@ -470,7 +470,7 @@ button.ticket-description:hover { background-color: var(--primary-background-hov
 .epic-card-badge svg { width: 16px; height: 16px; }
 .epic-card-head .key { font-weight: 600; color: var(--primary-text-color); }
 .epic-card-pill {
-  margin-left: auto; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  margin-left: auto; padding: 2px 8px; border-radius: var(--border-radius-small); font-size: 11px; font-weight: 700;
   letter-spacing: 0.06em; text-transform: uppercase;
   color: color-mix(in srgb, var(--epic-c) 85%, var(--primary-text-color));
   background: color-mix(in srgb, var(--epic-c) 16%, var(--primary-background-color));
@@ -524,18 +524,40 @@ button.ticket-description:hover { background-color: var(--primary-background-hov
 .epic-chip {
   --e: var(--epic, var(--color-purple));
   display: inline-flex; align-items: center; gap: 4px; flex: none; min-width: 0; max-width: 170px; height: 22px; padding: 0 8px 0 6px;
-  border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap;
+  border-radius: var(--border-radius-small); font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap;
   color: color-mix(in srgb, var(--e) 72%, var(--primary-text-color));
   background: color-mix(in srgb, var(--e) 13%, var(--primary-background-color));
   border: 1px solid color-mix(in srgb, var(--e) 30%, transparent);
 }
 .epic-chip svg { width: 12px; height: 12px; flex: none; color: var(--e); }
 .epic-chip-name { overflow: hidden; text-overflow: ellipsis; }
-.epic-chip-btn { display: inline-flex; margin-left: 4px; border-radius: 999px; }
+.epic-chip-btn { display: inline-flex; margin-left: 4px; border-radius: var(--border-radius-small); }
 .epic-chip-btn:hover .epic-chip { background: color-mix(in srgb, var(--e) 22%, var(--primary-background-color)); }
 .epic-chip-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 .kanban-card-key { min-width: 0; width: 100%; }
 .kanban-card-key .epic-chip { margin-left: auto; max-width: 150px; }
+/* Priority on a card: a small tag in its colour, first in the bottom row — then the due date, then the people. */
+.card-priority {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 7px; border-radius: var(--border-radius-small);
+  font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap;
+  color: var(--prio); background: color-mix(in srgb, var(--prio) 13%, var(--primary-background-color));
+}
+.card-priority svg { width: 11px; height: 11px; }
+/* Priority and due date on cards: small tags with a coloured bar down their left edge — the priority's colour; for the
+   date, grey, red once it's overdue, green when done. */
+.card-priority, .kanban-card .due-chip { position: relative; overflow: hidden; padding-left: 10px; }
+.card-priority::before, .kanban-card .due-chip::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--bar); }
+.card-priority { --bar: var(--prio); }
+.kanban-card .due-chip { --bar: var(--secondary-text-color); padding-right: 7px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.kanban-card .due-chip:has(.is-overdue) {
+  --bar: var(--negative-color); color: var(--negative-color);
+  background: color-mix(in srgb, var(--negative-color) 10%, var(--primary-background-color));
+}
+.kanban-card .due-chip:has(.is-done) { --bar: #00a35c; }
+.kanban-card .due-chip.is-empty { --bar: var(--ui-border-color); color: var(--secondary-text-color); font-weight: 400; }
+.kanban-card .due-chip svg { width: 13px; height: 13px; }
+/* A crowded bottom row shortens its "Blocked by…" chip, never pushes the people off the card. */
+.kanban-card-meta > .blocked-chip { flex-shrink: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ticket-grid .col-ticket .ticket-title { flex: 1 1 0; min-width: 72px; } /* the title always wins the space */
 .ticket-grid .col-ticket .epic-chip { flex: 0 1 auto; max-width: 40%; }
 .mw-cell-name { gap: 8px; }

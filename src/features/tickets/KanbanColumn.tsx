@@ -8,7 +8,7 @@ import { useDb } from "@/data/StoreProvider";
 import { heldUp, openBlockers } from "@/domain/selectors/blocked";
 import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
-import { Assignees, DueDate, EpicChip, TypeIcon } from "./TicketBits";
+import { Assignees, DueDate, EpicChip, PriorityChip, TypeIcon } from "./TicketBits";
 import { ListHeader, TaskComposer } from "./KanbanLists";
 import { useIsDone } from "./TemplateRelations";
 
@@ -58,7 +58,8 @@ const EpicCardView = memo(function EpicCardView({ ticket }: { ticket: Ticket }) 
       <span className="epic-card-title">{ticket.title}</span>
       <EpicProgress epic={ticket} />
       <span className="epic-card-foot">
-        {ticket.due ? <DueDate ticket={ticket} done={false} /> : <span className="muted">No due date</span>}
+        <PriorityChip priority={ticket.priority} />
+        {ticket.due ? <span className="due-chip"><DueDate ticket={ticket} done={false} /></span> : <span className="due-chip is-empty">No date</span>}
         <span className="spacer" />
         <Assignees ids={ticket.assigneeIds} />
       </span>
@@ -76,6 +77,7 @@ export const CardView = memo(function CardView({ ticket }: { ticket: Ticket }) {
       <span className="kanban-card-key"><TypeIcon type={ticket.type} /><span className="key">{ticket.key}</span><EpicChip ticket={ticket} /></span>
       <span className="kanban-card-title">{ticket.title}</span>
       <span className="kanban-card-meta">
+        <PriorityChip priority={ticket.priority} />
         {ticket.due && <span className="due-chip"><DueDate ticket={ticket} done={status?.category === "done"} /></span>}
         <BlockedChip ticket={ticket} />
         <span className="spacer" />

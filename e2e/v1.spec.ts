@@ -371,7 +371,8 @@ test("sidebar groups: every count lines up, and a group's ⋯ shows only on hove
   await expect(alpha).toBeVisible();
   await expect(ungrouped).toBeVisible();
   await page.mouse.move(0, 0); // the new group may have appeared under the pointer
-  expect(Math.abs((await countEnd(alpha)) - (await countEnd(ungrouped)))).toBeLessThan(1); // one column, ⋯ or not
+  // One column, ⋯ or not — measured until the sidebar has settled (on a busy CI it may still be moving).
+  await expect.poll(async () => Math.abs((await countEnd(alpha)) - (await countEnd(ungrouped)))).toBeLessThan(1);
 
   const more = alpha.getByRole("button", { name: "Alpha group options" });
   await page.mouse.move(0, 0);
