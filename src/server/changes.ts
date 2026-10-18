@@ -7,7 +7,7 @@ import type { Db } from "../data/db.ts";
 import { AccessError, commands, INVITE_DAYS, inviteMembers, ValidationError, type CommandName, type InviteInput } from "../domain/commands/index.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
 import type { Panel, Person } from "../domain/types.ts";
-import { emailVerified, personFor, type SessionRow } from "./accounts.ts";
+import { emailInACompany, emailVerified, ONE_COMPANY, personFor, type SessionRow } from "./accounts.ts";
 import { newToken, sha256 } from "./auth/secrets.ts";
 import { loadCompany, saveCompany, type Loaded } from "./company/store.ts";
 import { inScope, type Tx } from "./db/client.ts";
@@ -137,6 +137,10 @@ export interface CreatedInvite { id: string; email: string; panel: Panel; role: 
 export async function createInvites(who: SessionRow, invites: InviteInput[], appUrl: string): Promise<{ version: number; invites: CreatedInvite[] }> {
   if (!Array.isArray(invites)) throw new ValidationError("Add at least one email");
   if (emailEnabled() && !(await emailVerified(who.userId))) throw new ValidationError("Confirm your email first — open the link we emailed you");
+  for (const inv of invites) {
+    const email = String(inv?.email ?? "").trim().toLowerCase();
+    if (email && await emailInACompany(email)) throw new ValidationError(`${email} ${ONE_COMPANY}`);
+  }
   const tokens = invites.map(() => newToken());
   const made = await inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
     const loaded = await mustLoad(tx, who);
