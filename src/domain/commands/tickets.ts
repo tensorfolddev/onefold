@@ -7,7 +7,10 @@ import { check, fail, id, log, positiveNumberError, productOf, replace, required
 
 // ---------- tickets ----------
 export type TicketPatch = Partial<Pick<Ticket,
-  "title" | "type" | "epicKey" | "assigneeId" | "priority" | "due" | "estimateH" | "requirementId" | "statusId" | "color">>;
+  "title" | "type" | "epicKey" | "assigneeIds" | "priority" | "due" | "estimateH" | "requirementId" | "statusId" | "color">>;
+/** Older clients (and older steps) send one assignee; it means "just this person" (none = unassigned). */
+type LegacyPatch = TicketPatch & { assigneeId?: string };
+const MAX_ASSIGNEES = 20;
 
 const EPIC_STAYS = "Epics stay in the Epic list — give them a colour instead of a status";
 const EPIC_ONLY = "Only epics go in the Epic list";
@@ -44,7 +47,9 @@ export function createTicket(
 
 const PRIORITY_LABEL: Record<Priority, string> = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
 
-export function updateTicket(db: Db, me: Person, key: string, patch: TicketPatch): Db {
+export function updateTicket(db: Db, me: Person, key: string, given: LegacyPatch): Db {
+  const { assigneeId: one, ...rest } = given;
+  const patch: TicketPatch = "assigneeId" in given ? { ...rest, assigneeIds: one ? [one] : [] } : rest;
   const cur = ticketOf(db, key);
   check(me, "ticket.edit", { product: productOf(db, cur.productKey) });
   if (patch.title !== undefined) fail(requiredError("Title", patch.title));
@@ -63,14 +68,21 @@ export function updateTicket(db: Db, me: Person, key: string, patch: TicketPatch
     if (cur.type === "epic") throw new ValidationError("Epics can't belong to another epic");
     if (epic?.type !== "epic" || epic.productKey !== cur.productKey) throw new ValidationError("Pick an epic from this product");
   }
+  if (patch.assigneeIds !== undefined) {
+    const ids = [...new Set(patch.assigneeIds)];
+    if (ids.length > MAX_ASSIGNEES) throw new ValidationError(`At most ${MAX_ASSIGNEES} people on one ticket`);
+    if (ids.some((pid) => !db.people.some((p) => p.id === pid && p.active))) throw new ValidationError("Pick people from your team");
+    patch.assigneeIds = ids.length ? ids : undefined;
+  }
   const name = (pid?: string) => db.people.find((p) => p.id === pid)?.name ?? "—";
+  const names = (ids?: string[]) => ids?.length ? ids.map(name).join(", ") : "—";
   const status = (sid: string) => db.statusesByProduct[cur.productKey]?.find((s) => s.id === sid)?.name ?? "—";
   const req = (rid?: string) => db.requirements.find((r) => r.id === rid)?.code ?? "None";
   const describe: { [K in keyof TicketPatch]-?: [Activity["field"], (v: Ticket[K]) => string] } = {
     title: ["Title", (v) => v ?? ""],
     type: ["Type", (v) => TEMPLATE_NAME[v]],
     epicKey: ["Epic", (v) => v ?? "None"],
-    assigneeId: ["Assignee", name],
+    assigneeIds: ["Assignee", names],
     priority: ["Priority", (v) => PRIORITY_LABEL[v]],
     due: ["Due date", (v) => shortDate(v) || "—"],
     estimateH: ["Estimate", (v) => formatHours(v)],
@@ -81,7 +93,8 @@ export function updateTicket(db: Db, me: Person, key: string, patch: TicketPatch
   const clean = { ...patch, ...(patch.title !== undefined && { title: patch.title.trim() }) };
   let activity = db.activity;
   for (const field of Object.keys(clean) as (keyof TicketPatch)[]) {
-    if (clean[field] === cur[field]) continue;
+    const before = cur[field], after = clean[field];
+    if (Array.isArray(before) || Array.isArray(after) ? String(before ?? []) === String(after ?? []) : before === after) continue;
     const [label, fmt] = describe[field] as [Activity["field"], (v: unknown) => string];
     const from = field === "color" ? undefined : fmt(cur[field]);
     activity = [...activity, { id: id(), ticketKey: key, at: now(), actorId: me.id, field: label, from, to: fmt(clean[field]) }];

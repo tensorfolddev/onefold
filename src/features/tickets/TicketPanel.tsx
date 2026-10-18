@@ -9,8 +9,8 @@ import type { Product, Ticket } from "@/domain/types";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { Popover } from "@/ui/Popover";
 import { StatusCell } from "@/ui/StatusCell";
-import { Avatar, IconButton, ProductTile, StatusPill } from "@/ui/primitives";
-import { DueDate, EpicChip, PrBadge, PriorityCell, requirementById, TYPE_LABEL, TypeIcon } from "./TicketBits";
+import { IconButton, ProductTile, StatusPill } from "@/ui/primitives";
+import { Assignees, DueDate, EpicChip, PrBadge, PriorityCell, requirementById, TYPE_LABEL, TypeIcon } from "./TicketBits";
 import {
   AssigneeField, DueField, EpicField, EstimateField, PriorityField, RequirementField, TitleField, TypeField,
 } from "./TicketFields";
@@ -173,7 +173,7 @@ function MetaGrid({ ticket, product, editable, onNavigate }: PanelProps & { onNa
       <dt>Assignee</dt>
       <dd>
         {editable ? <AssigneeField ticket={ticket} product={product} /> : (
-          <><Avatar personId={ticket.assigneeId} size="sm" /> {personById(ticket.assigneeId)?.name ?? "Unassigned"}</>
+          <><Assignees ids={ticket.assigneeIds} /> {(ticket.assigneeIds ?? []).map((pid) => personById(pid)?.name).filter(Boolean).join(", ") || "Unassigned"}</>
         )}
       </dd>
       <dt>Priority</dt>

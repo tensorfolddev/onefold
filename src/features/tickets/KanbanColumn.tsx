@@ -7,8 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useDb } from "@/data/StoreProvider";
 import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
-import { Avatar } from "@/ui/primitives";
-import { DueDate, EpicChip, TypeIcon } from "./TicketBits";
+import { Assignees, DueDate, EpicChip, TypeIcon } from "./TicketBits";
 import { ListHeader, TaskComposer } from "./KanbanLists";
 import { useIsDone } from "./TemplateRelations";
 
@@ -57,7 +56,7 @@ const EpicCardView = memo(function EpicCardView({ ticket }: { ticket: Ticket }) 
       <span className="epic-card-foot">
         {ticket.due ? <DueDate ticket={ticket} done={false} /> : <span className="muted">No due date</span>}
         <span className="spacer" />
-        <Avatar personId={ticket.assigneeId} size="sm" />
+        <Assignees ids={ticket.assigneeIds} />
       </span>
     </>
   );
@@ -76,7 +75,7 @@ export const CardView = memo(function CardView({ ticket }: { ticket: Ticket }) {
         {ticket.due && <span className="due-chip"><DueDate ticket={ticket} done={status?.category === "done"} /></span>}
         <BlockedChip ticket={ticket} />
         <span className="spacer" />
-        <Avatar personId={ticket.assigneeId} size="sm" />
+        <Assignees ids={ticket.assigneeIds} />
       </span>
     </>
   );

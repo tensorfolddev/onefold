@@ -11,6 +11,7 @@ import * as people from "./people.ts";
 import * as products from "./products.ts";
 import * as template from "./template.ts";
 import * as tickets from "./tickets.ts";
+import { groupMyWork } from "../selectors/mywork.ts";
 
 fixClock(`${SEED_TODAY}T10:00:00`);
 const A = { ...docs, ...lists, ...people, ...products, ...template, ...tickets, AccessError, ValidationError };
@@ -40,6 +41,17 @@ test("ticket title is required and assignee changes log names", () => {
   const db = A.updateTicket(db0, sara, "AP-12", { assigneeId: "u-daniyal" });
   const last = db.activity.at(-1)!;
   assert.deepEqual([last.field, last.from, last.to], ["Assignee", "Sara Ahmed", "Daniyal Shah"]);
+});
+
+test("a ticket can have any number of assignees: each sees it in My Work, and the log names them all", () => {
+  const db = A.updateTicket(db0, sara, "AP-12", { assigneeIds: ["u-sara", "u-daniyal", "u-sara"] });
+  assert.deepEqual(ticketIn(db, "AP-12").assigneeIds, ["u-sara", "u-daniyal"]); // once each
+  assert.deepEqual(db.activity.at(-1)!.to, "Sara Ahmed, Daniyal Shah");
+  for (const who of ["u-sara", "u-daniyal"]) {
+    assert.ok(groupMyWork(db, who, db.tickets).some((g) => g.tickets.some((t) => t.key === "AP-12")), who);
+  }
+  assert.equal(ticketIn(A.updateTicket(db, sara, "AP-12", { assigneeIds: [] }), "AP-12").assigneeIds, undefined); // nobody
+  assert.throws(() => A.updateTicket(db0, sara, "AP-12", { assigneeIds: ["u-nobody"] }), /Pick people from your team/);
 });
 
 test("developer is refused outside own products", () => {

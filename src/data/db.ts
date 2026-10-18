@@ -89,7 +89,12 @@ export function normalize(db: Db): Db {
   }));
   const epicOf = (pk: string) => statusesByProduct[pk]?.[0]?.id;
   const backlogOf = (pk: string) => statusesByProduct[pk]?.[1]?.id;
-  const tickets = (db.tickets ?? []).map(withTemplate).map((t, i) => {
+  // Older data had one assignee per ticket.
+  const people = (t: Ticket & { assigneeId?: string }): Ticket => {
+    const { assigneeId, ...rest } = t;
+    return assigneeId && !t.assigneeIds ? { ...rest, assigneeIds: [assigneeId] } : rest;
+  };
+  const tickets = (db.tickets ?? []).map(withTemplate).map(people).map((t, i) => {
     if (t.type === "epic") return { ...t, statusId: epicOf(t.productKey) ?? t.statusId, color: t.color ?? EPIC_COLORS[i % EPIC_COLORS.length] };
     return t.statusId === epicOf(t.productKey) ? { ...t, statusId: backlogOf(t.productKey) ?? t.statusId } : t;
   });

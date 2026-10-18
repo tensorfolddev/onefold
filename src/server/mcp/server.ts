@@ -83,7 +83,8 @@ const personName = (c: Ctx, id?: string) => c.db.people.find((p) => p.id === id)
 function summary(c: Ctx, t: Ticket) {
   return {
     key: t.key, title: t.title, type: t.type, status: t.type === "epic" ? undefined : statusName(c, t),
-    assignee: personName(c, t.assigneeId) ?? null, priority: t.priority, due: t.due ?? null, epic: t.epicKey ?? null, url: ticketUrl(c, t.key),
+    assignee: personName(c, t.assigneeIds?.[0]) ?? null, assignees: (t.assigneeIds ?? []).map((id) => personName(c, id)).filter(Boolean),
+    priority: t.priority, due: t.due ?? null, epic: t.epicKey ?? null, url: ticketUrl(c, t.key),
   };
 }
 
@@ -91,14 +92,16 @@ const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a date like 2026-10-31")
   .refine((d) => { const t = Date.parse(`${d}T00:00:00Z`); return !Number.isNaN(t) && new Date(t).toISOString().startsWith(d); }, "a real date, like 2026-10-31");
 const TYPES = z.enum(["task", "bug", "epic"]);
 const PRIORITIES = z.enum(["critical", "high", "medium", "low"]);
+const ASSIGNEES = z.array(z.string().max(200)).max(20).optional().describe("Everyone on it — names or emails, \"me\" for you; [] for nobody. Replaces whoever was on it");
 
 /** The ticket fields a tool may set, in the words a model uses, turned into a TicketPatch. */
-function patchOf(c: Ctx, productKey: string, a: { type?: Ticket["type"]; status?: string; assignee?: string; priority?: Ticket["priority"]; due?: string; estimate_hours?: number; epic?: string; title?: string }): TicketPatch {
+function patchOf(c: Ctx, productKey: string, a: { type?: Ticket["type"]; status?: string; assignee?: string; assignees?: string[]; priority?: Ticket["priority"]; due?: string; estimate_hours?: number; epic?: string; title?: string }): TicketPatch {
   const patch: TicketPatch = {};
   if (a.title !== undefined) patch.title = a.title;
   if (a.type !== undefined) patch.type = a.type;
   if (a.status !== undefined) patch.statusId = findStatus(c, productKey, a.status);
-  if (a.assignee !== undefined) patch.assigneeId = findPerson(c, a.assignee);
+  if (a.assignee !== undefined) { const id = findPerson(c, a.assignee); patch.assigneeIds = id ? [id] : []; } // just this one
+  if (a.assignees !== undefined) patch.assigneeIds = a.assignees.map((who) => findPerson(c, who)).filter((id): id is string => !!id);
   if (a.priority !== undefined) patch.priority = a.priority;
   if (a.due !== undefined) patch.due = a.due || undefined;
   if (a.estimate_hours !== undefined) patch.estimateH = a.estimate_hours;
@@ -184,7 +187,7 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
     const found = c.db.tickets.filter((t) =>
       (!productKey || t.productKey === productKey)
       && (!a.status || (t.type !== "epic" && same(statusName(c, t), a.status)))
-      && (assigneeId === undefined || (t.assigneeId ?? null) === assigneeId)
+      && (assigneeId === undefined || (assigneeId === null ? !t.assigneeIds?.length : !!t.assigneeIds?.includes(assigneeId)))
       && (!a.type || t.type === a.type)
       && (!a.text || `${t.key} ${t.title}`.toLowerCase().includes(a.text.toLowerCase()))
       && (a.include_done || !["done", "cancelled"].includes(categoryOf(t) ?? "")));
@@ -215,7 +218,8 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
       title: z.string().min(1).max(300),
       type: TYPES.optional().describe("task (default), bug or epic (an epic goes in the Epic list)"),
       status: z.string().optional().describe("List name; default Backlog. Not for epics"),
-      assignee: z.string().optional().describe('"me", or a person\'s name or email'),
+      assignee: z.string().optional().describe('"me", or a person\'s name or email — just that one person'),
+      assignees: ASSIGNEES,
       priority: PRIORITIES.optional(),
       due: DATE.optional(),
       estimate_hours: z.number().min(0).max(1000).optional(),
@@ -227,7 +231,7 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
     const epic = a.type === "epic";
     if (epic && a.status !== undefined) throw new ValidationError("Epics live in the Epic list — leave out status");
     // An epic is a ticket made in the product's Epic list; anything else can change type afterwards.
-    const patch = patchOf(c, productKey, { type: epic ? undefined : a.type, assignee: a.assignee, priority: a.priority, due: a.due, estimate_hours: a.estimate_hours, epic: a.epic });
+    const patch = patchOf(c, productKey, { type: epic ? undefined : a.type, assignee: a.assignee, assignees: a.assignees, priority: a.priority, due: a.due, estimate_hours: a.estimate_hours, epic: a.epic });
     const statusId = epic ? c.db.statusesByProduct[productKey]?.find((x) => x.system === "epic")?.id
       : a.status === undefined ? undefined : findStatus(c, productKey, a.status);
     return (db, me) => {
@@ -246,7 +250,8 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
       title: z.string().min(1).max(300).optional(),
       type: TYPES.optional(),
       status: z.string().optional().describe("List name"),
-      assignee: z.string().optional().describe('"me", "none", or a person\'s name or email'),
+      assignee: z.string().optional().describe('"me", "none", or a person\'s name or email — just that one person'),
+      assignees: ASSIGNEES,
       priority: PRIORITIES.optional(),
       due: z.union([DATE, z.literal("")]).optional(),
       estimate_hours: z.number().min(0).max(1000).optional(),

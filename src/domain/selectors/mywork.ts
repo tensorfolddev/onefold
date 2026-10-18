@@ -51,7 +51,7 @@ function groupOf(db: Db, t: Ticket): GroupId | null {
 
 /** NOW / NEXT / IN REVIEW / DONE for the current user, soonest due first. */
 export function groupMyWork(db: Db, personId: string, tickets: Ticket[]): WorkGroup[] {
-  const mine = tickets.filter((t) => t.assigneeId === personId);
+  const mine = tickets.filter((t) => t.assigneeIds?.includes(personId));
   return GROUPS.map((g) => ({
     ...g,
     tickets: mine.filter((t) => groupOf(db, t) === g.id).sort((a, b) => (a.due ?? "~").localeCompare(b.due ?? "~")),

@@ -6,7 +6,7 @@ import { toneVar } from "@/domain/status";
 import type { Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
-import { EMPTY_FILTERS, FILTER_COLS, fieldOf, type FilterCol, type Filters } from "./filters";
+import { EMPTY_FILTERS, FILTER_COLS, valuesOf, type FilterCol, type Filters } from "./filters";
 import { PRIORITY_LABEL, TYPE_LABEL, TypeIcon } from "./TicketBits";
 import { useDb } from "@/data/StoreProvider";
 import { epicLabel, epicsOf } from "@/domain/selectors/epics";
@@ -21,7 +21,7 @@ function optionsFor(col: FilterCol, productKey: string, all: Ticket[], { db, per
         icon: <span className="chip-dot" style={{ background: toneVar(s.tone) }} aria-hidden />,
       }));
     case "assignee":
-      return [...new Set(all.map((t) => fieldOf(t, "assignee")))].map((id) => ({
+      return [...new Set(all.flatMap((t) => valuesOf(t, "assignee")))].map((id) => ({
         value: id, label: personById(id)?.name ?? "Unassigned",
         icon: <Avatar personId={id === "none" ? undefined : id} size="sm" />,
       }));
@@ -88,7 +88,7 @@ export function FilterPopover({
                 <ul>
                   {optionsFor(col, productKey, all, lookups).map((o) => {
                     const on = filters[col].includes(o.value);
-                    const n = all.filter((t) => fieldOf(t, col) === o.value).length;
+                    const n = all.filter((t) => valuesOf(t, col).includes(o.value)).length;
                     return (
                       <li key={o.value}>
                         <button

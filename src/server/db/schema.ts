@@ -189,7 +189,8 @@ export const tickets = pgTable("tickets", {
   title: text("title").notNull(),
   type: text("type").notNull(),
   statusId: text("status_id").notNull(),
-  assigneeId: text("assignee_id"),
+  assigneeId: text("assignee_id"), // the first assignee — kept for older code
+  assigneeIds: text("assignee_ids").array(), // everyone on the ticket
   priority: text("priority").notNull(),
   estimateH: doublePrecision("estimate_h").notNull(),
   due: day("due"),

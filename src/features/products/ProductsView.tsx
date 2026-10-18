@@ -161,7 +161,7 @@ function ProductCard({ product: p }: { product: Product }) {
   const { me, db, href, personById } = useMe();
   const tickets = db.tickets.filter((t) => t.productKey === p.key);
   const open = tickets.filter((t) => isOpenTicket(db, t));
-  const mine = open.filter((t) => t.assigneeId === me.id).length;
+  const mine = open.filter((t) => t.assigneeIds?.includes(me.id)).length;
   const pct = donePct(db, tickets);
   const ms = nextMilestone(db, p.key);
   const days = ms ? daysUntil(ms.due) : null;

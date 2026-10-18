@@ -19,7 +19,7 @@ export const membersOf = (db: Db, team: Team["id"]) => db.people.filter((p) => p
 
 /** Estimated hours of the open tasks and bugs someone owns — what planning compares with their capacity. */
 export const bookedH = (db: Db, personId: string) =>
-  db.tickets.filter((t) => t.assigneeId === personId && t.type !== "epic" && isOpenTicket(db, t)).reduce((s, t) => s + t.estimateH, 0);
+  db.tickets.filter((t) => !!t.assigneeIds?.includes(personId) && t.type !== "epic" && isOpenTicket(db, t)).reduce((s, t) => s + t.estimateH, 0);
 
 export function teamLoad(db: Db, team: Team["id"]) {
   const members = membersOf(db, team);

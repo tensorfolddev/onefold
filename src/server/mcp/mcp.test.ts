@@ -135,6 +135,9 @@ test("a developer's token reaches only their products; another company's reaches
   assert.match((await tool(devToken, "create_ticket", { product: "CH", title: "Sneaky" })).refused!, /No product "CH"/);
   await applySteps(admin, [{ name: "setMember", args: ["CH", sam, true] }]);
   assert.equal((await tool(devToken, "create_ticket", { product: "CH", title: "My own" })).data.key, "CH-4");
+  const both = (await tool(adminToken, "update_ticket", { key: "CH-4", assignees: ["me", "Sam Dev"] })).data;
+  assert.deepEqual([both.assignee, both.assignees], ["Ayla Khan", ["Ayla Khan", "Sam Dev"]]); // any number of people
+  assert.ok((await tool(devToken, "list_tickets", { assignee: "me" })).data.tickets.some((t: { key: string }) => t.key === "CH-4"));
 
   const other = await signUpCompany({ name: "Eve", email: "eve@other.example", password: PASSWORD, company: "Other", slug: "other-mcp" });
   const eveToken = (await createApiToken((await readSession(other.token))!, "Eve's")).token;

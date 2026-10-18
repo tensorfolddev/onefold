@@ -105,7 +105,7 @@ export function BoardToolbar(p: BoardToolbarProps) {
 
 function PersonFilter({ all, person, onPerson }: Pick<BoardToolbarProps, "all" | "person" | "onPerson">) {
   const { personById } = useDb();
-  const ids = [...new Set(all.map((t) => t.assigneeId).filter((id): id is string => !!id))];
+  const ids = [...new Set(all.flatMap((t) => t.assigneeIds ?? []))];
   return (
     <Popover
       width={320}

@@ -267,3 +267,4 @@ button.chip.is-selected { background: var(--primary-selected-color); }
 .confirm-body { margin-top: 8px; font-size: 14px; line-height: 20px; color: var(--secondary-text-color); }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .status-cell.is-readonly { cursor: default; }
+.assignees-more { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--primary-text-color); background: var(--allgrey-background-color); }
