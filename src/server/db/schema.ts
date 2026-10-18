@@ -169,6 +169,7 @@ export const docs = pgTable("docs", {
   ...keyed,
   productId: text("product_id"), // NULL = the company's own space
   parentId: text("parent_id"),
+  groupId: text("group_id"),
   kind: text("kind").notNull(),
   title: text("title").notNull(),
   icon: text("icon"),
@@ -185,11 +186,21 @@ export const docs = pgTable("docs", {
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("docs_parent").on(t.orgId, t.parentId)]);
 
-const companyRows = () => pgPolicy("company_rows", {
-  for: "all",
-  using: sql`org_id = current_setting('app.org_id', true)`,
-  withCheck: sql`org_id = current_setting('app.org_id', true)`,
-});
+/** Groups of pages in a docs space's sidebar. */
+export const docGroups = pgTable("doc_groups", {
+  ...keyed,
+  productId: text("product_id"), // NULL = the company's own space
+  name: text("name").notNull(),
+  position: position(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), companyRows()]);
+
+function companyRows() {
+  return pgPolicy("company_rows", {
+    for: "all",
+    using: sql`org_id = current_setting('app.org_id', true)`,
+    withCheck: sql`org_id = current_setting('app.org_id', true)`,
+  });
+}
 
 /** A doc's text (Markdown), one row per doc, loaded only when someone opens it. `rev` guards against overwrites. */
 export const docBodies = pgTable("doc_bodies", {

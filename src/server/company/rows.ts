@@ -14,13 +14,13 @@ export type Row = Record<string, unknown> & { orgId: string; id: string };
 export const TABLES = [
   "members", "invites", "teams", "jobTitles", "productGroups", "products", "productMembers", "boardLists",
   "requirements", "decisions", "milestones", "docs", "stageRequests", "tickets", "ticketDependencies", "attachments",
-  "comments", "activity", "notifications",
+  "comments", "activity", "notifications", "docGroups",
 ] as const;
 export type TableName = (typeof TABLES)[number];
 /** Lists whose order matters and is kept in `position`. The rest (logs) are ordered by time. */
 export const POSITIONED: ReadonlySet<TableName> = new Set([
   "members", "invites", "teams", "jobTitles", "productGroups", "products", "productMembers", "boardLists",
-  "requirements", "decisions", "milestones", "docs", "tickets", "ticketDependencies", "attachments",
+  "requirements", "decisions", "milestones", "docs", "tickets", "ticketDependencies", "attachments", "docGroups",
 ]);
 
 /** One instant, one spelling: "2026-10-15T04:41:07Z". Accepts a zoneless time (read as UTC) or any offset. */
@@ -50,6 +50,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     teams: db.teams.map((t) => r(t.id, { name: t.name, leadId: opt(t.leadId) })),
     jobTitles: db.jobTitles.map((title) => r(title, {})),
     productGroups: db.productGroups.map((g) => r(g.id, { name: g.name })),
+    docGroups: db.docGroups.map((g) => r(g.id, { productId: opt(g.productKey), name: g.name })),
     products: db.products.map((p) => r(p.key, {
       name: p.name, type: p.type, client: opt(p.client), stage: p.stage, health: p.health, pmId: p.pmId,
       projectManagerId: p.projectManagerId, color: p.color, description: p.description, waitingApproval: opt(p.waitingApproval),
@@ -64,7 +65,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     decisions: db.decisions.map((d) => r(d.id, { productId: d.productKey, title: d.title, why: d.why, byId: d.byId, date: d.date })),
     milestones: db.milestones.map((m) => r(m.id, { productId: m.productKey, name: m.name, due: m.due, pct: m.pct, lateDays: m.lateDays })),
     docs: db.docs.map((d) => r(d.id, {
-      productId: opt(d.productKey), parentId: opt(d.parentId), kind: d.kind, title: d.title, icon: opt(d.icon), cover: opt(d.cover),
+      productId: opt(d.productKey), parentId: opt(d.parentId), groupId: opt(d.groupId), kind: d.kind, title: d.title, icon: opt(d.icon), cover: opt(d.cover),
       template: opt(d.template), updated: d.updated, authorId: d.authorId, createdAt: instantOrNull(d.createdAt),
       updatedAt: instantOrNull(d.updatedAt), updatedBy: opt(d.updatedBy), rev: d.rev ?? null,
       archivedAt: instantOrNull(d.archivedAt), archivedBy: opt(d.archivedBy),
@@ -158,6 +159,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     teams: t.teams.map((x): Team => ({ id: x.id, name: str(x.name), leadId: str(x.leadId ?? "") })),
     jobTitles: t.jobTitles.map((j) => j.id),
     productGroups: t.productGroups.map((g) => ({ id: g.id, name: str(g.name) })),
+    docGroups: (t.docGroups ?? []).map((g) => ({ id: g.id, productKey: und<string>(g.productId) ?? "", name: str(g.name) })),
     products,
     statusesByProduct,
     tickets,
@@ -169,6 +171,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     docs: t.docs.map((d): Doc => ({
       id: d.id, productKey: und<string>(d.productId) ?? "", kind: d.kind as Doc["kind"], title: str(d.title), updated: str(d.updated), authorId: str(d.authorId),
       ...(d.parentId ? { parentId: str(d.parentId) } : {}),
+      ...(d.groupId ? { groupId: str(d.groupId) } : {}),
       ...(d.icon ? { icon: str(d.icon) } : {}),
       ...(d.cover ? { cover: str(d.cover) } : {}),
       ...(d.template ? { template: str(d.template) } : {}),

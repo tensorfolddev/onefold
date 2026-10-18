@@ -5,7 +5,7 @@ import { SEED_TODAY } from "../seed.ts";
 import { demoDb } from "../../data/demo.ts";
 import { snapshotFor } from "../snapshot.ts";
 import { AccessError, ValidationError } from "./shared.ts";
-import { archiveDocs, createDoc, deleteDocs, docDeletePhrase, moveDoc, restoreDocs, updateDoc } from "./docs.ts";
+import { addDocGroup, archiveDocs, createDoc, deleteDocGroup, deleteDocs, docDeletePhrase, moveDoc, renameDocGroup, restoreDocs, setDocGroup, updateDoc } from "./docs.ts";
 
 fixClock(`${SEED_TODAY}T10:00:00`);
 const db0 = demoDb();
@@ -75,4 +75,26 @@ test("snapshots: project docs only for people on the project; archived docs only
   assert.ok(ids(snapshotFor(c.db, sara)).has(p.key));
   assert.ok(!ids(snapshotFor(arch, sara)).has(c.key));
   assert.ok(ids(snapshotFor(arch, admin)).has(c.key));
+});
+
+test("groups: anyone who writes in a space groups its pages; deleting a group keeps the pages; a subpage leaves its group", () => {
+  let db = addDocGroup(db0, sara, "AP", "Specs", "dg-specs");
+  assert.throws(() => addDocGroup(db, sara, "AP", "specs"), /already a group/);
+  assert.throws(() => addDocGroup(db, faraz, "AP", "Mine"), AccessError);
+  const a = createDoc(db, sara, { productKey: "AP", title: "API", groupId: "dg-specs" });
+  db = a.db;
+  assert.equal(db.docs.find((d) => d.id === a.key)!.groupId, "dg-specs");
+  const b = createDoc(db, sara, { productKey: "AP", title: "Loose" });
+  db = setDocGroup(b.db, sara, b.key, "dg-specs");
+  assert.equal(db.docs.find((d) => d.id === b.key)!.groupId, "dg-specs");
+  db = moveDoc(db, sara, b.key, { parentId: a.key });
+  assert.equal(db.docs.find((d) => d.id === b.key)!.groupId, undefined); // goes with its parent now
+  db = renameDocGroup(db, sara, "dg-specs", "Specifications");
+  assert.equal(db.docGroups.find((g) => g.id === "dg-specs")!.name, "Specifications");
+  const company = addDocGroup(db, faraz, "", "Handbook", "dg-hb");
+  assert.throws(() => setDocGroup(company, sara, a.key, "dg-hb"), /another space/);
+  db = deleteDocGroup(db, sara, "dg-specs");
+  assert.equal(db.docGroups.length, 0);
+  assert.equal(db.docs.find((d) => d.id === a.key)!.groupId, undefined);
+  assert.ok(db.docs.some((d) => d.id === a.key), "pages stay");
 });

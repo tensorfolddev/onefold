@@ -1,0 +1,2 @@
+ALTER TABLE "doc_groups" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "company_rows" ON "doc_groups" AS PERMISSIVE FOR ALL TO public USING (org_id = current_setting('app.org_id', true)) WITH CHECK (org_id = current_setting('app.org_id', true));
