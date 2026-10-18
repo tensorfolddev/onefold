@@ -1,4 +1,4 @@
-import { Bug, CircleAlert, CircleCheck, GitMerge, GitPullRequest, Layers, SquareCheck } from "lucide-react";
+import { Flag, Bug, CircleAlert, CircleCheck, GitMerge, GitPullRequest, Layers, SquareCheck } from "lucide-react";
 import { today } from "@/domain/clock";
 import { useDb } from "@/data/StoreProvider";
 import { Avatar } from "@/ui/primitives";
@@ -39,6 +39,15 @@ export function Assignees({ ids, max = 3 }: { ids?: string[]; max?: number }) {
     <span className="avatar-stack assignees" title={names} aria-label={names}>
       {ids.slice(0, max).map((pid) => <Avatar key={pid} personId={pid} size="sm" />)}
       {ids.length > max && <span className="avatar sm assignees-more" aria-hidden>+{ids.length - max}</span>}
+    </span>
+  );
+}
+
+/** A ticket's priority as a small tag in its colour — on board cards. */
+export function PriorityChip({ priority }: { priority: Priority }) {
+  return (
+    <span className="card-priority" data-priority={priority} title={`${PRIORITY_LABEL[priority]} priority`}>
+      <Flag aria-hidden />{PRIORITY_LABEL[priority]}
     </span>
   );
 }
