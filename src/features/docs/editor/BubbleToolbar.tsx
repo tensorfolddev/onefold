@@ -2,6 +2,7 @@
 
 // Select text → a small toolbar: bold, italic, strike, code, highlight, link.
 import type { Editor } from "@tiptap/core";
+import { CellSelection } from "@tiptap/pm/tables";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { Bold, Code, Highlighter, Italic, Link2, Strikethrough, Unlink } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -38,7 +39,7 @@ export function BubbleToolbar({ editor }: { editor: Editor }) {
   return (
     <BubbleMenu
       editor={editor} className="doc-bubble" options={{ placement: "top", offset: 8 }}
-      shouldShow={({ editor: e, from, to }) => e.isEditable && from !== to && !e.isActive("codeBlock")}
+      shouldShow={({ editor: e, from, to }) => e.isEditable && from !== to && !e.isActive("codeBlock") && !(e.state.selection instanceof CellSelection)}
     >
       {linking !== null ? (
         <form className="doc-bubble-link" onSubmit={(ev) => { ev.preventDefault(); saveLink(); }}>

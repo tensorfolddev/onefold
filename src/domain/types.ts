@@ -176,6 +176,7 @@ export interface Doc {
   id: string;
   productKey: string; // "" = the company's own space (stored as NULL)
   parentId?: string; // the page it sits under; none = top level of its space
+  groupId?: string; // a top-level page's group in the sidebar (subpages go with their parent)
   kind: DocKind;
   title: string;
   icon?: string; // one emoji
@@ -190,6 +191,9 @@ export interface Doc {
   archivedAt?: string;
   archivedBy?: string;
 }
+
+/** A named group of top-level pages in a docs space's sidebar (like project groups). */
+export interface DocGroup { id: string; productKey: string; name: string }
 
 export interface StageRequest {
   id: string;

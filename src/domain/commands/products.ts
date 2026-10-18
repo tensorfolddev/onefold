@@ -152,6 +152,7 @@ export function deleteProduct(db: Db, me: Person, key: string, typed: string): D
     decisions: elsewhere(db.decisions),
     milestones: elsewhere(db.milestones),
     docs: elsewhere(db.docs),
+    docGroups: elsewhere(db.docGroups),
     stageRequests: elsewhere(db.stageRequests),
     activity: db.activity.filter((a) => !gone.has(a.ticketKey)),
     comments: db.comments.filter((c) => !gone.has(c.ticketKey)),

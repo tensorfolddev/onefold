@@ -72,7 +72,7 @@ export function withSubpages(docs: Doc[], rootIds: string[]): Set<string> {
   return ids;
 }
 
-export interface NewDoc { productKey?: string; parentId?: string; title: string; icon?: string; template?: string; kind?: DocKind }
+export interface NewDoc { productKey?: string; parentId?: string; groupId?: string; title: string; icon?: string; template?: string; kind?: DocKind }
 
 /** A new page at the end of its space (or of its parent's pages). Returns its id as `key`. */
 export function createDoc(db: Db, me: Person, input: NewDoc): { db: Db; key: string } {
@@ -84,6 +84,7 @@ export function createDoc(db: Db, me: Person, input: NewDoc): { db: Db; key: str
     id: id(), productKey, title: titleOf(input.title), kind: input.kind ?? "Brief", authorId: me.id,
     createdAt: at, updated: at.slice(0, 10), updatedAt: at, updatedBy: me.id, rev: 1,
     ...(input.parentId && { parentId: input.parentId }),
+    ...(!input.parentId && input.groupId && db.docGroups.some((g) => g.id === input.groupId && g.productKey === productKey) && { groupId: input.groupId }),
     ...(input.icon && { icon: iconOf(input.icon) }),
     ...(input.template && { template: input.template }),
   };
@@ -112,7 +113,7 @@ export function moveDoc(db: Db, me: Person, docId: string, to: { parentId?: stri
     if (withSubpages(db.docs, [docId]).has(parentId)) throw new ValidationError("A page can't go inside itself");
   }
   const moved: Doc = { ...doc };
-  if (parentId) moved.parentId = parentId; else delete moved.parentId;
+  if (parentId) { moved.parentId = parentId; delete moved.groupId; } else delete moved.parentId;
   const rest = db.docs.filter((d) => d.id !== docId);
   const at = to.beforeId ? rest.findIndex((d) => d.id === to.beforeId) : -1;
   return { ...db, docs: at < 0 ? [...rest, moved] : [...rest.slice(0, at), moved, ...rest.slice(at)] };
@@ -188,5 +189,67 @@ export function notifyDocMentions(db: Db, me: Person, docId: string, personIds: 
       ...told.map((p) => ({ id: id(), personId: p.id, kind: "mention" as const, actorId: me.id, text: `mentioned you in ${doc.title}`, target: `/d/${doc.id}`, at, read: false })),
       ...db.notifications,
     ],
+  };
+}
+
+// ---------- groups of pages in a space's sidebar (anyone who writes in the space manages them) ----------
+
+const groupOf = (db: Db, groupId: string) => {
+  const g = db.docGroups.find((x) => x.id === groupId);
+  if (!g) throw new ValidationError("Group not found");
+  return g;
+};
+const groupName = (db: Db, productKey: string, name: string, exceptId?: string) => {
+  fail(requiredError("Group name", name));
+  const n = name.trim();
+  if (n.length > 60) throw new ValidationError("Keep the group name under 60 characters");
+  if (db.docGroups.some((g) => g.productKey === productKey && g.id !== exceptId && g.name.toLowerCase() === n.toLowerCase())) {
+    throw new ValidationError("There's already a group with that name");
+  }
+  return n;
+};
+
+/** A new group in a space. The caller passes the id, so the browser and the server name it the same. */
+export function addDocGroup(db: Db, me: Person, productKey: string, name: string, groupId = `dg-${id().slice(0, 8)}`): Db {
+  check(me, "doc.edit", { product: spaceOf(db, { productKey }) });
+  return { ...db, docGroups: [...db.docGroups, { id: groupId, productKey, name: groupName(db, productKey, name) }] };
+}
+
+export function renameDocGroup(db: Db, me: Person, groupId: string, name: string): Db {
+  const g = groupOf(db, groupId);
+  check(me, "doc.edit", { product: spaceOf(db, g) });
+  return { ...db, docGroups: replace(db.docGroups, (x) => x.id === groupId, (x) => ({ ...x, name: groupName(db, g.productKey, name, groupId) })) };
+}
+
+/** Deleting a group never deletes pages: they go back to the space's ungrouped pages. */
+export function deleteDocGroup(db: Db, me: Person, groupId: string): Db {
+  const g = groupOf(db, groupId);
+  check(me, "doc.edit", { product: spaceOf(db, g) });
+  return {
+    ...db,
+    docGroups: db.docGroups.filter((x) => x.id !== groupId),
+    docs: db.docs.map((d) => {
+      if (d.groupId !== groupId) return d;
+      const out = { ...d };
+      delete out.groupId;
+      return out;
+    }),
+  };
+}
+
+/** Puts a page (with its subpages) in a group of its space — at the top level — or takes it out (null). */
+export function setDocGroup(db: Db, me: Person, docId: string, groupId: string | null): Db {
+  const doc = liveDocOf(db, docId);
+  check(me, "doc.edit", { product: spaceOf(db, doc) });
+  if (groupId && groupOf(db, groupId).productKey !== doc.productKey) throw new ValidationError("That group is in another space");
+  return {
+    ...db,
+    docs: replace(db.docs, (d) => d.id === docId, (d) => {
+      const out = { ...d };
+      delete out.groupId;
+      delete out.parentId;
+      if (groupId) out.groupId = groupId;
+      return out;
+    }),
   };
 }

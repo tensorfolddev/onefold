@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Archive, ArchiveRestore, Check, ChevronDown, FolderInput, FolderMinus, LayoutGrid, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { archivedProducts, visibleProducts } from "@/domain/permissions";
 import { addGroup, deleteGroup, moveProduct, renameGroup } from "@/data/commands";
@@ -12,15 +12,24 @@ import { Popover } from "@/ui/Popover";
 import { ProductTile } from "@/ui/primitives";
 
 /** Small inline name box used for "new group / rename": Enter saves, Escape cancels. */
-function InlineName({ initial = "", label, onSave, onCancel }: {
+export function InlineName({ initial = "", label, onSave, onCancel }: {
   initial?: string; label: string; onSave: (name: string) => unknown; onCancel: () => void;
 }) {
   const [name, setName] = useState(initial);
+  const done = useRef(false);
+  // Enter or clicking elsewhere saves what was typed; an empty name (or Escape) just closes. Never saves twice.
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (save && name.trim() && name.trim() !== initial.trim() && !onSave(name)) { done.current = false; return; }
+    onCancel();
+  };
   return (
-    <form className="sidebar-inline" onSubmit={(e) => { e.preventDefault(); if (onSave(name)) onCancel(); }}>
+    <form className="sidebar-inline" onSubmit={(e) => { e.preventDefault(); finish(true); }}>
       <label className="input">
         <input autoFocus aria-label={label} placeholder={label} value={name} maxLength={60}
-          onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onCancel()} />
+          onChange={(e) => setName(e.target.value)} onBlur={() => finish(true)}
+          onKeyDown={(e) => { if (e.key === "Escape") finish(false); }} />
       </label>
     </form>
   );

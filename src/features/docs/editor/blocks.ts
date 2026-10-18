@@ -1,7 +1,7 @@
 // The blocks a doc can have — what "/" offers and what a block's handle can turn it into.
 import type { Editor, Range } from "@tiptap/core";
 import {
-  CircleAlert, Code2, Heading1, Heading2, Heading3, Info, Lightbulb, List, ListChecks, ListOrdered, Minus, Pilcrow, Quote,
+  CircleAlert, Code2, Heading1, ImageIcon, Paperclip, Heading2, Heading3, Info, Lightbulb, List, ListChecks, ListOrdered, Minus, Pilcrow, Quote,
   Table2, TriangleAlert, type LucideIcon,
 } from "lucide-react";
 
@@ -16,6 +16,9 @@ export interface Block {
   /** Offered when turning an existing block into another (not for inserted things like a table). */
   convertible?: boolean;
 }
+
+/** Asks the open editor to show a file picker (DocEditor listens and uploads what's chosen). */
+const pickFile = (accept: string) => window.dispatchEvent(new CustomEvent("doc:pick-file", { detail: { accept } }));
 
 const at = (editor: Editor, range?: Range) => (range ? editor.chain().focus().deleteRange(range) : editor.chain().focus());
 
@@ -34,6 +37,8 @@ export const BLOCKS: Block[] = [
   { id: "important", label: "Important", hint: "Callout that must be read", icon: CircleAlert, keywords: "callout must", run: (e, r) => at(e, r).setCallout("important").run() },
   { id: "code", label: "Code", hint: "Code with highlighting", icon: Code2, keywords: "snippet ``` pre", convertible: true, run: (e, r) => at(e, r).toggleCodeBlock().run() },
   { id: "table", label: "Table", hint: "Rows and columns", icon: Table2, keywords: "grid", run: (e, r) => at(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { id: "image", label: "Image", hint: "Upload or paste a picture", icon: ImageIcon, keywords: "picture photo png jpg screenshot", run: (e, r) => { at(e, r).run(); pickFile("image/*"); } },
+  { id: "file", label: "File", hint: "Attach any file", icon: Paperclip, keywords: "attachment pdf upload document", run: (e, r) => { at(e, r).run(); pickFile(""); } },
   { id: "divider", label: "Divider", hint: "Separate sections", icon: Minus, keywords: "hr line --- separator", run: (e, r) => at(e, r).setHorizontalRule().run() },
 ];
 

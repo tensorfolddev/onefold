@@ -43,6 +43,13 @@ export function BlockHandle({ editor }: { editor: Editor }) {
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Typing changes the document under the handle: hide it until the mouse moves again (its position may be stale).
+  useEffect(() => {
+    const hide = () => { if (!menu) setTarget(null); };
+    editor.on("update", hide);
+    return () => { editor.off("update", hide); };
+  }, [editor, menu]);
+
   useEffect(() => {
     const dom = editor.view.dom;
     const host = dom.parentElement!;
@@ -63,7 +70,7 @@ export function BlockHandle({ editor }: { editor: Editor }) {
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
   }, [menu]);
 
-  if (!target || !editor.isEditable) return null;
+  if (!target || !editor.isEditable || target.pos >= editor.state.doc.content.size) return null;
   const node = editor.state.doc.nodeAt(target.pos);
   if (!node) return null;
 

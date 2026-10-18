@@ -2,7 +2,7 @@
 // each person their own view of it (domain/snapshot.ts).
 import { TEMPLATES } from "../domain/templates.ts";
 import type {
-  Activity, Comment, Decision, Doc, Invite, Milestone, Notification, Org, Person, Product, ProductGroup, Requirement,
+  Activity, Comment, Decision, Doc, DocGroup, Invite, Milestone, Notification, Org, Person, Product, ProductGroup, Requirement,
   StageRequest, Status, Team, Ticket,
 } from "../domain/types.ts";
 
@@ -24,6 +24,7 @@ export interface Db {
   decisions: Decision[];
   milestones: Milestone[];
   docs: Doc[];
+  docGroups: DocGroup[];
   activity: Activity[];
   comments: Comment[];
   notifications: Notification[];
@@ -59,7 +60,7 @@ export function emptyDb(org: Org, founder: Person): Db {
   return {
     version: DB_VERSION, org, invites: [], people: [founder], teams: [], jobTitles: [...DEFAULT_JOB_TITLES],
     productGroups: [], products: [], statusesByProduct: {}, tickets: [], requirements: [], decisions: [], milestones: [],
-    docs: [], activity: [], comments: [], notifications: [], stageRequests: [],
+    docs: [], docGroups: [], activity: [], comments: [], notifications: [], stageRequests: [],
   };
 }
 
@@ -105,6 +106,7 @@ export function normalize(db: Db): Db {
     teams: db.teams ?? [],
     jobTitles: [...new Set([...(db.jobTitles ?? DEFAULT_JOB_TITLES), ...(db.people ?? []).map((p) => p.role)])],
     productGroups: db.productGroups ?? [],
+    docGroups: db.docGroups ?? [],
     statusesByProduct,
     tickets,
     requirements: db.requirements ?? [],

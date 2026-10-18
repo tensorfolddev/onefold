@@ -23,6 +23,7 @@ function onlyProducts(db: Db, keep: (p: Product) => boolean, keepTicket: (t: Tic
     decisions: inProducts(db.decisions),
     milestones: inProducts(db.milestones),
     docs: db.docs.filter((d) => d.productKey === "" || keys.has(d.productKey)), // "" = the company's own docs
+    docGroups: db.docGroups.filter((g) => g.productKey === "" || keys.has(g.productKey)),
     stageRequests: inProducts(db.stageRequests),
     activity: onTickets(db.activity),
     comments: onTickets(db.comments),

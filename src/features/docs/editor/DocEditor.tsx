@@ -13,6 +13,7 @@ import { connectExtensions, type DocLinks } from "./Connect";
 import { docExtensions } from "./extensions";
 import { toDocJson, toMarkdown } from "./markdown";
 import { SlashCommand } from "./SlashMenu";
+import { TableMenu } from "./TableMenu";
 
 export interface Heading { level: number; text: string; pos: number }
 
@@ -28,9 +29,13 @@ const headingsOf = (doc: JSONContent): Heading[] => {
 
 export type { DocLinks };
 
-export default function DocEditor({ body, editable, onChange, onHeadings, placeholder, links }: {
+export interface Uploaded { id: string; name: string; type: string }
+
+export default function DocEditor({ body, editable, onChange, onHeadings, placeholder, links, uploadFile }: {
   body: string;
   editable: boolean;
+  /** Stores one file with the doc; resolves to it, or null when it couldn't be saved (the caller says why). */
+  uploadFile?: (file: File) => Promise<Uploaded | null>;
   /** Who can be mentioned, and the tickets and docs that can be linked — read when a picker opens. */
   links: DocLinks;
   /** Called with the doc as Markdown after each change. */
@@ -42,9 +47,9 @@ export default function DocEditor({ body, editable, onChange, onHeadings, placeh
   // The pickers read the latest links when they open; the editor itself is made once.
   const [connect] = useState(() => {
     let current = links;
-    return { set: (next: DocLinks) => { current = next; }, extensions: connectExtensions(() => current) };
+    return { set: (next: DocLinks) => { current = next; }, get: () => current, extensions: connectExtensions(() => current) };
   });
-  useEffect(() => connect.set(links), [connect, links]);
+
   const editor = useEditor({
     extensions: [
       ...docExtensions({ editable, placeholder }).filter((e) => !CHIP_NODES.has(e.name)), ...chipExtensions,
@@ -64,12 +69,43 @@ export default function DocEditor({ body, editable, onChange, onHeadings, placeh
 
   useEffect(() => { editor?.setEditable(editable); }, [editor, editable]);
 
+  // Uploads land where they were dropped (or at the caret): images inline, anything else as a download card.
+  useEffect(() => {
+    const upload = (files: File[], pos?: number) => {
+      if (!editor || !uploadFile) return;
+      let at = pos;
+      void (async () => {
+        for (const f of files) {
+          const r = await uploadFile(f);
+          if (!r || editor.isDestroyed) continue;
+          const src = `/api/files/${r.id}`;
+          const node = r.type.startsWith("image/") ? { type: "image", attrs: { src, alt: r.name } } : { type: "fileCard", attrs: { href: src, name: r.name } };
+          editor.chain().focus().insertContentAt(at ?? editor.state.selection.to, node).run();
+          at = undefined;
+        }
+      })();
+    };
+    connect.set({ ...links, upload: editable && uploadFile ? upload : undefined });
+  }, [connect, links, editor, editable, uploadFile]);
+
+  // "/image" and "/file" ask for a file picker; what's chosen is uploaded into the doc at the caret.
+  useEffect(() => {
+    const pick = (e: Event) => {
+      const input = Object.assign(document.createElement("input"), { type: "file", multiple: true, accept: (e as CustomEvent<{ accept: string }>).detail.accept });
+      input.onchange = () => { if (input.files?.length) connect.get().upload?.([...input.files]); };
+      input.click();
+    };
+    window.addEventListener("doc:pick-file", pick);
+    return () => window.removeEventListener("doc:pick-file", pick);
+  }, [connect]);
+
   if (!editor) return <div className="doc-skeleton" aria-busy="true" />;
   return (
     <div className="doc-editor">
       <EditorContent editor={editor} />
       {editable && <BubbleToolbar editor={editor} />}
       {editable && <BlockHandle editor={editor} />}
+      {editable && <TableMenu editor={editor} />}
     </div>
   );
 }

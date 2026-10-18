@@ -18,6 +18,7 @@ export function demoDb(shiftTo: string = seed.SEED_TODAY): Db {
     teams: seed.teams,
     jobTitles: seed.jobTitles,
     productGroups: seed.productGroups,
+    docGroups: [],
     products: seed.products,
     statusesByProduct: seed.statusesByProduct,
     tickets: seed.tickets,

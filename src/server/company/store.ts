@@ -13,7 +13,7 @@ type CompanyTable = PgTable & { orgId: AnyPgColumn; id: AnyPgColumn };
 const TABLE = {
   members: s.members, invites: s.invites, teams: s.teams, jobTitles: s.jobTitles, productGroups: s.productGroups,
   products: s.products, productMembers: s.productMembers, boardLists: s.boardLists, requirements: s.requirements,
-  decisions: s.decisions, milestones: s.milestones, docs: s.docs, stageRequests: s.stageRequests, tickets: s.tickets,
+  decisions: s.decisions, milestones: s.milestones, docs: s.docs, docGroups: s.docGroups, stageRequests: s.stageRequests, tickets: s.tickets,
   ticketDependencies: s.ticketDependencies, attachments: s.attachments, comments: s.comments, activity: s.activity,
   notifications: s.notifications,
 } as unknown as Record<TableName, CompanyTable>;

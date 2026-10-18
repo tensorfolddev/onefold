@@ -4,7 +4,7 @@
 //   linkCard  <https://example.com>  (alone on a line) — a preview card for a web page
 // The browser draws them with React node views (Chips.tsx); here they're plain, so Markdown works without a DOM.
 import { mergeAttributes, Node, type JSONContent } from "@tiptap/core";
-import { safeHref } from "./links.ts";
+import { lineStart, safeHref } from "./links.ts";
 
 const MENTION = /^\[@([^\]\n]*)\]\(mention:([^)\s]+)\)/;
 const REF = /^\[([^\]\n]+)\]\((ticket|doc):([^)\s]+)\)/;
@@ -81,7 +81,7 @@ export const LinkCard = Node.create({
   markdownTokenizer: {
     name: "linkCard",
     level: "block",
-    start: (src: string) => src.search(/^<https?:\/\/[^>\s]+>[ \t]*(?:\n|$)/m),
+    start: (src: string) => lineStart(src, /\n<https?:\/\/[^>\s]+>[ \t]*(?:\n|$)/),
     tokenize(src) {
       const m = CARD.exec(src);
       return m && safeHref(m[1]) ? { type: "linkCard", raw: m[0], url: m[1] } : undefined;
@@ -89,4 +89,33 @@ export const LinkCard = Node.create({
   },
   parseMarkdown: (token, h) => h.createNode("linkCard", { url: token.url }),
   renderMarkdown: (node: JSONContent) => `<${node.attrs?.url}>`,
+});
+
+const FILE = /^\[([^\]\n]+)\]\((\/api\/files\/[A-Za-z0-9_-]+)\)[ \t]*(?:\n|$)/;
+
+/** A file in a doc, as a download card: `[report.pdf](/api/files/<id>)` alone on a line. */
+export const FileCard = Node.create({
+  name: "fileCard",
+  group: "block",
+  atom: true,
+  draggable: true,
+  addAttributes() {
+    return { href: { default: "" }, name: { default: "file" } };
+  },
+  parseHTML() { return [{ tag: "div[data-file-card]", getAttrs: (el) => ({ href: (el as HTMLElement).dataset.fileCard, name: (el as HTMLElement).textContent }) }]; },
+  renderHTML({ node }) {
+    const href = safeHref(String(node.attrs.href)) ?? "";
+    return ["div", { "data-file-card": href, class: "doc-file-card" }, ["a", { href: `${href}?download=1`, download: node.attrs.name }, node.attrs.name]];
+  },
+  markdownTokenizer: {
+    name: "fileCard",
+    level: "block",
+    start: (src: string) => lineStart(src, /\n\[[^\]\n]+\]\(\/api\/files\//),
+    tokenize(src) {
+      const m = FILE.exec(src);
+      return m ? { type: "fileCard", raw: m[0], name: m[1], href: m[2] } : undefined;
+    },
+  },
+  parseMarkdown: (token, h) => h.createNode("fileCard", { name: token.name, href: token.href }),
+  renderMarkdown: (node: JSONContent) => `[${label(node.attrs?.name) || "file"}](${node.attrs?.href})`,
 });

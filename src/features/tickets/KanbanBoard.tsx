@@ -67,10 +67,17 @@ export function KanbanBoard({ productKey, tickets }: { productKey: string; ticke
         droppableContainers: args.droppableContainers.filter((c) => c.data.current?.type === "list" && !c.data.current.fixed),
       });
     }
+    // Just moved into another list: the lists re-measure for a frame, and the pointer may briefly sit over the old one —
+    // keep the target we had, or the card bounces between the two lists forever ("Maximum update depth exceeded").
+    if (movedLists.current && lastHit.current !== null) return [{ id: lastHit.current }];
     const hits = pointerWithin(args);
     const cardHits = hits.filter((h) => args.droppableContainers.find((c) => c.id === h.id)?.data.current?.type === "card");
-    return cardHits.length ? cardHits : hits.length ? hits : closestCorners(args);
+    const result = cardHits.length ? cardHits : hits.length ? hits : closestCorners(args);
+    lastHit.current = result[0]?.id ?? null;
+    return result;
   };
+  const movedLists = useRef(false);
+  const lastHit = useRef<string | number | null>(null);
 
   const lastList = useRef<string | undefined>(undefined); // for the "moved into another list" tick
   const lastOver = useRef<string | number | undefined>(undefined); // for the tick as the item passes others
@@ -124,6 +131,7 @@ export function KanbanBoard({ productKey, tickets }: { productKey: string; ticke
       // Over a list it can't live in (epic ↔ Epic): the card goes back home, so letting go there changes nothing.
       if (!canLiveIn(ticket, lists.find((s) => s.id === to))) return base;
       if (from === to) return cur;
+      movedLists.current = true; // steady the target until the lists have re-measured (see collision)
       const target = cur[to];
       const overIndex = overData.type === "card" ? target.indexOf(overData.key) : target.length;
       const below = overData.type === "card" && over && a.rect.current.translated
@@ -173,6 +181,12 @@ export function KanbanBoard({ productKey, tickets }: { productKey: string; ticke
   };
 
   const onDragCancel = () => { playSound("cancel"); setActive(null); setDragItems(null); setNope(null); };
+
+  // Once the moved card has been laid out in its new list, targets may change again.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => { movedLists.current = false; });
+    return () => cancelAnimationFrame(frame);
+  }, [dragItems]);
 
   // Lists run to the bottom of the window and scroll on their own: size the board from where it starts.
   const boardRef = useRef<HTMLDivElement>(null);

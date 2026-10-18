@@ -2,6 +2,7 @@
 //   > [!NOTE]
 //   > Text…
 import { mergeAttributes, Node, type JSONContent } from "@tiptap/core";
+import { lineStart } from "./links.ts";
 
 export const CALLOUT_TYPES = ["note", "tip", "warning", "important"] as const;
 export type CalloutType = (typeof CALLOUT_TYPES)[number];
@@ -38,7 +39,7 @@ export const Callout = Node.create({
   markdownTokenizer: {
     name: "callout",
     level: "block",
-    start: (src: string) => src.search(/^ {0,3}> ?\[!(NOTE|TIP|WARNING|IMPORTANT)\]/im),
+    start: (src: string) => lineStart(src, /\n {0,3}> ?\[!(NOTE|TIP|WARNING|IMPORTANT)\]/i),
     tokenize(src, _tokens, lexer) {
       const head = HEAD.exec(src);
       if (!head) return undefined;

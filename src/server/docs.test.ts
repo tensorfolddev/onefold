@@ -6,6 +6,10 @@ import { acceptInvitation, readSession, signUpCompany, type SessionRow } from ".
 import { applySteps, createInvites, viewFor } from "./changes.ts";
 import { createDoc, DocConflict, docsLinkingTicket, normalizeMentions, presenceOf, readDoc, saveBody, searchDocs, setPresence } from "./docs.ts";
 import { freshDatabase } from "./testing/db.ts";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as joinPath } from "node:path";
+import { readImage, uploadDocFile } from "./files.ts";
 
 let pg: Awaited<ReturnType<typeof freshDatabase>>;
 before(async () => { pg = await freshDatabase(); });
@@ -123,4 +127,18 @@ test("mentions written by a model (an email or a name) become the person's id; u
   assert.equal(normalizeMentions(db, "Hi [@A](mention:ayla@docs.example)"), `Hi [@Ayla Khan](mention:${ayla.id})`);
   assert.equal(normalizeMentions(db, "Hi [@Ayla Khan](mention:Ayla Khan)"), `Hi [@Ayla Khan](mention:${ayla.id})`);
   assert.equal(normalizeMentions(db, "Hi [@Nobody](mention:nobody@x.y)"), "Hi @Nobody");
+});
+
+test("any file can go in a doc; only people who can see the doc fetch it; anything but an image only downloads", async () => {
+  process.env.FILES_DIR = await mkdtemp(joinPath(tmpdir(), "onefold-docfiles-"));
+  const txt = await uploadDocFile(sam, { docId, name: "notes.txt" }, Buffer.from("hello"));
+  assert.equal(txt.type, "application/octet-stream");
+  const got = await readImage(admin, txt.id);
+  assert.deepEqual([got?.download, got?.bytes.toString(), got?.name], [true, "hello", "notes.txt"]);
+  assert.equal(await readImage(lee, txt.id), null); // not Lee's project
+  await assert.rejects(uploadDocFile(lee, { docId, name: "x.txt" }, Buffer.from("x")), /not found/);
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const img = await uploadDocFile(sam, { docId, name: "dot.png" }, png);
+  assert.equal(img.type, "image/png");
+  assert.equal((await readImage(sam, img.id))?.download, false);
 });

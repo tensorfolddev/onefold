@@ -86,3 +86,18 @@ test("mentions, ticket and doc chips, and link cards keep their Markdown; ordina
   assert.deepEqual(refsIn("[@A](mention:u-a) [@A](mention:u-a) [X-1](ticket:X-1) [D](doc:d1)\n\n```\n[@B](mention:u-b)\n```\n`[@C](mention:u-c)`"),
     { people: ["u-a"], tickets: ["X-1"], docs: ["d1"] });
 });
+
+test("images (with their width), file cards and coloured tables keep their Markdown", () => {
+  for (const md of [
+    "![Team photo](/api/files/file-abc123)",
+    "![Diagram](/api/files/file-x1 \"w=480\")",
+    "Before\n\n[report.pdf](/api/files/file-9z)\n\nAfter",
+    "<!-- table: header=blue -->\n| Name | Role  |\n| ---- | ----- |\n| Ayla | Admin |",
+    "See [the file](/api/files/file-9z) inline",
+  ]) assert.equal(roundTrip(md), md);
+  const json = toDocJson("<!-- table: header=green -->\n| A | B |\n| - | - |\n| 1 | 2 |");
+  assert.equal(json.content?.[0].type, "table");
+  assert.equal(json.content?.[0].attrs?.headerColor, "green");
+  assert.equal(toDocJson("![x](javascript:alert(1))").content?.[0]?.attrs?.src ?? "", "");
+  assert.equal(JSON.stringify(toDocJson("<!-- table: header=evil -->\n| A |\n| - |\n| 1 |")).includes('"headerColor":"evil"'), false); // unknown colours never become an attribute
+});

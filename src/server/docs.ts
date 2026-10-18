@@ -92,7 +92,7 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
     const made = createDocCommand(loaded.db, me, {
-      productKey: input.productKey, parentId: input.parentId, title: input.title,
+      productKey: input.productKey, parentId: input.parentId, groupId: input.groupId, title: input.title,
       icon: input.icon ?? template?.icon, template: template?.id, kind: template?.kind ?? input.kind,
     });
     const id = made.key;

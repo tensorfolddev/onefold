@@ -78,6 +78,27 @@
       "when": 1792339291001,
       "tag": "0010_doc_links",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792341198936,
+      "tag": "0011_doc_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792341214236,
+      "tag": "0012_doc_groups_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792341411609,
+      "tag": "0013_doc_files",
+      "breakpoints": true
     }
   ]
 }
