@@ -58,7 +58,8 @@ const EpicCardView = memo(function EpicCardView({ ticket }: { ticket: Ticket }) 
       <span className="epic-card-title">{ticket.title}</span>
       <EpicProgress epic={ticket} />
       <span className="epic-card-foot">
-        {ticket.due ? <DueDate ticket={ticket} done={false} /> : <span className="muted">No due date</span>}
+        <PriorityChip priority={ticket.priority} />
+        {ticket.due ? <span className="due-chip"><DueDate ticket={ticket} done={false} /></span> : <span className="due-chip is-empty">No date</span>}
         <span className="spacer" />
         <Assignees ids={ticket.assigneeIds} />
       </span>
