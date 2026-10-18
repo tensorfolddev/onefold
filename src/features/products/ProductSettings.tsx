@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { useMe } from "@/data/StoreProvider";
 import type { Product } from "@/domain/types";
+import { ArchivedDocs } from "@/features/docs/ArchivedDocs";
 import { ArchivedTickets } from "./ArchivedTickets";
 import { ProductForm } from "./ProductForm";
 
@@ -17,6 +18,7 @@ export function ProductSettings({ productKey }: { productKey: string }) {
       {can("product.edit", { product }) ? <ProductForm product={product} /> : <ProductDetails product={product} />}
 
       <ArchivedTickets product={product} />
+      <ArchivedDocs productKey={product.key} />
     </div>
   );
 }

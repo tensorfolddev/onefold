@@ -7,6 +7,7 @@ import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } fr
 import { useMe } from "@/data/StoreProvider";
 import { IconButton } from "@/ui/primitives";
 import { TeamsManager } from "@/features/people/TeamsManager";
+import { ArchivedDocs } from "@/features/docs/ArchivedDocs";
 import { WhatsAppBotSettings } from "@/features/whatsapp/WhatsApp";
 import { errorOf, Field, FormError } from "@/ui/fields";
 
@@ -26,6 +27,7 @@ export default function SettingsPage() {
       <JobTitles />
       <TeamsManager />
       <WhatsAppBotSettings />
+      <ArchivedDocs productKey="" />
     </div>
   );
 }
