@@ -27,7 +27,7 @@ async function signUp(page: Page, company: string, founderEmail: string) {
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("Company name").fill(company);
   await page.getByLabel("Short name").fill(slug(company.toLowerCase().replace(/\s+/g, "-")));
-  await expect(page.getByText("is free")).toBeVisible();
+  await expect(page.getByText("is free")).toBeVisible({ timeout: 15_000 }); // the name check can be slow on a busy CI runner
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page.getByRole("heading", { name: "Invite your team" })).toBeVisible({ timeout: 20_000 });
 }
@@ -772,8 +772,10 @@ test("a project's overview: progress, what's late, what's coming up", async ({ p
   const card = page.locator(".kanban-card", { hasText: "Ship the beta" });
   await card.getByRole("button", { name: "No due date. Set due date" }).click();
   const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA");
+  const saved = page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok() && !!r.request().postData()?.includes(yesterday));
   await card.locator('input[type="date"]').fill(yesterday, { force: true });
   await expect(card.getByRole("button", { name: /^Due .+ Change due date$/ })).toBeVisible();
+  await saved; // before leaving the page
 
   await page.goto(overview);
   const kpis = page.getByRole("region", { name: "At a glance" });

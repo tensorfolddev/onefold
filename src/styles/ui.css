@@ -83,40 +83,23 @@
 .popover-anchor { position: relative; display: inline-flex; }
 .popover-anchor.fill { display: flex; width: 100%; height: 100%; }
 
-/* ---------- Tooltip ---------- */
-.tooltip-host { position: relative; display: inline-flex; }
-/* Tooltips, monday.com style: dark, compact, with an arrow, after a short pause; never in the way of a click. */
-.tooltip, [data-tip]::after {
-  position: absolute; z-index: 80; left: 50%; top: calc(100% + 10px);
-  transform: translateX(-50%) translateY(-2px);
-  padding: 6px 10px; white-space: nowrap; pointer-events: none;
-  font: 400 14px/20px var(--font-family); color: #fff; letter-spacing: normal; text-transform: none;
+/* ---------- Tooltip: one layer above everything (ui/TooltipLayer), so no panel or scroll area clips it ---------- */
+.tooltip-host { display: inline-flex; }
+.tip-layer {
+  position: fixed; z-index: 1000; max-width: 280px; padding: 6px 10px; pointer-events: none;
+  font: 400 14px/20px var(--font-family); color: #fff; letter-spacing: normal; text-transform: none; white-space: normal; overflow-wrap: anywhere;
   background-color: #323338; border-radius: 4px; box-shadow: 0 4px 12px rgb(0 0 0 / 0.18);
-  opacity: 0; visibility: hidden;
-  transition: opacity 120ms var(--motion-timing-enter), transform 120ms var(--motion-timing-enter), visibility 0s linear 120ms;
+  animation: tip-in 120ms var(--motion-timing-enter);
 }
-.tooltip::before, [data-tip]::before {
-  content: ""; position: absolute; left: 50%; top: -4px; width: 8px; height: 8px; background: #323338;
-  transform: translateX(-50%) rotate(45deg); border-radius: 1px;
+.tip-layer::before { /* the arrow, pointing at the element */
+  content: ""; position: absolute; left: var(--arrow); width: 8px; height: 8px; background: #323338; border-radius: 1px;
+  transform: translateX(-50%) rotate(45deg);
 }
-.tooltip-host:hover .tooltip, .tooltip-host:focus-visible .tooltip, .tooltip-host:has(:focus-visible) .tooltip,
-[data-tip]:hover::after, [data-tip]:focus-visible::after {
-  opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0);
-  transition-delay: 350ms, 350ms, 0s;
-}
-/* The CSS-only variant for buttons inside floating toolbars (no extra element): data-tip="Bold ⌘B". */
-[data-tip] { position: relative; }
-[data-tip]:hover, [data-tip]:focus-visible { z-index: 82; } /* above its neighbours, so they can't cover its tooltip */
-[data-tip]::after { content: attr(data-tip); }
-[data-tip]::before { top: calc(100% + 6px); opacity: 0; visibility: hidden; z-index: 81; transition: opacity 120ms, visibility 0s linear 120ms; }
-[data-tip]:hover::before, [data-tip]:focus-visible::before { opacity: 1; visibility: visible; transition-delay: 350ms, 0s; }
-[data-tip][data-tip-pos="top"]::after { top: auto; bottom: calc(100% + 10px); }
-[data-tip][data-tip-pos="top"]::before { top: auto; bottom: calc(100% + 6px); }
-[data-tip][aria-expanded="true"]::after, [data-tip][aria-expanded="true"]::before,
-.tooltip-host:has([aria-expanded="true"]) .tooltip, .tooltip-host:has(.is-open) .tooltip { display: none; } /* its menu is open */
-.dark-app-theme :is(.tooltip, [data-tip]::after), .black-app-theme :is(.tooltip, [data-tip]::after) { color: #323338; background: #fff; }
-.dark-app-theme :is(.tooltip::before, [data-tip]::before), .black-app-theme :is(.tooltip::before, [data-tip]::before) { background: #fff; }
-.tooltip.is-static { position: static; transform: none; opacity: 1; display: inline-block; }
+.tip-layer.is-bottom::before { top: -4px; }
+.tip-layer.is-top::before { bottom: -4px; }
+@keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tip-layer { animation: none; } }
+.dark-app-theme .tip-layer, .black-app-theme .tip-layer, .dark-app-theme .tip-layer::before, .black-app-theme .tip-layer::before { color: #323338; background: #fff; }
 
 /* ---------- Avatar ---------- */
 .avatar {
