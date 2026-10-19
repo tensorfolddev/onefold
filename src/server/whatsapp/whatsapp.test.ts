@@ -324,6 +324,10 @@ test("a company's own number: admins set it up; once paired, teammates link to i
   assert.deepEqual(await takeCompanyBotRequests(), []); // each request runs once
   assert.equal((await botFor(admin.orgId)).own, false); // being set up, not paired yet: still 1FOLD's bot
   assert.match((await createLinkCode(dev)).url, /^https:\/\/wa\.me\/923000000001\?/);
+  await requestCompanyBot(admin, "logout"); // cancelled before it was paired: gone at once, no worker needed
+  assert.deepEqual(await takeCompanyBotRequests(), []);
+  await requestCompanyBot(admin, "pair"); // and set up again
+  assert.deepEqual(await takeCompanyBotRequests(), [{ orgId: admin.orgId, request: "pair" }]);
 
   await setCompanyBotState(admin.orgId, "connected", { phone: "923009990000" });
   const { code, url } = await createLinkCode(dev);

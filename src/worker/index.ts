@@ -89,6 +89,11 @@ every("company WhatsApp requests", 3000, async () => {
       await dropCompanyBot(orgId);
     }
   }
+  // A setup cancelled before it was paired is gone at once (requestCompanyBot): stop its pairing here too.
+  const ids = new Set(await companyBotIds());
+  for (const [orgId, own] of companies) {
+    if (!ids.has(orgId)) { await own.logout(); companies.delete(orgId); }
+  }
   return requests.length ? requests : undefined;
 });
 /** A company's own number, once it's paired (a session saved — connected, or reconnecting); else none: 1FOLD's bot. */

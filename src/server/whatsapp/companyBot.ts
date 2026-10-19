@@ -19,9 +19,14 @@ export async function companyBot(orgId: string): Promise<CompanyBot | null> {
   return row ? { state: row.state as BotState, qr: row.qr, phone: row.phone, request: row.request } : null;
 }
 
-/** An admin asks for the company's own number (the worker shows a QR to scan), or to disconnect it. */
+/** An admin asks for the company's own number (the worker shows a QR to scan), or to disconnect it. Cancelling a
+ * number that was never paired is done at once (the worker then stops its pairing); a paired one is logged out by it. */
 export async function requestCompanyBot(who: SessionRow, request: BotRequest): Promise<void> {
   await asAdmin(who);
+  if (request === "logout" && !(await companyBot(who.orgId))?.phone) {
+    await dropCompanyBot(who.orgId);
+    return;
+  }
   if (request === "pair") {
     await database().insert(s.companyBots).values({ orgId: who.orgId, request })
       .onConflictDoUpdate({ target: s.companyBots.orgId, set: { request, updatedAt: sql`now()` } });
