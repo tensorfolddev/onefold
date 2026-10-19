@@ -36,7 +36,7 @@ function PersonCard({ person, lead, load, onRemove }: { person: Person; lead?: s
         <span className="member-load-text"><strong>{open}</strong> open · {load?.done ?? 0} done</span>
       </div>
       {onRemove && (
-        <button type="button" className="member-remove" onClick={onRemove} aria-label={`Remove ${person.name}`} data-tip="Remove from this project"><UserMinus aria-hidden /></button>
+        <button type="button" className="member-remove" onClick={onRemove} aria-label={`Remove ${person.name}`} data-tip="Remove" data-tip-pos="top"><UserMinus aria-hidden /></button>
       )}
     </li>
   );

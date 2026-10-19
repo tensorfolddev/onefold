@@ -14,7 +14,7 @@ function EpicColorCell({ ticket, editable }: { ticket: Ticket; editable: boolean
   if (!editable) return <span className="status-cell is-readonly epic-cell" style={style}>Epic</span>;
   return (
     <Popover
-      className="status-menu" anchorClassName="fill" width={236}
+      className="status-menu" anchorClassName="fill" width={236} floating
       trigger={({ toggle }) => (
         <button type="button" className="status-cell epic-cell" style={style} onClick={toggle} aria-label="Epic colour. Change colour">
           Epic
@@ -56,6 +56,7 @@ export function StatusCell({ ticket }: { ticket: Ticket }) {
       className="status-menu"
       anchorClassName="fill"
       width={200}
+      floating
       trigger={({ toggle }) => (
         <button
           type="button"

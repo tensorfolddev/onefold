@@ -588,4 +588,5 @@ button.ticket-description:hover { background-color: var(--primary-background-hov
 
 /* Right-click menu on a ticket */
 .menu.ticket-menu { padding: 6px; }
+.ticket-menu .menu-item { white-space: nowrap; }
 .menu-sep { margin: 4px 0; border: 0; border-top: 1px solid var(--layout-border-color); }

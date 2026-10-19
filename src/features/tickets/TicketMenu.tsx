@@ -11,7 +11,7 @@ import { useAppState } from "@/features/shell/state";
 
 type Open = (e: React.MouseEvent, ticketKey: string) => void;
 const MenuContext = createContext<Open | null>(null);
-const MENU_W = 220;
+const MENU_W = 256;
 const MENU_H = 140;
 
 /** The handler to put on a ticket's onContextMenu, or undefined outside a ticket list that offers the menu. */

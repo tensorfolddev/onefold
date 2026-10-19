@@ -10,7 +10,17 @@
 .product-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .product-title { font-family: var(--font-family); font-size: 32px; font-weight: 500; line-height: 40px; }
 .product-description { font-size: 16px; line-height: 22px; color: var(--secondary-text-color); max-width: 72ch; }
-.product-people { display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; }
+.product-people { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; font-size: 14px; line-height: 20px; }
+.product-team { display: inline-flex; align-items: center; border-radius: 999px; }
+.product-team-face { display: inline-flex; border-radius: 50%; }
+.product-team-face .avatar { box-shadow: 0 0 0 2px var(--primary-background-color); }
+.product-team-face + .product-team-face, .product-team-more { margin-left: -6px; }
+.product-team-more {
+  display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 13px; font-size: 11px; font-weight: 600;
+  color: var(--secondary-text-color); background: var(--ui-background-color); box-shadow: 0 0 0 2px var(--primary-background-color);
+}
+.product-team:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.product-lead { color: var(--primary-text-color); font-weight: 500; }
 .product-space .chip svg, .products-view .chip svg { width: 14px; height: 14px; }
 
 /* ---------- Stage stepper ---------- */
@@ -354,10 +364,11 @@
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.04); transition: box-shadow 150ms ease-out, transform 150ms ease-out;
 }
 .member-card:hover { box-shadow: var(--box-shadow-small); transform: translateY(-1px); }
+.member-card:hover, .member-card:focus-within { z-index: 2; }
 .member-card.is-lead { background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 7%, var(--primary-background-color)), var(--primary-background-color) 60%); }
 .member-card > .avatar { grid-area: a; }
 .member-main { grid-area: m; min-width: 0; }
-.member-name { margin: 0; font-size: 15px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.member-name { margin: 0; padding-right: 28px; font-size: 15px; font-weight: 600; line-height: 21px; overflow-wrap: anywhere; }
 .member-role { margin: 1px 0 0; font-size: 13px; color: var(--secondary-text-color); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .member-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
 .member-lead {

@@ -86,7 +86,7 @@
 
 /* ---------- The record, opened: reads like a note; text turns into an editor on click ---------- */
 .decision-panel { overflow: hidden; }
-.decision-panel-head { padding: 16px 28px 18px; border-bottom: 1px solid var(--layout-border-color); }
+.decision-panel-head { padding: 16px 44px 18px; border-bottom: 1px solid var(--layout-border-color); }
 .decision-panel-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .decision-panel-bar .spacer { flex: 1; }
 .decision-panel-title { margin: 0; }
@@ -100,7 +100,7 @@
 .decision-banner.is-quiet { background: var(--ui-background-color); }
 .decision-replaced-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--secondary-text-color); }
 :root .decision-add-select { height: 30px; font-size: 13px; padding-right: 32px; }
-.decision-panel-body { flex: 1; display: flex; flex-direction: column; gap: 22px; padding: 22px 28px 40px; overflow-y: auto; }
+.decision-panel-body { flex: 1; display: flex; flex-direction: column; gap: 22px; padding: 22px 44px 40px; overflow-y: auto; } /* 44px: the editor's ⋮⋮ handle sits 34px left of the text */
 
 .decision-section-label {
   margin: 0 0 4px; font-size: 12px; font-weight: 600; line-height: 16px; letter-spacing: 0.05em; text-transform: uppercase;
