@@ -5,7 +5,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, Copy, Download, FileDown, History, Paperclip, ImagePlus, Link2, MoreHorizontal, RefreshCw, Smile, Trash2, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Copy, Download, FileDown, History, Paperclip, ImagePlus, Link2, MoreHorizontal, RefreshCw, Smile, Trash2, Upload, Users } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { archiveDocs, restoreDocs, updateDoc } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
@@ -18,7 +18,7 @@ import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
 import { upload } from "@/data/api";
 import type { DocLinks, Heading, Uploaded } from "./editor/DocEditor";
-import { ancestorsOf, COVERS, coverCss, docPath, downloadMarkdown, printDoc, readingMinutes } from "./tree";
+import { ancestorsOf, COVER_IMAGES, COVERS, coverCss, docPath, downloadMarkdown, printDoc, readingMinutes } from "./tree";
 import { DocHistory } from "./DocHistory";
 import { DocsTopBar } from "./DocsSpace";
 import { useDocBody } from "./useDocBody";
@@ -84,6 +84,18 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
     if (next !== doc.title && !act((d, m) => updateDoc(d, m, doc.id, { title: next }))) setTitle(doc.title);
   };
   const look = (patch: { icon?: string | null; cover?: string | null }) => act((d, m) => updateDoc(d, m, doc.id, patch));
+  /** A cover from your computer: uploaded into the doc like any image, then shown across the top. */
+  const pickCover = () => {
+    const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif" });
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) { toast("Pick an image for the cover", undefined, "error"); return; }
+      const up = await uploadFile(file);
+      if (up) look({ cover: `/api/files/${up.id}` });
+    };
+    input.click();
+  };
   const copy = async (what: string, value: string) => {
     await navigator.clipboard.writeText(value).catch(() => {});
     toast(`${what} copied`, undefined, "success");
@@ -164,16 +176,24 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
                 {(close) => <IconPicker query={emojiQuery} setQuery={setEmojiQuery} onPick={(icon) => { look({ icon }); close(); }} />}
               </Popover>
             )}
-            <Popover width={240} floating trigger={({ toggle }) => <button type="button" className="doc-head-tool" onClick={toggle}><ImagePlus aria-hidden /> {doc.cover ? "Change cover" : "Add cover"}</button>}>
+            <Popover width={380} floating className="cover-menu" trigger={({ toggle }) => <button type="button" className="doc-head-tool" onClick={toggle}><ImagePlus aria-hidden /> {doc.cover ? "Change cover" : "Add cover"}</button>}>
               {(close) => (
                 <>
-                  <p className="menu-section-label">Cover</p>
+                  <p className="menu-section-label">Gallery</p>
+                  <div className="cover-gallery">
+                    {COVER_IMAGES.map((c) => (
+                      <button key={c.id} type="button" className={`cover-swatch is-image${doc.cover === c.src ? " is-current" : ""}`} style={{ backgroundImage: `url("${c.src}")` }}
+                        aria-label={c.label} data-tip={c.label} onClick={() => { look({ cover: c.src }); close(); }} />
+                    ))}
+                  </div>
+                  <p className="menu-section-label">Colours</p>
                   <div className="cover-swatches">
                     {COVERS.map((c) => (
                       <button key={c.id} type="button" className={`cover-swatch${doc.cover === c.id ? " is-current" : ""}`} style={{ background: c.css }}
                         aria-label={c.label} data-tip={c.label} onClick={() => { look({ cover: c.id }); close(); }} />
                     ))}
                   </div>
+                  <button type="button" className="menu-item" onClick={() => { close(); pickCover(); }}><Upload aria-hidden /> Upload an image…</button>
                   {doc.cover && <button type="button" className="menu-item" onClick={() => { look({ cover: null }); close(); }}><Trash2 aria-hidden /> Remove cover</button>}
                 </>
               )}

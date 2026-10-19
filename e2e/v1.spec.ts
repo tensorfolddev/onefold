@@ -720,6 +720,37 @@ test("decisions: sticky notes by default, a why, edited in place, superseded, yo
   await expect(note("Bill yearly").locator(".decision-sticky-status")).toHaveText("Suspended");
 });
 
+test("docs: a cover from the gallery or uploaded from your computer, kept after a reload", async ({ page }) => {
+  await signUp(page, "Upsilon", email("upsilon"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Canvas");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  await page.goto(`${new URL(page.url()).pathname}/docs`);
+  await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
+  await expect(page).toHaveURL(/\/docs\/.+/);
+  const cover = page.locator(".doc-cover");
+  const background = () => cover.evaluate((el) => getComputedStyle(el).backgroundImage);
+
+  await page.locator(".doc-page").hover();
+  await page.getByRole("button", { name: "Add cover" }).click();
+  await page.getByRole("button", { name: "Ocean waves" }).click();
+  await expect.poll(background).toContain("/covers/waves-ocean.svg");
+
+  await page.locator(".doc-page").hover();
+  await page.getByRole("button", { name: "Change cover" }).click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: /Upload an image/ }).click();
+  await (await chooser).setFiles({ name: "team.png", mimeType: "image/png", buffer: PNG_1x1 });
+  await expect.poll(background).toMatch(/\/api\/files\//);
+  const saved = await background();
+  await page.reload();
+  await expect.poll(background).toBe(saved);
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
