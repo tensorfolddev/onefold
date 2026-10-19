@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const b = await readBody(req, MAX_BODY_CHARS * 4);
     return ok(await createDoc(who, {
       title: str(b.title, 300), productKey: str(b.productKey, 20) || undefined, parentId: str(b.parentId, 100) || undefined,
-      groupId: str(b.groupId, 100) || undefined,
+      groupId: str(b.groupId, 100) || undefined, personal: b.personal === true,
       template: str(b.template, 40) || undefined, icon: str(b.icon, 16) || undefined,
       body: typeof b.body === "string" ? b.body : undefined,
     }));

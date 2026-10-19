@@ -7,7 +7,7 @@ import type { Db } from "../data/db.ts";
 import { AccessError, createDoc as createDocCommand, notifyDocMentions, setDocLink, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
 import { refsIn, topLink } from "../features/docs/editor/links.ts";
 import { templateFor } from "../domain/docTemplates.ts";
-import { can } from "../domain/permissions.ts";
+import { canDoc } from "../domain/docAccess.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
 import type { Doc, Person } from "../domain/types.ts";
 import { personFor, type SessionRow } from "./accounts.ts";
@@ -64,7 +64,7 @@ async function relink(tx: Tx, orgId: string, docId: string, body: string): Promi
 async function linkedFrom(tx: Tx, db: Db, me: Person, orgId: string, kind: "doc" | "ticket", target: string) {
   const ids = new Set((await tx.select({ docId: s.docLinks.docId }).from(s.docLinks)
     .where(and(eq(s.docLinks.orgId, orgId), eq(s.docLinks.kind, kind), eq(s.docLinks.target, target)))).map((r) => r.docId));
-  return snapshotFor(db, me).docs.filter((d) => ids.has(d.id) && !d.archivedAt).map((d) => ({ id: d.id, title: d.title, icon: d.icon, productKey: d.productKey }));
+  return snapshotFor(db, me).docs.filter((d) => ids.has(d.id) && !d.archivedAt).map((d) => ({ id: d.id, title: d.title, icon: d.icon, productKey: d.productKey, ownerId: d.ownerId }));
 }
 
 /** A model's "[@Hina](mention:hina@acme.com)" → the person's id; someone unknown stays plain "@Hina". */
@@ -93,7 +93,7 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
     const made = createDocCommand(loaded.db, me, {
-      productKey: input.productKey, parentId: input.parentId, groupId: input.groupId, title: input.title,
+      productKey: input.productKey, parentId: input.parentId, groupId: input.groupId, title: input.title, personal: input.personal,
       icon: input.icon ?? template?.icon, template: template?.id, kind: template?.kind ?? input.kind,
     });
     const id = made.key;
@@ -116,7 +116,7 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
 
 // ---------- read ----------
 
-export interface DocLink { id: string; title: string; icon?: string; productKey: string }
+export interface DocLink { id: string; title: string; icon?: string; productKey: string; ownerId?: string }
 export interface OpenDoc { doc: Doc; body: string; rev: number; presence: Presence[]; backlinks: DocLink[] }
 
 export async function readDoc(who: SessionRow, id: string): Promise<OpenDoc> {
@@ -144,7 +144,7 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
     const me = personFor(loaded, who.userId);
     const doc = visibleDoc(loaded.db, me, id);
     if (doc.archivedAt) throw new ValidationError(`${doc.title} is archived — restore it first`);
-    if (!can(me, "doc.edit", { product: spaceOf(loaded.db, doc) })) throw new AccessError();
+    if (!canDoc(loaded.db.docs, me, "doc.edit", doc, spaceOf(loaded.db, doc))) throw new AccessError();
     // A doc made before bodies existed has none yet: start it at revision 0, then lock the row.
     await tx.insert(s.docBodies).values({ orgId: who.orgId, docId: id, body: "", rev: 0 }).onConflictDoNothing();
     const [cur] = (await tx.execute(sql`select body, rev, updated_by, updated_at from doc_bodies
@@ -241,7 +241,7 @@ export async function restoreVersion(who: SessionRow, docId: string, versionId: 
     const me = personFor(loaded, who.userId);
     const doc = visibleDoc(loaded.db, me, docId);
     if (doc.archivedAt) throw new ValidationError(`${doc.title} is archived — restore it first`);
-    if (!can(me, "doc.edit", { product: spaceOf(loaded.db, doc) })) throw new AccessError();
+    if (!canDoc(loaded.db.docs, me, "doc.edit", doc, spaceOf(loaded.db, doc))) throw new AccessError();
     const [v] = await tx.select().from(s.docVersions)
       .where(and(eq(s.docVersions.orgId, who.orgId), eq(s.docVersions.docId, docId), eq(s.docVersions.id, versionId)));
     if (!v) throw new ValidationError("That version isn't there any more");
@@ -268,7 +268,7 @@ export async function restoreVersion(who: SessionRow, docId: string, versionId: 
 
 // ---------- search ----------
 
-export interface DocHit { id: string; title: string; icon?: string; productKey: string; snippet: string }
+export interface DocHit { id: string; title: string; icon?: string; productKey: string; ownerId?: string; snippet: string }
 
 /** Titles and bodies of the docs this person may see. Each word matches as a prefix, so it works while typing. */
 export async function searchDocs(who: SessionRow, q: string): Promise<DocHit[]> {
@@ -281,7 +281,7 @@ export async function searchDocs(who: SessionRow, q: string): Promise<DocHit[]> 
     const lower = words.map((w) => w.toLowerCase());
     const hits = new Map<string, DocHit>();
     for (const d of docs) {
-      if (lower.every((w) => d.title.toLowerCase().includes(w))) hits.set(d.id, { id: d.id, title: d.title, icon: d.icon, productKey: d.productKey, snippet: "" });
+      if (lower.every((w) => d.title.toLowerCase().includes(w))) hits.set(d.id, { id: d.id, title: d.title, icon: d.icon, productKey: d.productKey, ownerId: d.ownerId, snippet: "" });
     }
     const query = words.map((w) => `${w}:*`).join(" & ");
     const rows = (await tx.execute(sql`select doc_id, ts_headline('simple', body, to_tsquery('simple', ${query}),
@@ -290,7 +290,7 @@ export async function searchDocs(who: SessionRow, q: string): Promise<DocHit[]> 
     for (const r of rows) {
       const d = byId.get(r.doc_id);
       if (!d) continue; // not theirs to see
-      hits.set(d.id, { id: d.id, title: d.title, icon: d.icon, productKey: d.productKey, snippet: r.snippet.replace(/\s+/g, " ").trim() });
+      hits.set(d.id, { id: d.id, title: d.title, icon: d.icon, productKey: d.productKey, ownerId: d.ownerId, snippet: r.snippet.replace(/\s+/g, " ").trim() });
     }
     return [...hits.values()].slice(0, 20);
   });

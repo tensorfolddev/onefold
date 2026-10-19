@@ -18,7 +18,9 @@ import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
 import type { Heading } from "./editor/DocEditor";
 import { useEditorLinks, useUpload } from "./editor/useEditorLinks";
-import { ancestorsOf, COVER_IMAGES, COVERS, coverCss, coverOf, docPath, downloadMarkdown, printDoc, readingMinutes } from "./tree";
+import { canDoc } from "@/domain/docAccess";
+import { ShareDoc } from "./ShareDoc";
+import { ancestorsOf, COVER_IMAGES, COVERS, coverCss, coverOf, docPath, downloadMarkdown, MY_DOCS, printDoc, readingMinutes, spaceKeyOf, spacePath } from "./tree";
 import { DocHistory } from "./DocHistory";
 import { DocsTopBar } from "./DocsSpace";
 import { useDocBody } from "./useDocBody";
@@ -34,12 +36,13 @@ export function DocPage({ id }: { id: string }) {
 }
 
 function DocView({ doc, meId }: { doc: Doc; meId: string }) {
-  const { db, can, act, href, personById, productByKey, toast } = useDb();
+  const { db, me, act, href, personById, productByKey, toast } = useDb();
   const router = useRouter();
   const { openTicket } = useAppState();
   const product = doc.productKey ? productByKey(doc.productKey) : undefined;
-  const editable = can("doc.edit", { product }) && !doc.archivedAt;
-  const isAdmin = can("doc.archive", { product });
+  const editable = canDoc(db.docs, me, "doc.edit", doc, product) && !doc.archivedAt;
+  const isAdmin = canDoc(db.docs, me, "doc.archive", doc, product); // a personal page: its owner
+  const space = spaceKeyOf(doc);
   const b = useDocBody(doc.id, meId, editable);
   const [latest, setLatest] = useState<string | null>(null); // the body as typed, for export and reading time
   const [headings, setHeadings] = useState<Heading[]>([]);
@@ -94,7 +97,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
   return (
     <article className={`doc-page${cover ? " has-cover" : ""}`} aria-labelledby="doc-title">
       <DocsTopBar crumbs={[
-        { label: product ? product.name : "Company docs", href: href(product ? `/products/${product.key}/docs` : "/docs") },
+        { label: space === MY_DOCS ? "My docs" : product ? product.name : "Company docs", href: href(spacePath(space)) },
         ...crumbs.map((c) => ({ label: c.title, href: href(docPath(c)), icon: c.icon ? <span aria-hidden>{c.icon}</span> : undefined })),
         { label: doc.title, icon: doc.icon ? <span aria-hidden>{doc.icon}</span> : undefined },
       ]}>
@@ -103,6 +106,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
           <button type="button" className="docs-topbar-btn" aria-label="Attach a file" data-tip="Attach a file (PDF, Word, image, any file)"
             onClick={() => window.dispatchEvent(new CustomEvent("doc:pick-file", { detail: { accept: "" } }))}><Paperclip aria-hidden /></button>
         )}
+        {doc.ownerId && <ShareDoc doc={doc} />}
         <button type="button" className="docs-topbar-btn" aria-label="Version history" data-tip="Version history" onClick={() => setHistory(true)}><History aria-hidden /></button>
 
             {others.length > 0 && (
@@ -125,8 +129,8 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
                       <button type="button" role="menuitem" className="menu-item is-danger" onClick={() => {
                         close();
                         if (act((d, m) => archiveDocs(d, m, [doc.id]))) {
-                          toast(`${doc.title} archived — find it in Settings → Archived`, undefined, "success");
-                          router.push(href(product ? `/products/${product.key}/docs` : "/docs"));
+                          toast(`${doc.title} archived — find it ${space === MY_DOCS ? "under Archived in My docs" : "in Settings → Archived"}`, undefined, "success");
+                          router.push(href(spacePath(space)));
                         }
                       }}><Archive aria-hidden /> Archive page</button>
                     </>

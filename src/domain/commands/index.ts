@@ -2,7 +2,7 @@
 // The browser store runs them now; the backend (and the MCP server's tools) will run the same names.
 import {
   addDecision, addDoc, addDocGroup, updateDecision, archiveDocs, createDoc, deleteDoc, deleteDocGroup, deleteDocs, moveDoc, notifyDocMentions, renameDocGroup, restoreDocs,
-  setDocGroup, setDocLink, touchDoc, updateDoc, upsertMilestone,
+  setDocGroup, setDocLink, shareDoc, touchDoc, updateDoc, upsertMilestone,
 } from "./docs.ts";
 import { addStatus, deleteStatus, moveStatus, updateStatus } from "./lists.ts";
 import { markNotificationsRead } from "./notify.ts";
@@ -27,7 +27,7 @@ export const commands = {
   createProduct, updateProduct, setProductLook, setPriority, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
   // docs
-  addDoc, deleteDoc, addDecision, updateDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, notifyDocMentions,
+  addDoc, deleteDoc, addDecision, updateDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, shareDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
   // people + company
   updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
@@ -43,7 +43,7 @@ export {
   addStatus, updateStatus, moveStatus, deleteStatus,
   createProduct, updateProduct, setProductLook, setPriority, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
-  addDoc, deleteDoc, addDecision, updateDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, notifyDocMentions,
+  addDoc, deleteDoc, addDecision, updateDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, shareDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
   updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,

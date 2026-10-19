@@ -27,8 +27,15 @@ export const ARTIFACT_COVER = "/covers/claude-artifact.svg";
 /** The cover a doc shows: its own, else the artifact cover for a Claude artifact, else none. */
 export const coverOf = (doc: Pick<Doc, "cover" | "link">) => doc.cover ?? (isClaudeArtifact(doc.link) ? ARTIFACT_COVER : undefined);
 
-/** A space's pages that aren't archived ("" = the company's own space). */
-export const spaceDocs = (docs: Doc[], productKey: string) => docs.filter((d) => d.productKey === productKey && !d.archivedAt);
+/** The space key of My docs (a project's is its key, the company's is ""): everyone's own pages. */
+export const MY_DOCS = "~";
+export const MY_DOCS_PATH = "/docs/mine";
+/** Whose space a doc is in, as a space key. */
+export const spaceKeyOf = (doc: Pick<Doc, "productKey" | "ownerId">) => (doc.ownerId ? MY_DOCS : doc.productKey);
+/** A space's pages that aren't archived ("" = the company's own space; MY_DOCS = mine and what's shared with me). */
+export const spaceDocs = (docs: Doc[], productKey: string) => docs.filter((d) => spaceKeyOf(d) === productKey && !d.archivedAt);
+/** The space's home page. */
+export const spacePath = (productKey: string) => (productKey === MY_DOCS ? MY_DOCS_PATH : productKey ? `/products/${productKey}/docs` : "/docs");
 
 /** Top-level pages: no parent, or a parent that isn't in the list (archived, or not theirs to see). */
 export function topLevel(docs: Doc[]): Doc[] {
@@ -49,7 +56,8 @@ export function ancestorsOf(docs: Doc[], doc: Doc): Doc[] {
 }
 
 /** Where a doc opens, inside the panel ("/docs/…" for the company's, "/products/AP/docs/…" for a project's). */
-export const docPath = (doc: Pick<Doc, "id" | "productKey">) => (doc.productKey ? `/products/${doc.productKey}/docs/${doc.id}` : `/docs/${doc.id}`);
+export const docPath = (doc: Pick<Doc, "id" | "productKey" | "ownerId">) =>
+  doc.ownerId ? `${MY_DOCS_PATH}/${doc.id}` : doc.productKey ? `/products/${doc.productKey}/docs/${doc.id}` : `/docs/${doc.id}`;
 
 export const readingMinutes = (markdown: string) => Math.max(1, Math.round(markdown.split(/\s+/).filter(Boolean).length / 220));
 

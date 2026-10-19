@@ -75,6 +75,7 @@ export const addDocGroup = wrap("addDocGroup");
 export const renameDocGroup = wrap("renameDocGroup");
 export const deleteDocGroup = wrap("deleteDocGroup");
 export const setDocGroup = wrap("setDocGroup");
+export const shareDoc = wrap("shareDoc");
 export const addDecision = wrap("addDecision");
 export const upsertMilestone = wrap("upsertMilestone");
 export const updatePerson = wrap("updatePerson");

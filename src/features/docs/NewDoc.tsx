@@ -7,7 +7,7 @@ import { useDb } from "@/data/StoreProvider";
 import { templateFor, templatesFor, type DocTemplate } from "@/domain/docTemplates";
 import { Upload } from "lucide-react";
 import { IMPORT_ACCEPT, importFile } from "./importFile";
-import { docPath } from "./tree";
+import { docPath, MY_DOCS, MY_DOCS_PATH } from "./tree";
 
 export interface Where { parentId?: string; groupId?: string }
 
@@ -15,11 +15,14 @@ export function useNewDoc(productKey: string) {
   const { createDoc, href, toast } = useDb();
   const router = useRouter();
   const [picking, setPicking] = useState<Where | null>(null);
+  const personal = productKey === MY_DOCS; // My docs: private to me until I share it
+  const space = personal ? { personal: true } : { productKey: productKey || undefined };
+  const pathOf = (id: string) => (personal ? `${MY_DOCS_PATH}/${id}` : docPath({ id, productKey }));
 
   const create = async (t: DocTemplate, where: Where = {}) => {
     setPicking(null);
-    const id = await createDoc({ title: t.id === "blank" ? "Untitled" : t.name, productKey: productKey || undefined, ...where, template: t.id });
-    if (id) router.push(href(docPath({ id, productKey })));
+    const id = await createDoc({ title: t.id === "blank" ? "Untitled" : t.name, ...space, ...where, template: t.id });
+    if (id) router.push(href(pathOf(id)));
   };
   /** A blank page, straight away. */
   const blank = (where: Where = {}) => create(templateFor("blank")!, where);
@@ -29,28 +32,28 @@ export function useNewDoc(productKey: string) {
     let first: string | null = null;
     for (const f of [...files]) {
       try {
-        const id = await importFile(f, (input) => createDoc({ ...input, productKey: productKey || undefined }));
+        const id = await importFile(f, (input) => createDoc({ ...input, ...space }));
         first ??= id;
       } catch (e) {
         toast(e instanceof Error ? e.message : `Couldn't import ${f.name}`, undefined, "error");
       }
     }
-    if (first) router.push(href(docPath({ id: first, productKey })));
+    if (first) router.push(href(pathOf(first)));
   };
 
   /** A file from the computer (Markdown, Word, PDF or anything) as a new page, which then opens. */
   const importOne = async (file: File, where: Where = {}) => {
     setPicking(null);
     try {
-      const id = await importFile(file, (input) => createDoc({ ...input, productKey: productKey || undefined, ...where }));
-      if (id) router.push(href(docPath({ id, productKey })));
+      const id = await importFile(file, (input) => createDoc({ ...input, ...space, ...where }));
+      if (id) router.push(href(pathOf(id)));
     } catch (e) {
       toast(e instanceof Error ? e.message : `Couldn't import ${file.name}`, undefined, "error");
     }
   };
 
   const picker = picking && (
-    <TemplatePicker space={productKey ? "project" : "company"} onPick={(t) => void create(t, picking)} onClose={() => setPicking(null)}
+    <TemplatePicker space={productKey && !personal ? "project" : "company"} onPick={(t) => void create(t, picking)} onClose={() => setPicking(null)}
       onImport={(f) => void importOne(f, picking)} />
   );
   return { open: (where: Where = {}) => setPicking(where), create, blank, importFiles, picker };

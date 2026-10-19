@@ -1113,6 +1113,67 @@ test("Settings → Archived: tick several (or Select all), then restore or delet
   await expect(docs).toContainText("Nothing archived");
 });
 
+test("My docs: private to you — even from admins — until you share it, to read or to write", async ({ page, browser }) => {
+  await signUp(page, "Kappa", email("mydocs"));
+  await confirmEmail(page, email("mydocs"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("mydocsdev"));
+  await page.getByRole("button", { name: "Create invite links" }).click();
+  const link = (await page.locator(".inv-link-url").first().textContent())!;
+  await page.getByRole("button", { name: "Go to Kappa" }).click();
+
+  const kai = await freshPage(browser);
+  await kai.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
+  await kai.goto(new URL(link).pathname);
+  await kai.getByLabel("Full name").fill("Kai Dev");
+  await kai.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await kai.getByRole("button", { name: "Join Kappa" }).click();
+  await expect(kai).toHaveURL(/\/dev$/, { timeout: 20_000 });
+
+  // A page in My docs: only Kai can see it.
+  await kai.goto("/dev/docs/mine");
+  await expect(kai.getByRole("heading", { name: "My docs" })).toBeVisible();
+  await kai.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await kai.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
+  await expect(kai).toHaveURL(/\/dev\/docs\/mine\/.+/);
+  const docId = kai.url().split("/").pop()!;
+  const saved = kai.waitForResponse((r) => r.ok() && r.url().includes(`/api/docs/${docId}`) && r.request().method() === "POST" && !!r.request().postData()?.includes("Raise plan"));
+  await kai.locator('.doc-prose[contenteditable="true"]').click();
+  await kai.keyboard.type("Raise plan");
+  await saved;
+  await expect(kai.getByRole("button", { name: "Private" })).toBeVisible();
+  await page.goto(`/admin/d/${docId}`);
+  await expect(page.getByText("This doc doesn't exist, or isn't yours to see.")).toBeVisible(); // not even an admin
+
+  // Shared with Ayla, to read.
+  await kai.getByRole("button", { name: "Private" }).click();
+  await kai.getByLabel("Add people").fill("Ayla");
+  const shared = kai.waitForResponse((r) => r.ok() && r.url().includes("/api/org/changes") && !!r.request().postData()?.includes("shareDoc"));
+  await kai.getByRole("list", { name: "People to add" }).getByRole("button", { name: /Ayla Khan/ }).click();
+  await shared;
+  await expect(kai.getByRole("button", { name: "Shared" })).toBeVisible();
+  await kai.keyboard.press("Escape");
+  await expect(kai.getByLabel("Add people")).toBeHidden();
+  await page.goto("/admin/docs/mine");
+  await page.getByRole("button", { name: /^Notifications, \d+ unread$/ }).click(); // told it was shared
+  await expect(page.getByText("shared Untitled with you")).toBeVisible();
+  await page.keyboard.press("Escape");
+  const sharedGroup = page.getByRole("region", { name: "Shared with me" });
+  await sharedGroup.getByRole("row").filter({ hasText: "Untitled" }).click();
+  await expect(page.locator(".doc-prose")).toContainText("Raise plan");
+  await expect(page.locator('.doc-prose[contenteditable="true"]')).toHaveCount(0); // to read only
+  await page.getByRole("button", { name: "Page actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Archive page" })).toHaveCount(0); // only Kai archives it
+  await page.keyboard.press("Escape");
+
+  // And now to write.
+  await kai.getByRole("button", { name: "Shared" }).click();
+  const upgraded = kai.waitForResponse((r) => r.ok() && r.url().includes("/api/org/changes") && !!r.request().postData()?.includes("shareDoc"));
+  await kai.getByLabel("What Ayla Khan can do").selectOption("edit");
+  await upgraded;
+  await page.reload();
+  await expect(page.locator('.doc-prose[contenteditable="true"]')).toBeVisible();
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

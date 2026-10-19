@@ -4,7 +4,7 @@
 import { DB_VERSION, normalize, type Db } from "../../data/db.ts";
 import { initialsOf } from "../../domain/commands/shared.ts";
 import type {
-  Activity, Attachment, Comment, Decision, Doc, Invite, Milestone, Notification, Person, Product, ProductIcon, PullRequest,
+  Activity, Attachment, Comment, Decision, Doc, DocShare, Invite, Milestone, Notification, Person, Product, ProductIcon, PullRequest,
   Requirement, StageRequest, Status, Team, Ticket, TicketSections,
 } from "../../domain/types.ts";
 
@@ -71,6 +71,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     milestones: db.milestones.map((m) => r(m.id, { productId: m.productKey, name: m.name, due: m.due, pct: m.pct, lateDays: m.lateDays })),
     docs: db.docs.map((d) => r(d.id, {
       productId: opt(d.productKey), parentId: opt(d.parentId), groupId: opt(d.groupId), kind: d.kind, title: d.title, icon: opt(d.icon), cover: opt(d.cover), link: opt(d.link),
+      ownerId: opt(d.ownerId), sharedWith: d.sharedWith?.length ? d.sharedWith : null, companyAccess: opt(d.companyAccess),
       template: opt(d.template), updated: d.updated, authorId: d.authorId, createdAt: instantOrNull(d.createdAt),
       updatedAt: instantOrNull(d.updatedAt), updatedBy: opt(d.updatedBy), rev: d.rev ?? null,
       archivedAt: instantOrNull(d.archivedAt), archivedBy: opt(d.archivedBy),
@@ -195,6 +196,9 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
       ...(d.icon ? { icon: str(d.icon) } : {}),
       ...(d.cover ? { cover: str(d.cover) } : {}),
       ...(d.link ? { link: str(d.link) } : {}),
+      ...(d.ownerId ? { ownerId: str(d.ownerId) } : {}),
+      ...((d.sharedWith as DocShare[] | null)?.length ? { sharedWith: d.sharedWith as DocShare[] } : {}),
+      ...(d.companyAccess === "view" || d.companyAccess === "edit" ? { companyAccess: d.companyAccess } : {}),
       ...(d.template ? { template: str(d.template) } : {}),
       ...(d.createdAt ? { createdAt: instant(str(d.createdAt)) } : {}),
       ...(d.updatedAt ? { updatedAt: instant(str(d.updatedAt)), updatedBy: und<string>(d.updatedBy), rev: und<number>(d.rev) } : {}),

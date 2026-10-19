@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, BellOff, BellRing, CheckCheck, CircleCheck, MonitorOff, UserPlus, Users, X } from "lucide-react";
+import { AtSign, BellOff, BellRing, CheckCheck, CircleCheck, MonitorOff, Share2, UserPlus, Users, X } from "lucide-react";
 import { markNotificationsRead } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { playSound } from "@/features/tickets/sounds";
@@ -18,6 +18,7 @@ const KIND_ICON: Record<Notification["kind"], React.ReactNode> = {
   approval: <CircleCheck />,
   status: <CheckCheck />,
   invite: <Users />,
+  shared: <Share2 />,
 };
 
 export function NotificationsPanel() {
