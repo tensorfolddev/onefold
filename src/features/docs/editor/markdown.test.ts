@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toDocJson, toMarkdown } from "./markdown.ts";
-import { safeHref } from "./links.ts";
+import { isClaudeArtifact, safeHref, topLink } from "./links.ts";
 
 const roundTrip = (md: string) => toMarkdown(toDocJson(md));
 
@@ -118,4 +118,17 @@ test("alignment survives a save: centred and right-aligned paragraphs and headin
   assert.match(roundTrip("| Name | Role |\n| :--: | ---: |\n| Ayla | Admin |"), /\| :-+: \| -+: \|/); // a table column: Markdown's own :--:
   assert.match(JSON.stringify(toDocJson("<!-- align: center -->\nHi")), /"textAlign":"center"/);
   assert.equal(roundTrip("<!-- align: left -->\nPlain"), "Plain"); // left is the default: nothing to keep
+});
+
+test("a doc's top link: its first block is only a link (card, lone link or bare URL); a Claude artifact is told apart", () => {
+  const art = "https://claude.ai/artifact/Jxj9Rt3T6Gc9Soi171mwUE";
+  for (const md of [`<${art}>`, `[${art}](${art})`, `[Pitch deck](${art})\n\nNotes`, `${art}\n`, `\n<!-- align: center -->\n<${art}>`]) assert.equal(topLink(md), art, md);
+  for (const md of ["", "Intro first\n\n<https://claude.ai/artifact/x>", `See [this](${art}) here`, "[brief.pdf](/api/files/file-abc)", "<javascript:alert(1)>"]) {
+    assert.equal(topLink(md), undefined, md);
+  }
+  assert.equal(topLink(toMarkdown(toDocJson(`<${art}>`))), art); // what the editor saves for a pasted link card
+  for (const url of [art, "https://claude.ai/public/artifacts/0f1e-2d3c", "https://claude.site/artifacts/abc-123"]) assert.equal(isClaudeArtifact(url), true, url);
+  for (const url of [undefined, "http://claude.ai/artifact/x", "https://claude.ai/chat/abc", "https://evilclaude.ai/artifact/x", "https://claude.ai.evil.com/artifact/x", "not a url"]) {
+    assert.equal(isClaudeArtifact(url), false, String(url));
+  }
 });

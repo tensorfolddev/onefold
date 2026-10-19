@@ -201,6 +201,7 @@ export interface Doc {
   title: string;
   icon?: string; // one emoji
   cover?: string; // a cover gradient's id
+  link?: string; // the web link its body opens with (kept on save) — a Claude artifact's, say
   template?: string; // the template it started from
   updated: string; // day of the last edit
   authorId: string;

@@ -1,9 +1,10 @@
 "use client";
 
 // A space's front page, monday.com style: every page, by group — each group a coloured table (page, created by, last
-// edited) with subpages indented under their parent. One "New page" button (blank, or any template).
+// edited) with subpages indented under their parent. One "New page" button (blank, or any template). A page that opens
+// with a link (a Claude artifact's, say) can be opened straight from its card; artifacts can be shown on their own.
 import Link from "next/link";
-import { ChevronDown, FileText, LayoutGrid, Plus, Table2 } from "lucide-react";
+import { ChevronDown, ExternalLink, FileText, LayoutGrid, Plus, Sparkles, Table2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useDb } from "@/data/StoreProvider";
 import { relativeTime } from "@/domain/status";
@@ -12,7 +13,8 @@ import { RequirementsTable } from "@/features/products/LiveWidgets";
 import { Avatar } from "@/ui/primitives";
 import { DocsTopBar } from "./DocsSpace";
 import { useNewDoc } from "./NewDoc";
-import { childrenOf, coverCss, docPath, spaceDocs, topLevel } from "./tree";
+import { isClaudeArtifact } from "./editor/links";
+import { childrenOf, coverCss, coverOf, docPath, spaceDocs, topLevel } from "./tree";
 
 /** monday.com's group colours, in order. */
 const GROUP_COLORS = ["#579bfc", "#00c875", "#fdab3d", "#a25ddc", "#e2445c", "#ffcb00", "#ff158a", "#0086c0"];
@@ -25,26 +27,42 @@ function flatten(docs: Doc[], list: Doc[], depth = 0): { doc: Doc; depth: number
 
 type View = "table" | "cards";
 const VIEW_KEY = "onefold.docs.view";
+type Kind = "all" | "pages" | "artifacts";
+
+const ArtifactBadge = () => <span className="doc-kind is-artifact"><Sparkles aria-hidden /> Claude artifact</span>;
 
 function DocCard({ doc }: { doc: Doc }) {
   const { href, personById } = useDb();
   const by = personById(doc.updatedBy ?? doc.authorId);
+  const artifact = isClaudeArtifact(doc.link);
   return (
-    <Link href={href(docPath(doc))} className="doc-card" style={{ "--cover": coverCss(doc.cover) } as React.CSSProperties}>
-      <span className="doc-card-cover" aria-hidden />
-      <span className="doc-card-icon" aria-hidden>{doc.icon ?? "📄"}</span>
-      <span className="doc-card-body">
-        <span className="doc-card-title">{doc.title}</span>
-        <span className="doc-card-meta"><Avatar personId={by?.id} size="sm" /> {relativeTime(edited(doc))} ago</span>
-      </span>
-    </Link>
+    <div className="doc-card-wrap">
+      <Link href={href(docPath(doc))} className="doc-card" style={{ "--cover": coverCss(coverOf(doc)) } as React.CSSProperties}>
+        <span className="doc-card-cover" aria-hidden />
+        <span className="doc-card-icon" aria-hidden>{doc.icon ?? "📄"}</span>
+        <span className="doc-card-body">
+          <span className="doc-card-title">{doc.title}</span>
+          {artifact && <ArtifactBadge />}
+          <span className="doc-card-meta"><Avatar personId={by?.id} size="sm" /> {relativeTime(edited(doc))} ago</span>
+        </span>
+      </Link>
+      {doc.link && ( // beside the card, not in it: a link can't hold another
+        <a href={doc.link} target="_blank" rel="noopener noreferrer" className="doc-card-open" data-tip={doc.link}
+          aria-label={`Open ${artifact ? "the artifact" : "the link"} in ${doc.title}, in a new tab`}>
+          <ExternalLink aria-hidden /> Open
+        </a>
+      )}
+    </div>
   );
 }
 
-function GroupTable({ name, color, pages, docs, view }: { name: string; color: string; pages: Doc[]; docs: Doc[]; view: View }) {
+function GroupTable({ name, color, pages, docs, view, shown }: {
+  name: string; color: string; pages: Doc[]; docs: Doc[]; view: View; shown?: (d: Doc) => boolean;
+}) {
   const { href, personById } = useDb();
   const [open, setOpen] = useState(true);
-  const rows = flatten(docs, pages);
+  const rows = flatten(docs, pages).filter((r) => !shown || shown(r.doc));
+  if (shown && !rows.length) return null; // filtered: only the groups with something to show
   return (
     <section className="docs-board-group" style={{ "--group": color } as React.CSSProperties} aria-label={name}>
       <button type="button" className="docs-board-head" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
@@ -70,6 +88,7 @@ function GroupTable({ name, color, pages, docs, view }: { name: string; color: s
                 <span role="cell" className="docs-board-page" style={{ paddingLeft: 14 + depth * 22 }}>
                   <span className="docs-board-icon" aria-hidden>{doc.icon ?? <FileText />}</span>
                   <span className="docs-board-title">{doc.title}</span>
+                  {isClaudeArtifact(doc.link) && <ArtifactBadge />}
                 </span>
                 <span role="cell" className="docs-board-person">{by && <><Avatar personId={by.id} size="sm" /> {by.name}</>}</span>
                 <span role="cell" className="docs-board-when">{relativeTime(edited(doc))} ago{editor ? ` · ${editor.name.split(" ")[0]}` : ""}</span>
@@ -100,6 +119,10 @@ export function DocsHome({ productKey }: { productKey: string }) {
     setViewState(v);
     try { localStorage.setItem(VIEW_KEY, v); } catch { /* per-browser convenience only */ }
   };
+  const [kindPicked, setKind] = useState<Kind>("all");
+  const artifacts = docs.filter((d) => isClaudeArtifact(d.link)).length;
+  const kind: Kind = artifacts ? kindPicked : "all";
+  const shown = kind === "all" ? undefined : (d: Doc) => (kind === "artifacts") === isClaudeArtifact(d.link);
 
   return (
     <>
@@ -111,6 +134,13 @@ export function DocsHome({ productKey }: { productKey: string }) {
             <p>{product ? "Briefs, designs and notes for this project — everyone on it can write here." : "Handbook, policies and how we work — for everyone at the company."}</p>
           </div>
           <div className="docs-home-actions">
+            {artifacts > 0 && (
+              <div className="docs-view-switch" role="group" aria-label="Show">
+                {([["all", "All"], ["pages", "Pages"], ["artifacts", `Claude artifacts · ${artifacts}`]] as const).map(([k, label]) => (
+                  <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>{k === "artifacts" && <Sparkles aria-hidden />}{label}</button>
+                ))}
+              </div>
+            )}
             <div className="docs-view-switch" role="tablist" aria-label="View">
               <button type="button" role="tab" aria-selected={view === "table"} onClick={() => setView("table")}><Table2 aria-hidden /> Table</button>
               <button type="button" role="tab" aria-selected={view === "cards"} onClick={() => setView("cards")}><LayoutGrid aria-hidden /> Cards</button>
@@ -126,8 +156,9 @@ export function DocsHome({ productKey }: { productKey: string }) {
           </div>
         ) : (
           <div className="docs-board">
-            {groups.map((g, i) => <GroupTable key={g.id} view={view} name={g.name} color={GROUP_COLORS[i % GROUP_COLORS.length]} docs={docs} pages={tops.filter((d) => d.groupId === g.id)} />)}
-            {(ungrouped.length > 0 || !groups.length) && <GroupTable view={view} name={groups.length ? "Other pages" : "Pages"} color="#676879" docs={docs} pages={ungrouped} />}
+            {shown && !docs.some(shown) && <p className="docs-board-none">{kind === "pages" ? "Every page here is a Claude artifact" : "No Claude artifacts here"}</p>}
+            {groups.map((g, i) => <GroupTable key={g.id} view={view} shown={shown} name={g.name} color={GROUP_COLORS[i % GROUP_COLORS.length]} docs={docs} pages={tops.filter((d) => d.groupId === g.id)} />)}
+            {(ungrouped.length > 0 || !groups.length) && <GroupTable view={view} shown={shown} name={groups.length ? "Other pages" : "Pages"} color="#676879" docs={docs} pages={ungrouped} />}
           </div>
         )}
         {productKey && (

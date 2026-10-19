@@ -70,7 +70,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     })),
     milestones: db.milestones.map((m) => r(m.id, { productId: m.productKey, name: m.name, due: m.due, pct: m.pct, lateDays: m.lateDays })),
     docs: db.docs.map((d) => r(d.id, {
-      productId: opt(d.productKey), parentId: opt(d.parentId), groupId: opt(d.groupId), kind: d.kind, title: d.title, icon: opt(d.icon), cover: opt(d.cover),
+      productId: opt(d.productKey), parentId: opt(d.parentId), groupId: opt(d.groupId), kind: d.kind, title: d.title, icon: opt(d.icon), cover: opt(d.cover), link: opt(d.link),
       template: opt(d.template), updated: d.updated, authorId: d.authorId, createdAt: instantOrNull(d.createdAt),
       updatedAt: instantOrNull(d.updatedAt), updatedBy: opt(d.updatedBy), rev: d.rev ?? null,
       archivedAt: instantOrNull(d.archivedAt), archivedBy: opt(d.archivedBy),
@@ -194,6 +194,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
       ...(d.groupId ? { groupId: str(d.groupId) } : {}),
       ...(d.icon ? { icon: str(d.icon) } : {}),
       ...(d.cover ? { cover: str(d.cover) } : {}),
+      ...(d.link ? { link: str(d.link) } : {}),
       ...(d.template ? { template: str(d.template) } : {}),
       ...(d.createdAt ? { createdAt: instant(str(d.createdAt)) } : {}),
       ...(d.updatedAt ? { updatedAt: instant(str(d.updatedAt)), updatedBy: und<string>(d.updatedBy), rev: und<number>(d.rev) } : {}),

@@ -187,6 +187,7 @@ export const docs = pgTable("docs", {
   title: text("title").notNull(),
   icon: text("icon"),
   cover: text("cover"),
+  link: text("link"), // the web link its body opens with
   template: text("template"),
   updated: day("updated").notNull(),
   authorId: text("author_id").notNull(),
