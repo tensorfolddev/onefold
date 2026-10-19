@@ -1278,6 +1278,28 @@ test("Integrations center: Claude and WhatsApp for everyone; Team Bot for admins
   await expect(page.getByRole("table", { name: "Deliveries" })).toContainText("Nothing sent yet.");
 });
 
+test("Notifications & sounds: anyone picks the sound a notification makes — and an urgent one — kept after a reload", async ({ page }) => {
+  await signUp(page, "Sonic", email("sounds"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  const open = async () => {
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("button", { name: "Notifications & sounds" }).click();
+    return page.getByRole("dialog", { name: "Notifications & sounds" });
+  };
+  let dialog = await open();
+  const notify = dialog.getByRole("radiogroup", { name: "New notification" });
+  await expect(notify.getByRole("radio", { name: "Bloom" })).toHaveAttribute("aria-checked", "true"); // the new default
+  await notify.getByRole("radio", { name: "Bell" }).click();
+  await dialog.getByRole("radiogroup", { name: "Urgent (@@)" }).getByRole("radio", { name: "Siren" }).click();
+  await expect(dialog.getByRole("button", { name: "Upload" }).first()).toBeVisible(); // or your own sound file
+  await dialog.getByRole("button", { name: "Done" }).click();
+
+  await page.reload();
+  dialog = await open();
+  await expect(dialog.getByRole("radiogroup", { name: "New notification" }).getByRole("radio", { name: "Bell" })).toHaveAttribute("aria-checked", "true");
+  await expect(dialog.getByRole("radiogroup", { name: "Urgent (@@)" }).getByRole("radio", { name: "Siren" })).toHaveAttribute("aria-checked", "true");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

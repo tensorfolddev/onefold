@@ -6,6 +6,7 @@ import type { Db } from "../../data/db.ts";
 import { PANEL_SLUG } from "../../data/session.ts";
 import type { Notification, Person } from "../../domain/types.ts";
 import { DEFAULT_SETTINGS, fill } from "../../domain/whatsapp.ts";
+import { whatsappLinkBase } from "./appLink.ts";
 import { database } from "../db/client.ts";
 import * as s from "../db/schema.ts";
 import { settingsFor } from "./settings.ts";
@@ -21,7 +22,7 @@ const excerpt = (text: string) => {
 
 /** The WhatsApp messages for the urgent notices a change made (in `after`, not in `before`), in the company's own words
  * (`template`). Pure: no I/O. */
-export function urgentAlerts(before: Db, after: Db, me: Person, appUrl = process.env.APP_URL ?? "", template = DEFAULT_SETTINGS.templates.urgent): Alert[] {
+export function urgentAlerts(before: Db, after: Db, me: Person, appUrl = whatsappLinkBase(), template = DEFAULT_SETTINGS.templates.urgent): Alert[] {
   const old = new Set(before.notifications.map((n) => n.id));
   const base = appUrl.replace(/\/$/, "");
   const oldComments = new Set(before.comments.map((c) => c.id));

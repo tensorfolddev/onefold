@@ -5,12 +5,15 @@ import { cleanupFiles } from "../server/files.ts";
 import { botStatus, cleanupLinkCodes, handleMessage, setBotState, takeBotRequest } from "../server/whatsapp/bot.ts";
 import { sendDueBriefs } from "../server/whatsapp/brief.ts";
 import { sendOutbox } from "../server/whatsapp/outbox.ts";
+import { whatsappLinkBase } from "../server/whatsapp/appLink.ts";
 import { createBridge, type Bridge } from "../server/whatsapp/bridge.ts";
 import { companyBot, companyBotIds, dropCompanyBot, setCompanyBotState, takeCompanyBotRequests } from "../server/whatsapp/companyBot.ts";
 
 const HOUR = 60 * 60_000;
 const MINUTE = 60_000;
 const APP_URL = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const LINK_URL = whatsappLinkBase(APP_URL); // what WhatsApp messages link to (a phone can't open localhost)
+if (LINK_URL !== APP_URL) console.log(`[worker] WhatsApp links use ${LINK_URL} — APP_URL is localhost, which phones can't open`);
 const timers: NodeJS.Timeout[] = [];
 
 /** Runs `job` now and then every `ms`. A failure is logged and simply tried again next time; runs never overlap. */
@@ -40,7 +43,7 @@ const WHATSAPP_DIR = process.env.WHATSAPP_DIR ?? "data/whatsapp";
 const COMPANIES_DIR = "companies"; // companies' own numbers, beside 1FOLD's session — never forgotten with it
 const bridge = createBridge(WHATSAPP_DIR, {
   onState: (state, extra) => setBotState(state, extra, APP_URL),
-  onMessage: (msg) => handleMessage(msg, bridge, APP_URL),
+  onMessage: (msg) => handleMessage(msg, bridge, LINK_URL),
 }, { keep: [COMPANIES_DIR] });
 if (bridge.hasSession()) {
   bridge.start().catch((e: unknown) => console.error("[worker] WhatsApp didn't start", e));
@@ -63,7 +66,7 @@ function companyBridge(orgId: string): Bridge {
   if (!own) {
     const made: Bridge = createBridge(`${WHATSAPP_DIR}/${COMPANIES_DIR}/${orgId}`, {
       onState: (state, extra) => setCompanyBotState(orgId, state, extra),
-      onMessage: (msg) => handleMessage(msg, made, APP_URL, orgId),
+      onMessage: (msg) => handleMessage(msg, made, LINK_URL, orgId),
     });
     own = made;
     companies.set(orgId, own);
@@ -112,7 +115,7 @@ const senderFor = (orgId: string | null) => {
 every("whatsapp alerts", 5_000, async () => sendOutbox(senderFor));
 
 every("daily briefs", MINUTE, async () => {
-  const run = await sendDueBriefs({ whatsapp: bridge, appUrl: APP_URL, whatsappFor: (orgId) => ownFor(orgId) ?? null });
+  const run = await sendDueBriefs({ whatsapp: bridge, appUrl: LINK_URL, whatsappFor: (orgId) => ownFor(orgId) ?? null });
   return run.whatsapp + run.email + run.none + run.failed > 0 ? run : undefined;
 });
 

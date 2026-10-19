@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AtSign, BellOff, BellRing, CheckCheck, CircleCheck, MonitorOff, Share2, UserPlus, Users, X } from "lucide-react";
 import { markNotificationsRead } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
-import { playSound } from "@/features/tickets/sounds";
+import { playNotice } from "./noticeSounds";
 import { alertDesktop, desktopOn, desktopSupported, setDesktop } from "./desktopAlerts";
 import { useAppState } from "@/features/shell/state";
 import { relativeTime } from "@/domain/status";
@@ -64,7 +64,7 @@ export function NotificationsPanel() {
       seen.current.add(n.id);
       if (n.read) continue;
       const who = personById(n.actorId)?.name ?? "Someone";
-      playSound(n.urgent ? "urgent" : "notify");
+      playNotice(n.urgent ? "urgent" : "notify");
       toast(`${n.urgent ? "🚨 Urgent: " : "🔔 "}${who} ${n.text}`, undefined, n.urgent ? "error" : "info");
       alertDesktop(n.urgent ? `🚨 ${who} needs you` : `${who} · 1Fold`, n.text, n.id, () => openRef.current(n));
     }
