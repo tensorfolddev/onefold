@@ -1300,7 +1300,7 @@ test("Notifications & sounds: anyone picks the sound a notification makes — an
   await expect(dialog.getByRole("radiogroup", { name: "Urgent (@@)" }).getByRole("radio", { name: "Siren" })).toHaveAttribute("aria-checked", "true");
 });
 
-test("Integrations → Email: an admin sees how email is set up (never the key) and sends themselves a test", async ({ page }) => {
+test("Integrations → Email: an admin tests email, saves their company's Resend (shown only as its last 4), and removes it", async ({ page }) => {
   await signUp(page, "Postman", email("postman"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.goto("/admin/integrations");
@@ -1317,6 +1317,20 @@ test("Integrations → Email: an admin sees how email is set up (never the key) 
     }
     return false;
   }, { timeout: 15_000 }).toBe(true);
+
+  const setup = page.getByRole("region", { name: "Your Resend" });
+  await setup.getByLabel("API key").fill("re_e2eTestKey_9z7Q");
+  await setup.getByLabel("From").fill("Postman <hello@postman.example>");
+  await setup.getByRole("button", { name: "Save" }).click();
+  await expect(page.locator(".int-app-cta")).toContainText("Sending as Postman <hello@postman.example>");
+  await expect(setup).toContainText("Key ending 9z7Q");
+  await expect(setup.getByLabel("API key")).toHaveValue("");
+  expect(await page.content()).not.toContain("re_e2eTestKey");
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Your Resend" }).getByLabel("From")).toHaveValue("Postman <hello@postman.example>");
+  await page.getByRole("region", { name: "Your Resend" }).getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("dialog", { name: "Remove your Resend?" }).getByRole("button", { name: "Remove" }).click();
+  await expect(page.locator(".int-app-cta").getByRole("status")).toContainText("Test inbox (development)");
 });
 
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {

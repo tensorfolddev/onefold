@@ -1,33 +1,112 @@
-// Email. With RESEND_API_KEY set, messages go out through Resend (from EMAIL_FROM). Without it nothing leaves the
-// machine: with EMAIL_OUTBOX_DIR set each message is written there as JSON (tests and e2e read them back), otherwise
-// development prints it to the server log. Sending never throws — a failed email is logged and reported as false.
+// Email, through Resend: a company's own account (its admins set it in Integrations → Email — the key encrypted), or
+// else the server's (RESEND_API_KEY, from EMAIL_FROM). With neither nothing leaves the machine: with EMAIL_OUTBOX_DIR
+// set each message is written there as JSON (tests and e2e read them back), otherwise development prints it to the
+// server log. Sending never throws — a failed email is logged and reported as false.
 import { mkdir, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
+import { eq, sql } from "drizzle-orm";
+import { ValidationError } from "../domain/commands/index.ts";
+import { seal, unseal } from "./auth/secrets.ts";
+import { inScope } from "./db/client.ts";
+import * as s from "./db/schema.ts";
 
 export interface Email { to: string; subject: string; text: string; html: string }
+/** A Resend account to send through: its API key, and the address emails come from. */
+export interface Resend { key: string; from: string }
 
 const RESEND_URL = "https://api.resend.com/emails";
 const SEND_TIMEOUT_MS = 10_000;
+const DEFAULT_FROM = "1Fold <onboarding@resend.dev>";
+const KEY_RE = /^re_[A-Za-z0-9_-]{8,200}$/;
+const ADDRESS = "[^\\s<>@]+@[^\\s<>@]+\\.[^\\s<>@]+";
+const FROM_RE = new RegExp(`^(?:[^<>\\n]{1,80}<${ADDRESS}>|${ADDRESS})$`);
 
-/** Whether emails really reach people (Resend), or at least an inbox tests can read. Gates "confirm your email". */
+/** Whether the server itself can send (RESEND_API_KEY), or at least has an inbox tests can read. */
 export const emailEnabled = () => !!process.env.RESEND_API_KEY || !!process.env.EMAIL_OUTBOX_DIR;
 
-const DEFAULT_FROM = "1Fold <onboarding@resend.dev>";
-/** How email is set up here, for Integrations → Email: through Resend (from which address), a test inbox, or not at all. */
-export const emailStatus = (): { mode: "resend" | "outbox" | "off"; from: string } => ({
-  mode: process.env.RESEND_API_KEY ? "resend" : process.env.EMAIL_OUTBOX_DIR ? "outbox" : "off",
-  from: process.env.EMAIL_FROM || DEFAULT_FROM,
-});
+/** The server's own Resend (RESEND_API_KEY / EMAIL_FROM), if it has one. */
+const serverResend = (): Resend | null => (process.env.RESEND_API_KEY ? { key: process.env.RESEND_API_KEY, from: process.env.EMAIL_FROM || DEFAULT_FROM } : null);
 
-export async function sendEmail(msg: Email): Promise<boolean> {
+// ---------- a company's own Resend (Integrations → Email) ----------
+
+/** The company's own Resend, its key decrypted — or null (none set, or it can't be read any more). */
+export async function companyResend(orgId: string): Promise<(Resend & { hint: string }) | null> {
+  const [row] = await inScope({ orgId }, (tx) => tx.select().from(s.companyEmail).where(eq(s.companyEmail.orgId, orgId)));
+  if (!row) return null;
   try {
-    const key = process.env.RESEND_API_KEY;
-    if (key) {
+    return { key: unseal(row.apiKey), from: row.fromAddress, hint: row.keyHint };
+  } catch (e) {
+    console.error(`[email] ${orgId}'s Resend key can't be read (SESSION_SECRET changed?) — it needs entering again`, e);
+    return null;
+  }
+}
+
+/** A key and From address as typed, checked. */
+export function checkResend(input: { key?: unknown; from?: unknown }): { key?: string; from?: string } {
+  const out: { key?: string; from?: string } = {};
+  if (input.key !== undefined && input.key !== "") {
+    const key = String(input.key).trim();
+    if (!KEY_RE.test(key)) throw new ValidationError("That doesn't look like a Resend API key — they start with re_");
+    out.key = key;
+  }
+  if (input.from !== undefined && input.from !== "") {
+    const from = String(input.from).trim().replace(/\s+</, " <");
+    if (from.length > 200 || !FROM_RE.test(from)) throw new ValidationError("Write the From address like: Acme <hello@acme.com>");
+    out.from = from;
+  }
+  return out;
+}
+
+/** Saves the company's own Resend: a new key (or the one it has) and its From address. */
+export async function saveCompanyResend(orgId: string, memberId: string, input: { key?: unknown; from?: unknown }): Promise<void> {
+  const { key, from } = checkResend(input);
+  if (!from) throw new ValidationError("Add the From address — like: Acme <hello@acme.com>");
+  await inScope({ orgId }, async (tx) => {
+    if (!key) {
+      const [had] = await tx.select({ orgId: s.companyEmail.orgId }).from(s.companyEmail).where(eq(s.companyEmail.orgId, orgId));
+      if (!had) throw new ValidationError("Paste your Resend API key");
+      await tx.update(s.companyEmail).set({ fromAddress: from, updatedBy: memberId, updatedAt: sql`now()` }).where(eq(s.companyEmail.orgId, orgId));
+      return;
+    }
+    const row = { apiKey: seal(key), keyHint: key.slice(-4), fromAddress: from, updatedBy: memberId, updatedAt: sql`now()` };
+    await tx.insert(s.companyEmail).values({ orgId, ...row }).onConflictDoUpdate({ target: s.companyEmail.orgId, set: row });
+  });
+}
+
+/** Forgets the company's own Resend: its emails go through the server's again (if it has one). */
+export async function removeCompanyResend(orgId: string): Promise<void> {
+  await inScope({ orgId }, (tx) => tx.delete(s.companyEmail).where(eq(s.companyEmail.orgId, orgId)));
+}
+
+/** Which Resend a company's emails go through: its own, else the server's; null when neither is set. */
+export async function resendFor(orgId?: string): Promise<Resend | null> {
+  return (orgId ? await companyResend(orgId).catch(() => null) : null) ?? serverResend();
+}
+
+/** Whether this company's emails reach people (its Resend or the server's), or a test inbox. Gates "confirm your email". */
+export async function emailOn(orgId?: string): Promise<boolean> {
+  return !!process.env.EMAIL_OUTBOX_DIR || !!(await resendFor(orgId));
+}
+
+export interface EmailStatus { mode: "own" | "server" | "outbox" | "off"; from: string; hint: string | null }
+/** How email is set up for a company, for Integrations → Email — never its key, only the key's last 4. */
+export async function emailStatus(orgId?: string): Promise<EmailStatus> {
+  const own = orgId ? await companyResend(orgId).catch(() => null) : null;
+  if (own) return { mode: "own", from: own.from, hint: own.hint };
+  const server = serverResend();
+  return { mode: server ? "server" : process.env.EMAIL_OUTBOX_DIR ? "outbox" : "off", from: server?.from ?? DEFAULT_FROM, hint: null };
+}
+
+/** Sends one email: through `via`, or the company's Resend, or the server's; else to the test inbox, or the log. */
+export async function sendEmail(msg: Email, opts: { orgId?: string; via?: Resend } = {}): Promise<boolean> {
+  try {
+    const resend = opts.via ?? (await resendFor(opts.orgId));
+    if (resend) {
       const res = await fetch(RESEND_URL, {
         method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: process.env.EMAIL_FROM || DEFAULT_FROM, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
+        headers: { Authorization: `Bearer ${resend.key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: resend.from, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
         signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`Resend answered ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -39,8 +118,8 @@ export async function sendEmail(msg: Email): Promise<boolean> {
       await writeFile(/*turbopackIgnore: true*/ join(dir, `${Date.now()}-${randomBytes(4).toString("hex")}.json`), JSON.stringify(msg));
       return true;
     }
-    if (process.env.NEXT_PUBLIC_APP_ENV === "dev") console.info(`[email] (not sent — no RESEND_API_KEY) to ${msg.to}: ${msg.subject}\n${msg.text}`);
-    else console.warn(`[email] not sent — RESEND_API_KEY is not set: "${msg.subject}" to ${msg.to}`);
+    if (process.env.NEXT_PUBLIC_APP_ENV === "dev") console.info(`[email] (not sent — no Resend set up) to ${msg.to}: ${msg.subject}\n${msg.text}`);
+    else console.warn(`[email] not sent — no Resend set up (Integrations → Email, or RESEND_API_KEY): "${msg.subject}" to ${msg.to}`);
     return false;
   } catch (e) {
     console.error(`[email] couldn't send "${msg.subject}" to ${msg.to}`, e);

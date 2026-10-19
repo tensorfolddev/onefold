@@ -159,7 +159,7 @@ export async function sendDueBriefs(opts: {
         .returning();
       if (!claimed.length) continue;
       const text = briefText(company.db, person, clock, opts.appUrl, { settings });
-      const channel = text === null ? "none" : await deliver({ ...opts, whatsapp }, link.jid, person, company.db.org.name, text);
+      const channel = text === null ? "none" : await deliver({ ...opts, whatsapp }, link.jid, person, orgId, company.db.org.name, text);
       run[channel] += 1;
       await database().update(s.briefDeliveries).set({ channel })
         .where(and(eq(s.briefDeliveries.orgId, orgId), eq(s.briefDeliveries.memberId, link.memberId), eq(s.briefDeliveries.day, clock.day)));
@@ -168,7 +168,7 @@ export async function sendDueBriefs(opts: {
   return run;
 }
 
-async function deliver(opts: { whatsapp: Sender | null; appUrl: string; gapMs?: number }, jid: string, person: Person, orgName: string, text: string) {
+async function deliver(opts: { whatsapp: Sender | null; appUrl: string; gapMs?: number }, jid: string, person: Person, orgId: string, orgName: string, text: string) {
   if (opts.whatsapp?.connected()) {
     try {
       await opts.whatsapp.send(jid, text);
@@ -179,5 +179,5 @@ async function deliver(opts: { whatsapp: Sender | null; appUrl: string; gapMs?: 
     }
   }
   const myWorkUrl = `${opts.appUrl}/${PANEL_SLUG[person.panel!]}/my-work`;
-  return (await sendEmail(briefEmail({ to: person.email, orgName, text, myWorkUrl }))) ? "email" as const : "failed" as const;
+  return (await sendEmail(briefEmail({ to: person.email, orgName, text, myWorkUrl }), { orgId })) ? "email" as const : "failed" as const;
 }
