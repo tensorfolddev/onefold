@@ -3,6 +3,7 @@
 
 import { CircleCheck, FileText } from "lucide-react";
 import { useMe } from "@/data/StoreProvider";
+import { isBlocked } from "@/domain/selectors/dashboard";
 import { coverage, toneOf } from "@/domain/selectors/product";
 import { useAppState } from "@/features/shell/state";
 import { summaryOf } from "@/domain/templates";
@@ -94,7 +95,7 @@ export function RequirementsTable({ productKey }: { productKey: string }) {
 export function BlockerList({ productKey }: { productKey: string }) {
   const { tickets, openTicket } = useAppState();
   const { db } = useMe();
-  const blockers = tickets.filter((t) => t.productKey === productKey && toneOf(db, t) === "stuck");
+  const blockers = tickets.filter((t) => t.productKey === productKey && isBlocked(db, t));
   if (!blockers.length) {
     return <EmptyState icon={<CircleCheck aria-hidden />} title="No blockers">Nothing is stuck right now.</EmptyState>;
   }
