@@ -73,7 +73,7 @@ export function TooltipLayer() {
     else if (place === "top" && r.top - GAP - h < EDGE) place = "bottom";
     const center = r.left + r.width / 2;
     const left = Math.min(Math.max(EDGE, center - w / 2), innerWidth - w - EDGE);
-    setSpot({ left, top: place === "bottom" ? r.bottom + GAP : r.top - GAP - h, arrow: center - left, place }); // eslint-disable-line react-hooks/set-state-in-effect -- placed after measuring
+    setSpot({ left, top: place === "bottom" ? r.bottom + GAP : r.top - GAP - h, arrow: center - left, place }); // placed after measuring
   }, [tip]);
 
   if (!tip) return null;

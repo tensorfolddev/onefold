@@ -644,7 +644,7 @@ test("docs connect: an @mention notifies, a ticket key becomes a live chip, and 
 });
 
 test("decisions: sticky notes by default, written freely in the editor, superseded, your own labels and note colours", async ({ page }) => {
-  await signUp(page, "Tau", email("tau"));
+  await signUp(page, "Notes", email("decisionsnotes"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.goto("/admin/products?new=1");
   await page.getByPlaceholder("Product name").fill("Ledger");
@@ -957,6 +957,62 @@ test("docs: @@ makes an urgent mention, kept as one after a reload", async ({ pa
   await saved;
   await page.reload();
   await expect(page.locator(".ProseMirror .doc-chip.is-urgent").first()).toHaveText(/@@Ayla Khan/);
+});
+
+test("docs: centred text, a right-aligned table column, an emoji from \":\", and a PDF that opens in a new tab", async ({ page }) => {
+  await signUp(page, "Aligned", email("docsalign"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/docs");
+  await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
+  await expect(page).toHaveURL(/\/d(ocs)?\/.+/);
+  const prose = page.locator('.doc-prose[contenteditable="true"]');
+  const saved = page.waitForResponse((r) => {
+    const body = r.ok() && r.url().includes("/api/docs/") && r.request().method() === "POST" ? r.request().postData() ?? "" : "";
+    return body.includes("<!-- align: center -->") && body.includes("🚀") && body.includes("brief.pdf") && /-+:\s*\|/.test(body);
+  });
+
+  // A PDF: opens in the browser's viewer in a new tab, never downloaded.
+  await prose.click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.keyboard.type("/file");
+  await page.keyboard.press("Enter");
+  await (await chooser).setFiles({ name: "brief.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF\n") });
+  const card = prose.locator("a.file-card", { hasText: "brief.pdf" });
+  await expect(card).toHaveAttribute("target", "_blank");
+  await expect(card).toHaveAttribute("href", /^\/api\/files\/[\w-]+$/);
+  const pdf = await page.request.get((await card.getAttribute("href"))!);
+  expect(pdf.headers()["content-type"]).toBe("application/pdf");
+  expect(pdf.headers()["content-disposition"]).toMatch(/^inline/);
+
+  // Centred text, from the toolbar over a selection.
+  await prose.locator("p").last().click();
+  await page.keyboard.type("Centre me");
+  for (let i = 0; i < "Centre me".length; i += 1) await page.keyboard.press("Shift+ArrowLeft"); // the same selection on every OS
+  await page.getByRole("button", { name: "Align centre" }).click();
+  await expect(prose.locator("p", { hasText: "Centre me" })).toHaveCSS("text-align", "center");
+
+  // ":" + a name inserts an emoji.
+  await page.keyboard.press("ArrowRight"); // to the end of "Centre me"
+  await expect(page.getByRole("button", { name: "Align centre" })).toBeHidden(); // the editor has the caret, not the selection
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Lift-off :rocke");
+  await page.getByRole("listbox", { name: "Emoji" }).getByRole("option", { name: /^rocket/ }).click();
+  await expect(prose).toContainText("Lift-off 🚀");
+
+  // A table column, right-aligned from the table's toolbar.
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/table");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Align column right" }).click();
+  await expect(prose.locator("th").first()).toHaveCSS("text-align", "right");
+
+  await saved;
+  await page.reload();
+  await expect(prose.locator("p", { hasText: "Centre me" })).toHaveCSS("text-align", "center");
+  await expect(prose.locator("th").first()).toHaveCSS("text-align", "right");
+  await expect(prose).toContainText("Lift-off 🚀");
+  await expect(prose.locator("a.file-card", { hasText: "brief.pdf" })).toHaveAttribute("target", "_blank");
 });
 
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {

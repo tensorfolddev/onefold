@@ -155,6 +155,8 @@ export async function checkDocUpload(who: SessionRow, owner: string | FileOwner)
 }
 
 /** What a doc file is, from its bytes: an image (by its header), a PDF, or anything else (always downloaded). */
+const opensInBrowser = (type: string) => type.startsWith("image/") || type === "application/pdf";
+
 export function fileType(b: Buffer): string {
   const image = inspectImage(b);
   if (image) return image.type;
@@ -187,7 +189,7 @@ export async function uploadDocFile(who: SessionRow, input: FileOwner & { name: 
 
 /**
  * A ticket image or doc file the signed-in person may see (it's on a ticket or in a doc they can see), or null.
- * `download`: not an image, so it's only ever saved, never shown in the browser.
+ * `download`: not an image or a PDF, so it's only ever saved, never shown in the browser.
  */
 export async function readImage(who: SessionRow, id: string): Promise<{ bytes: Buffer; type: string; name: string; download?: boolean } | null> {
   if (!ID_RE.test(id)) return null;
@@ -198,10 +200,10 @@ export async function readImage(who: SessionRow, id: string): Promise<{ bytes: B
     const onTicket = view.tickets.flatMap((t) => t.attachments ?? []).find((a) => a.id === id);
     if (onTicket) return onTicket;
     const [f] = await tx.select().from(s.docFiles).where(and(eq(s.docFiles.orgId, who.orgId), eq(s.docFiles.id, id)));
-    if (f) return view.docs.some((d) => d.id === f.docId) ? { id: f.id, name: f.name, type: f.type, download: !f.type.startsWith("image/") } : null;
+    if (f) return view.docs.some((d) => d.id === f.docId) ? { id: f.id, name: f.name, type: f.type, download: !opensInBrowser(f.type) } : null;
     const [g] = await tx.select().from(s.decisionFiles).where(and(eq(s.decisionFiles.orgId, who.orgId), eq(s.decisionFiles.id, id)));
     if (!g || !view.decisions.some((d) => d.id === g.decisionId)) return null;
-    return { id: g.id, name: g.name, type: g.type, download: !g.type.startsWith("image/") };
+    return { id: g.id, name: g.name, type: g.type, download: !opensInBrowser(g.type) };
   });
   if (!att) return null;
   try {

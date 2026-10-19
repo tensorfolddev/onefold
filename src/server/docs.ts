@@ -4,7 +4,7 @@
 // Who has a doc open is kept in memory and sent the same way ("org:presence:…").
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../data/db.ts";
-import { AccessError, createDoc as createDocCommand, mentionable, notifyDocMentions, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
+import { AccessError, createDoc as createDocCommand, notifyDocMentions, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
 import { refsIn } from "../features/docs/editor/links.ts";
 import { templateFor } from "../domain/docTemplates.ts";
 import { can } from "../domain/permissions.ts";

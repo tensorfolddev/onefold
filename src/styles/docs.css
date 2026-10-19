@@ -432,6 +432,7 @@
 }
 .table-menu-btn { position: relative; display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 5px; border-radius: 7px; color: var(--icon-color); }
 .table-menu-btn:hover { background: var(--primary-background-hover-color); color: var(--primary-text-color); }
+.table-menu-btn.is-on { color: var(--primary-color); background: var(--primary-selected-color); }
 .table-menu-btn.is-danger:hover { color: var(--negative-color); background: color-mix(in srgb, var(--negative-color) 10%, transparent); }
 .table-menu-btn svg { width: 16px; height: 16px; }
 .table-menu-btn .table-menu-mini { position: absolute; right: 2px; bottom: 2px; width: 10px; height: 10px; }

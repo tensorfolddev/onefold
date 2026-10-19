@@ -64,7 +64,7 @@ export function suggestMenu(opts: {
   char: string;
   title?: string;
   empty: string;
-  items: (query: string) => MenuItem[];
+  items: (query: string) => MenuItem[] | Promise<MenuItem[]>;
   pick: (editor: Editor, range: Range, item: MenuItem) => void;
   allow?: SuggestionOptions<MenuItem, MenuItem>["allow"];
   allowSpaces?: boolean;

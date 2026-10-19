@@ -2,7 +2,7 @@
 import type { Editor, Range } from "@tiptap/core";
 import {
   CircleAlert, Code2, Heading1, ImageIcon, Paperclip, Heading2, Heading3, Info, Lightbulb, List, ListChecks, ListOrdered, Minus, Pilcrow, Quote,
-  Table2, TriangleAlert, type LucideIcon,
+  Smile, Table2, TriangleAlert, type LucideIcon,
 } from "lucide-react";
 
 export interface Block {
@@ -39,6 +39,7 @@ export const BLOCKS: Block[] = [
   { id: "table", label: "Table", hint: "Rows and columns", icon: Table2, keywords: "grid", run: (e, r) => at(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { id: "image", label: "Image", hint: "Upload or paste a picture", icon: ImageIcon, keywords: "picture photo png jpg screenshot", run: (e, r) => { at(e, r).run(); pickFile("image/*"); } },
   { id: "file", label: "File", hint: "Attach any file", icon: Paperclip, keywords: "attachment pdf upload document", run: (e, r) => { at(e, r).run(); pickFile(""); } },
+  { id: "emoji", label: "Emoji", hint: "Type a name, like :fire", icon: Smile, keywords: "emoticon smiley icon :", run: (e, r) => at(e, r).insertContent(":").run() },
   { id: "divider", label: "Divider", hint: "Separate sections", icon: Minus, keywords: "hr line --- separator", run: (e, r) => at(e, r).setHorizontalRule().run() },
 ];
 

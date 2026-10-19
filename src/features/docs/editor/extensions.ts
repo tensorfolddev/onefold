@@ -1,9 +1,11 @@
 // The doc editor's building blocks — the same list for the editor in the browser and for Markdown in tests and on the
 // server, so what you see is exactly what's stored.
-import { Extension, type AnyExtension } from "@tiptap/core";
+import { Extension, type AnyExtension, type Editor } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import Heading from "@tiptap/extension-heading";
 import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
+import Paragraph from "@tiptap/extension-paragraph";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
@@ -79,6 +81,72 @@ const StyledTable = Extension.create({
   },
 });
 
+// ---------- alignment: paragraphs and headings can be centred or right-aligned (left is the default) ----------
+// Markdown has no alignment, so an aligned block carries a one-line comment before it — `<!-- align: center -->` —
+// which other Markdown readers simply ignore. (Table columns use Markdown's own :--: instead.)
+export const ALIGNS = ["left", "center", "right"] as const;
+export type Align = (typeof ALIGNS)[number];
+const ALIGNED = /^<!-- align: (left|center|right) -->[ \t]*\n((?:[^\n]+(?:\n|$))+)/;
+const alignOf = (v: unknown): Align | null => (v === "center" || v === "right" ? v : null);
+const withAlign = (md: unknown, attrs?: { textAlign?: unknown }) => {
+  const a = alignOf(attrs?.textAlign);
+  return a ? `<!-- align: ${a} -->\n${String(md ?? "")}` : String(md ?? "");
+};
+
+/** Whether the selection's text can be aligned: not in a table cell (columns align instead) or a list (Markdown can't keep it). */
+export const canAlign = (editor: Editor) => !["table", "listItem", "taskItem"].some((n) => editor.isActive(n));
+
+/** Aligns the paragraphs and headings in the selection (left is the default, so it clears the setting). */
+export const alignText = (editor: Editor, align: Align) => {
+  if (!canAlign(editor)) return false;
+  const textAlign = alignOf(align);
+  return editor.chain().focus().updateAttributes("paragraph", { textAlign }).updateAttributes("heading", { textAlign }).run();
+};
+/** The alignment of the block the selection starts in. */
+export const textAlignAt = (editor: Editor): Align =>
+  alignOf(editor.getAttributes("paragraph").textAlign) ?? alignOf(editor.getAttributes("heading").textAlign) ?? "left";
+
+const TextAlign = Extension.create({
+  name: "textAlign",
+  addKeyboardShortcuts() { // as in Google Docs
+    return {
+      "Mod-Shift-l": () => alignText(this.editor, "left"),
+      "Mod-Shift-e": () => alignText(this.editor, "center"),
+      "Mod-Shift-r": () => alignText(this.editor, "right"),
+    };
+  },
+  addGlobalAttributes() {
+    return [{ types: ["paragraph", "heading"], attributes: { textAlign: {
+      default: null,
+      parseHTML: (el: HTMLElement) => alignOf(el.style.textAlign),
+      renderHTML: (a: { textAlign?: string | null }) => (a.textAlign ? { style: `text-align: ${a.textAlign}` } : {}),
+    } } }];
+  },
+});
+const AlignedParagraph = Paragraph.extend({
+  renderMarkdown(...args: Parameters<NonNullable<typeof Paragraph.config.renderMarkdown>>) { return withAlign(this.parent?.(...args), args[0]?.attrs); },
+});
+const AlignedHeading = Heading.extend({
+  renderMarkdown(...args: Parameters<NonNullable<typeof Heading.config.renderMarkdown>>) { return withAlign(this.parent?.(...args), args[0]?.attrs); },
+}).configure({ levels: [1, 2, 3] });
+
+/** Reads the alignment comment and the block after it. */
+const AlignedBlock = Extension.create({
+  name: "alignedBlock",
+  markdownTokenName: "alignedBlock",
+  markdownTokenizer: {
+    name: "alignedBlock",
+    level: "block",
+    start: (src: string) => lineStart(src, /\n<!-- align: (?:left|center|right) -->/),
+    tokenize(src, _tokens, lexer) {
+      const m = ALIGNED.exec(src);
+      return m ? { type: "alignedBlock", raw: m[0], align: m[1], tokens: lexer.blockTokens(m[2]) } : undefined;
+    },
+  },
+  parseMarkdown: (token, helpers) => helpers.parseChildren(token.tokens ?? []).map((n, i) =>
+    (i === 0 && (n.type === "paragraph" || n.type === "heading") ? { ...n, attrs: { ...n.attrs, textAlign: alignOf(token.align) } } : n)),
+});
+
 /** Images, resizable; the width rides in the Markdown title ("w=480") so it survives a save. */
 const DocImage = Image.extend({
   parseMarkdown: (token, h) => {
@@ -96,7 +164,7 @@ export function docExtensions(opts: { editable: boolean; placeholder?: string })
     StarterKit.configure({
       codeBlock: false, // the highlighted one below
       underline: false, // Markdown has no underline
-      heading: { levels: [1, 2, 3] },
+      paragraph: false, heading: false, // the aligned ones below
       link: {
         openOnClick: !opts.editable,
         autolink: true,
@@ -104,6 +172,7 @@ export function docExtensions(opts: { editable: boolean; placeholder?: string })
         isAllowedUri: (url) => safeHref(url) !== null,
       },
     }),
+    AlignedParagraph, AlignedHeading, TextAlign, AlignedBlock,
     CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),
     Highlight,
     TaskList,
