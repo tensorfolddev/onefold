@@ -142,10 +142,16 @@ export function DecisionLog({ productKey }: { productKey: string }) {
   return (
     <div className="decisions">
       <header className="decisions-head">
-        <div>
-          <h2 className="decisions-title">Decisions</h2>
-          <p className="decisions-sub">Why we chose what we chose, so nobody has to ask twice.</p>
-        </div>
+        <h2 className="decisions-title">Decisions</h2>
+        <p className="decisions-sub">Why we chose what we chose, so nobody has to ask twice.</p>
+      </header>
+      <div className="decisions-toolbar">
+        {all.length > 0 && (
+          <label className="docs-search decisions-search">
+            <Search aria-hidden />
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search decisions" aria-label="Search decisions" />
+          </label>
+        )}
         <div className="decisions-actions">
           {all.length > 0 && (
             <div className="docs-view-switch" role="tablist" aria-label="View">
@@ -153,15 +159,9 @@ export function DecisionLog({ productKey }: { productKey: string }) {
               <button type="button" role="tab" aria-selected={view === "notes"} onClick={() => setView("notes")}><StickyNote aria-hidden /> Notes</button>
             </div>
           )}
-          {all.length > 0 && (
-            <label className="docs-search decisions-search">
-              <Search aria-hidden />
-              <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search decisions" aria-label="Search decisions" />
-            </label>
-          )}
           {canAdd && <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}><Plus aria-hidden /> New decision</button>}
         </div>
-      </header>
+      </div>
 
       {!all.length ? (
         <EmptyState icon={<Scale aria-hidden />} title="No decisions yet">
