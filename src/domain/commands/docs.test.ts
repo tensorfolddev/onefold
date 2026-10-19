@@ -142,3 +142,16 @@ test("decisions: your own label (like Suspended) and a note colour; checked, cle
   db = updateDecision(db, lead, "dec-l", { supersededBy: "dec-m" });
   assert.deepEqual([get().status, get().label], ["superseded", undefined]);
 });
+
+test("doc covers: a colour, a gallery image or an uploaded image — nothing else", async () => {
+  const { updateDoc } = await import("./docs.ts");
+  const docId = db0.docs.find((d) => d.productKey === "AP" && !d.archivedAt)!.id;
+  const cover = (c: string | null) => updateDoc(db0, lead, docId, { cover: c }).docs.find((d) => d.id === docId)!.cover;
+  assert.equal(cover("dawn"), "dawn");
+  assert.equal(cover("/covers/mountains-dawn.svg"), "/covers/mountains-dawn.svg");
+  assert.equal(cover("/api/files/file-abc_123"), "/api/files/file-abc_123");
+  assert.equal(cover(null), undefined);
+  for (const bad of ["https://evil.example/x.png", "/covers/../secret.svg", "/api/files/x\");background:url(x", "url(x)"]) {
+    assert.throws(() => cover(bad), /cover/, bad);
+  }
+});

@@ -9,7 +9,17 @@ export const COVERS = [
   { id: "ember", label: "Ember", css: "linear-gradient(120deg, #fed7aa 0%, #fb923c 50%, #f43f5e 100%)" },
   { id: "slate", label: "Slate", css: "linear-gradient(120deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 100%)" },
 ] as const;
-export const coverCss = (id?: string) => COVERS.find((c) => c.id === id)?.css;
+/** The cover gallery: illustrations served from /covers. */
+export const COVER_IMAGES = [
+  { id: "mountains-dawn", label: "Mountains at dawn" }, { id: "mountains-mint", label: "Green hills" }, { id: "mountains-night", label: "Mountains at night" },
+  { id: "waves-ocean", label: "Ocean waves" }, { id: "waves-sunset", label: "Sunset waves" }, { id: "dunes", label: "Dunes" },
+  { id: "sunset", label: "Retro sunset" }, { id: "aurora", label: "Aurora" }, { id: "pastel", label: "Pastel" },
+  { id: "contours", label: "Contours" }, { id: "contours-night", label: "Night contours" }, { id: "dots", label: "Dots" },
+  { id: "confetti", label: "Confetti" },
+].map((c) => ({ ...c, src: `/covers/${c.id}.svg` }));
+/** A cover's CSS background: an image (from the gallery or uploaded) or a colour gradient. */
+export const coverCss = (cover?: string) =>
+  cover?.startsWith("/") ? `url("${cover}") center / cover no-repeat` : COVERS.find((c) => c.id === cover)?.css;
 
 /** A space's pages that aren't archived ("" = the company's own space). */
 export const spaceDocs = (docs: Doc[], productKey: string) => docs.filter((d) => d.productKey === productKey && !d.archivedAt);

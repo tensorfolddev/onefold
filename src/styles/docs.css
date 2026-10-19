@@ -349,6 +349,9 @@
 .cover-swatch { height: 40px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06); }
 .cover-swatch:hover, .cover-swatch:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-color); }
 .cover-swatch.is-current { box-shadow: inset 0 0 0 2px var(--primary-text-color); }
+.menu.cover-menu { padding: 8px 4px 6px; }
+.cover-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px 8px 8px; }
+.cover-swatch.is-image { height: 44px; background-size: cover; background-position: center; }
 .doc-meta a { color: inherit; text-decoration: none; }
 .doc-meta a:hover { color: var(--primary-text-color); text-decoration: underline; }
 

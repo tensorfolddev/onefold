@@ -166,13 +166,20 @@ export function createDoc(db: Db, me: Person, input: NewDoc): { db: Db; key: str
 
 export interface DocPatch { title?: string; icon?: string | null; cover?: string | null }
 
+// A cover is a colour (a short name), one of the gallery's images, or an image uploaded into 1Fold — never any other URL.
+const COVER = /^(?:[a-z0-9-]{1,40}|\/covers\/[a-z0-9-]{1,60}\.svg|\/api\/files\/[A-Za-z0-9_-]{1,80})$/;
+const coverOf = (c: unknown): string => {
+  if (typeof c !== "string" || !COVER.test(c)) throw new ValidationError("That cover can't be used — pick one from the list or upload an image");
+  return c;
+};
+
 export function updateDoc(db: Db, me: Person, docId: string, patch: DocPatch): Db {
   const doc = liveDocOf(db, docId);
   check(me, "doc.edit", { product: spaceOf(db, doc) });
   const next: Doc = { ...doc };
   if (patch.title !== undefined) next.title = titleOf(patch.title);
   if (patch.icon === null) delete next.icon; else if (patch.icon !== undefined) next.icon = iconOf(patch.icon);
-  if (patch.cover === null) delete next.cover; else if (patch.cover !== undefined) next.cover = patch.cover.slice(0, 40);
+  if (patch.cover === null) delete next.cover; else if (patch.cover !== undefined) next.cover = coverOf(patch.cover);
   return { ...db, docs: replace(db.docs, (d) => d.id === docId, () => next) };
 }
 
