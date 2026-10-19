@@ -2,7 +2,8 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 // Every page and API answer: no framing (clickjacking), no plugins, no MIME guessing, no full URLs (tokens live in some
-// paths) sent to other sites. HSTS is added by Caddy, which owns HTTPS. Images (/api/files) set their own, stricter CSP.
+// paths) sent to other sites. HSTS is added by Caddy, which owns HTTPS. Files (/api/files, and a public link's under
+// /api/share) set their own, stricter CSP — and a PDF needs the browser's viewer, which object-src 'none' would stop.
 const SECURITY_HEADERS = [
   { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" },
   { key: "X-Frame-Options", value: "DENY" },
@@ -16,7 +17,7 @@ const nextConfig: NextConfig = {
   turbopack: { root: path.join(__dirname) },
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/((?!api/files/).*)", headers: SECURITY_HEADERS }];
+    return [{ source: "/((?!api/(?:files|share)/).*)", headers: SECURITY_HEADERS }];
   },
 };
 

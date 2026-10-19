@@ -2,11 +2,12 @@
 const SCHEMES = /^(https?:|mailto:)/i;
 const IN_APP = /^(mention|ticket|doc):[^\s]+$/;
 
-/** The link if a doc may hold it, else null. Relative app paths are only file links (/api/files/<id>). */
+/** The link if a doc may hold it, else null. Relative app paths are only file links: /api/files/<id>, or the same file
+ * through a public link (/api/share/<token>/files/<id>). */
 export function safeHref(href: string): string | null {
   const h = href.trim();
   if (!h) return null;
-  if (SCHEMES.test(h) || IN_APP.test(h) || /^\/api\/files\/[A-Za-z0-9_-]+$/.test(h)) return h;
+  if (SCHEMES.test(h) || IN_APP.test(h) || /^\/api\/(?:share\/[A-Za-z0-9_-]{43}\/)?files\/[A-Za-z0-9_-]+$/.test(h)) return h;
   return null;
 }
 

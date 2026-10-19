@@ -35,7 +35,7 @@ test("every command a screen can run is recorded, so the server hears of it", as
   const screens = await import("./commands.ts");
   const { commands: domain } = await import("../domain/commands/index.ts");
   // Made on the server only: a doc (POST /api/docs), its save-time bookkeeping, and invites (they carry secrets).
-  const serverOnly = new Set(["createDoc", "touchDoc", "setDocLink", "notifyDocMentions", "inviteMembers"]);
+  const serverOnly = new Set(["createDoc", "touchDoc", "setDocLink", "setDocPublic", "notifyDocMentions", "inviteMembers"]);
   for (const name of Object.keys(domain)) {
     if (!serverOnly.has(name)) assert.notEqual((screens as Record<string, unknown>)[name], (domain as Record<string, unknown>)[name], `${name} needs wrap() in data/commands.ts`);
   }

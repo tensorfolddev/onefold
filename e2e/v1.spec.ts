@@ -1174,6 +1174,46 @@ test("My docs: private to you — even from admins — until you share it, to re
   await expect(page.locator('.doc-prose[contenteditable="true"]')).toBeVisible();
 });
 
+test("My docs: a public link lets anyone read the page signed out — with its images — and stops working when turned off", async ({ page, browser }) => {
+  await signUp(page, "Lumen", email("public"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/docs/mine");
+  await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
+  await expect(page).toHaveURL(/\/admin\/docs\/mine\/.+/);
+  const docId = page.url().split("/").pop()!;
+  await page.locator('.doc-prose[contenteditable="true"]').click();
+  await page.keyboard.type("Our launch notes, for anyone.");
+  const chooser = page.waitForEvent("filechooser");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/image");
+  await page.keyboard.press("Enter");
+  const saved = page.waitForResponse((r) => r.ok() && r.url().includes(`/api/docs/${docId}`) && r.request().method() === "POST" && !!r.request().postData()?.includes("/api/files/"));
+  await (await chooser).setFiles({ name: "hero.png", mimeType: "image/png", buffer: PNG_1x1 });
+  await saved;
+
+  await page.getByRole("button", { name: "Private" }).click();
+  await page.getByRole("switch", { name: "Anyone with the link can read it" }).click();
+  const link = page.getByLabel("Public link");
+  await expect(link).toHaveValue(/\/share\/[\w-]{43}$/);
+  const url = await link.inputValue();
+  await expect(page.getByRole("button", { name: "Public" })).toBeVisible();
+
+  const stranger = await freshPage(browser); // signed out
+  await stranger.goto(url);
+  await expect(stranger.getByRole("heading", { name: "Untitled" })).toBeVisible();
+  await expect(stranger.locator(".doc-prose")).toContainText("Our launch notes, for anyone.");
+  await expect(stranger.locator('.doc-prose[contenteditable="true"]')).toHaveCount(0); // read-only
+  await loaded(stranger.locator(".doc-prose img"));
+  await expect(stranger.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  expect((await stranger.request.get(url.replace(/\/share\/.+$/, "/api/org"))).status()).toBe(401); // the link opens the page, not the company
+
+  await page.getByRole("switch", { name: "Anyone with the link can read it" }).click();
+  await expect(page.getByLabel("Public link")).toBeHidden();
+  await stranger.reload();
+  await expect(stranger.getByRole("heading", { name: "This page isn't available" })).toBeVisible();
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

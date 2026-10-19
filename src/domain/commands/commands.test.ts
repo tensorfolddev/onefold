@@ -417,3 +417,17 @@ test("My docs: private to its owner — admins included — until shared, to rea
   assert.equal(db.docs.some((d) => d.id === id), false);
   assert.throws(() => A.shareDoc(db0, sara, db0.docs.find((d) => !d.ownerId)!.id, { company: "view" }), ValidationError); // company pages share by their space
 });
+
+test("a public link: only its owner turns it on, only on a top page in My docs, and moving the page inside another turns it off", () => {
+  const top = A.createDoc(db0, sara, { title: "Launch notes", personal: true });
+  const other = A.createDoc(top.db, sara, { title: "Archive", personal: true });
+  let db = A.shareDoc(other.db, sara, top.key, { people: [{ personId: faraz.id, edit: true }] });
+  assert.throws(() => A.setDocPublic(db, faraz, top.key, true), AccessError); // can edit, can't publish
+  assert.throws(() => A.setDocPublic(db, admin, top.key, true), AccessError);
+  assert.throws(() => A.setDocPublic(db0, admin, db0.docs.find((d) => !d.ownerId)!.id, true), ValidationError); // company pages: never
+  db = A.setDocPublic(db, sara, top.key, true);
+  assert.equal(db.docs.find((d) => d.id === top.key)?.isPublic, true);
+  db = A.moveDoc(db, sara, top.key, { parentId: other.key });
+  assert.equal(db.docs.find((d) => d.id === top.key)?.isPublic, undefined);
+  assert.throws(() => A.setDocPublic(db, sara, top.key, true), ValidationError); // a subpage shares through its top page
+});

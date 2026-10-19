@@ -65,7 +65,7 @@ export async function handle(req: NextRequest, fn: () => Promise<Response>): Pro
     if (e instanceof AccessError) return refuse(e.message, 403);
     if (e instanceof NotSignedIn) return refuse("Please sign in again", 401, signedOutCookies());
     if (e instanceof TooMany) return refuse("Too many tries — wait a few minutes and try again", 429);
-    console.error(`[api] ${req.method} ${req.nextUrl.pathname}`, e);
+    console.error(`[api] ${req.method} ${req.nextUrl.pathname.replace(/\/share\/[^/]+/, "/share/…")}`, e); // a public link's token never goes in a log
     return refuse("Something went wrong — please try again", 500);
   }
 }
