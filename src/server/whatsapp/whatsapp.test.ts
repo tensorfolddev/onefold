@@ -349,3 +349,23 @@ test("a company's own number: admins set it up; once paired, teammates link to i
   await dropCompanyBot(admin.orgId); // disconnected
   assert.deepEqual(await botFor(admin.orgId), { state: "connected", phone: "923000000001", own: false });
 });
+
+test("every reply to a linked teammate is in Deliveries — asking for their tasks too; one that can't go waits and goes with the next send", async () => {
+  const { sendOutbox } = await import("./outbox.ts");
+  const SAM4 = "923002020202@s.whatsapp.net";
+  const fromSam4 = (text: string) => handleMessage({ jid: SAM4, phone: "923002020202", text }, whatsapp, APP);
+  await fromSam4((await createLinkCode(dev)).code);
+  await fromSam4("1FOLD");
+  let log = (await companyWhatsApp(admin)).log.filter((d) => d.personId === samId);
+  assert.deepEqual(log.slice(0, 2).map((d) => [d.kind, d.status]), [["asked", "sent"], ["linked", "sent"]]); // newest first
+  assert.equal(log[0].preview, "Their pending tasks, sent when they asked");
+
+  whatsapp.up = false; // asked while WhatsApp is down: nothing thrown, nothing lost
+  await fromSam4("1fold");
+  log = (await companyWhatsApp(admin)).log.filter((d) => d.personId === samId);
+  assert.deepEqual([log[0].kind, log[0].status], ["asked", "waiting"]);
+  whatsapp.up = true;
+  await sendOutbox(whatsapp);
+  assert.equal((await companyWhatsApp(admin)).log.find((d) => d.personId === samId)?.status, "sent");
+  assert.equal(whatsapp.sent.at(-1)?.jid, SAM4);
+});
