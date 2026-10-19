@@ -879,6 +879,64 @@ test("members: leads up top, the team as cards with what they carry; add someone
   await expect(page.getByText("Only the leads so far")).toBeVisible();
 });
 
+test("notifications: an @mention in an update reaches them live; @@ is urgent; being assigned tells them; read stays read", async ({ page, browser }) => {
+  await signUp(page, "Kappa", email("kappa"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("kadev"));
+  await confirmEmail(page, email("kappa"));
+  await page.getByRole("button", { name: "Create invite links" }).click();
+  const link = (await page.locator(".inv-link-url").first().textContent())!;
+  await page.getByRole("button", { name: "Go to Kappa" }).click();
+  const dev = await freshPage(browser);
+  await dev.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
+  await dev.goto(link);
+  await dev.getByLabel("Full name").fill("Kai Dev");
+  await dev.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await dev.getByRole("button", { name: "Join Kappa" }).click();
+  await expect(dev).toHaveURL(/\/dev$/, { timeout: 20_000 });
+
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Zephyr");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const project = new URL(page.url()).pathname;
+  await page.goto(`${project}/members`);
+  await page.getByRole("button", { name: "Add member" }).click();
+  await page.getByRole("menuitem", { name: /Kai Dev/ }).click();
+  await page.goto(`${project}/tickets`);
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Launch page");
+  await page.getByRole("button", { name: "Create", exact: true }).click(); // it opens itself
+  await page.getByRole("tab", { name: /Updates/ }).click();
+
+  const box = page.getByLabel("Write an update");
+  await box.fill("Can you look, ");
+  await box.pressSequentially("@ka");
+  await page.getByRole("listbox", { name: "Mention someone" }).getByRole("option", { name: /Kai Dev/ }).click();
+  await expect(box).toHaveValue("Can you look, @Kai Dev ");
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  await expect(dev.locator(".toast-message", { hasText: /^Ayla Khan mentioned you in [A-Z]+-1 Launch page$/ })).toBeVisible({ timeout: 15_000 }); // live
+  await expect(dev.getByRole("button", { name: "Notifications, 1 unread" })).toBeVisible();
+
+  await box.fill("@@Kai Dev it's down — now please");
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  await expect(dev.locator(".toast-message", { hasText: /^Urgent: Ayla Khan mentioned you/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".update-body .mention.is-urgent")).toHaveText("@Kai Dev");
+
+  await page.locator(".ticket-panel").getByRole("button", { name: /^Assignees: Unassigned\. Change assignees$/ }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Kai Dev" }).click();
+  await expect(dev.locator(".toast-message", { hasText: /Ayla Khan assigned you [A-Z]+-1 Launch page/ })).toBeVisible({ timeout: 15_000 });
+
+  await dev.getByRole("button", { name: "Notifications, 3 unread" }).click();
+  const panel = dev.getByRole("dialog", { name: "Notifications" });
+  await expect(panel.locator(".notification-urgent")).toHaveCount(1);
+  await panel.getByRole("button", { name: "Mark all as read" }).click();
+  await expect(dev.getByRole("button", { name: "Notifications, 0 unread" })).toBeVisible();
+  await dev.waitForTimeout(500); // the save is on its way
+  await dev.reload();
+  await expect(dev.getByRole("button", { name: "Notifications, 0 unread" })).toBeVisible(); // read stays read
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

@@ -11,7 +11,7 @@ import { TypeIcon } from "@/features/tickets/TicketBits";
 import { safeHref } from "./editor/links";
 import { docPath } from "./tree";
 
-const TOKEN = /(\[[^\]\n]+\]\((?:doc|ticket):[^)\s]+\)|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\)|@[A-Z][\w]*(?: [A-Z][\w]*)?)/g;
+const TOKEN = /(\[[^\]\n]+\]\((?:doc|ticket):[^)\s]+\)|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\)|@@?[A-Z][\w]*(?: [A-Z][\w]*)?)/g;
 
 export function RichText({ text }: { text: string }) {
   const { db, href } = useDb();
@@ -19,6 +19,7 @@ export function RichText({ text }: { text: string }) {
   return (
     <>
       {text.split(TOKEN).map((part, i) => {
+        if (part.startsWith("@@")) return <span key={i} className="mention is-urgent" title="Urgent mention">{part.slice(1)}</span>;
         if (part.startsWith("@")) return <span key={i} className="mention">{part}</span>;
         const m = /^\[([^\]\n]+)\]\(([a-z]+):(.+)\)$/.exec(part);
         if (!m) return part;

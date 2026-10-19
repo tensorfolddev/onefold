@@ -5,6 +5,7 @@ import {
   setDocGroup, touchDoc, updateDoc, upsertMilestone,
 } from "./docs.ts";
 import { addStatus, deleteStatus, moveStatus, updateStatus } from "./lists.ts";
+import { markNotificationsRead } from "./notify.ts";
 import { inviteMembers, revokeInvite, updateOrg } from "./org.ts";
 import {
   addJobTitle, addTeam, deleteJobTitle, deleteTeam, renameJobTitle, updatePerson, updateTeam,
@@ -31,6 +32,8 @@ export const commands = {
   // people + company
   updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
+  // notifications
+  markNotificationsRead,
 };
 
 // The UI composes several into one change with act(); the names stay the same.
@@ -44,6 +47,8 @@ export {
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
   updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
+  // notifications
+  markNotificationsRead,
 };
 
 export type Commands = typeof commands;

@@ -236,6 +236,16 @@ button.priority-cell:hover { filter: brightness(0.94); }
 }
 .composer textarea::placeholder { color: var(--secondary-text-color); }
 .composer-footer { display: flex; align-items: center; gap: 8px; padding: 0 8px 8px 16px; font-size: 13px; }
+.composer { position: relative; }
+.composer-mentions {
+  position: absolute; left: 12px; right: 12px; top: calc(100% - 44px); z-index: 30; display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  max-height: 260px; overflow-y: auto; border: 1px solid var(--layout-border-color); border-radius: 10px;
+  background: var(--primary-background-color); box-shadow: var(--box-shadow-medium, var(--box-shadow-small));
+}
+.composer-mentions .menu-item[aria-selected="true"] { background: var(--primary-selected-color); }
+.composer-mentions-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.composer-mentions-hint { margin: 0 0 4px; padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--negative-color); background: color-mix(in srgb, var(--negative-color) 10%, transparent); }
+.mention.is-urgent { color: #fff; background: var(--negative-color); }
 .composer-footer .spacer { flex: 1; }
 
 .update-list { display: flex; flex-direction: column; gap: 16px; }

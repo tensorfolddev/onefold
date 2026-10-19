@@ -3,6 +3,7 @@ import { formatHours, shortDate } from "../status.ts";
 import { TEMPLATE_NAME } from "../templates.ts";
 import type { Activity, Person, Priority, Ticket } from "../types.ts";
 import { EPIC_COLORS, type Db } from "../../data/db.ts";
+import { notify, textMentions } from "./notify.ts";
 import { check, fail, id, liveTicketOf, log, positiveNumberError, productOf, replace, requiredError, ticketOf, ValidationError } from "./shared.ts";
 
 // ---------- tickets ----------
@@ -99,7 +100,12 @@ export function updateTicket(db: Db, me: Person, key: string, given: LegacyPatch
     const from = field === "color" ? undefined : fmt(cur[field]);
     activity = [...activity, { id: id(), ticketKey: key, at: now(), actorId: me.id, field: label, from, to: fmt(clean[field]) }];
   }
-  return { ...db, activity, tickets: replace(db.tickets, (t) => t.key === key, (t) => ({ ...t, ...clean })) };
+  const updated = { ...db, activity, tickets: replace(db.tickets, (t) => t.key === key, (t) => ({ ...t, ...clean })) };
+  // Newly put on it (by someone else): they're told.
+  const had = new Set(cur.assigneeIds ?? []);
+  const added = clean.assigneeIds === undefined ? [] : clean.assigneeIds.filter((pid) => !had.has(pid) && pid !== me.id);
+  const title = clean.title ?? cur.title;
+  return notify(updated, me, added.map((pid) => ({ personId: pid, kind: "assigned" as const, text: `assigned you ${key} ${title}`, target: key })));
 }
 
 /**
@@ -186,8 +192,14 @@ export function deleteTickets(db: Db, me: Person, keys: string[], typed = ""): D
   };
 }
 
+/** An update on a ticket; whoever it @mentions (or @@mentions, urgently) is told. */
 export function addComment(db: Db, me: Person, ticketKey: string, body: string): Db {
-  check(me, "ticket.edit", { product: productOf(db, liveTicketOf(db, ticketKey, me).productKey) });
+  const ticket = liveTicketOf(db, ticketKey, me);
+  const product = productOf(db, ticket.productKey);
+  check(me, "ticket.edit", { product });
   fail(requiredError("Update", body));
-  return { ...db, comments: [...db.comments, { id: id(), ticketKey, authorId: me.id, at: now(), body: body.trim() }] };
+  const posted = { ...db, comments: [...db.comments, { id: id(), ticketKey, authorId: me.id, at: now(), body: body.trim() }] };
+  return notify(posted, me, textMentions(db, me, product, body).map(({ person, urgent }) => ({
+    personId: person.id, kind: "mention" as const, text: `mentioned you in ${ticketKey} ${ticket.title}`, target: ticketKey, urgent,
+  })));
 }

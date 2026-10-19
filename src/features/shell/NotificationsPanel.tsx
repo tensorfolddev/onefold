@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, BellOff, CheckCheck, CircleCheck, UserPlus, Users, X } from "lucide-react";
+import { AtSign, BellOff, BellRing, CheckCheck, CircleCheck, MonitorOff, UserPlus, Users, X } from "lucide-react";
+import { markNotificationsRead } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
+import { playSound } from "@/features/tickets/sounds";
+import { alertDesktop, desktopOn, desktopSupported, setDesktop } from "./desktopAlerts";
 import { useAppState } from "@/features/shell/state";
 import { relativeTime } from "@/domain/status";
 import { Avatar, EmptyState, IconButton, Tabs } from "@/ui/primitives";
@@ -21,11 +24,26 @@ export function NotificationsPanel() {
   const { notificationsOpen, setNotificationsOpen, openTicket } = useAppState();
   const [tab, setTab] = useState("All");
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const { db, me, personById, href, toast } = useMe();
+  const { db, me, act, personById, href, toast } = useMe();
   const router = useRouter();
-  // The list is live (new notices appear as they arrive). ponytail: "read" lives in this panel only; it resets on sign-in.
-  const [readIds, setReadIds] = useState<ReadonlySet<string>>(() => new Set());
-  const items = db.notifications.filter((n) => n.personId === me.id).map((n) => (readIds.has(n.id) ? { ...n, read: true } : n));
+  const [desktop, setDesktopState] = useState(false);
+  useEffect(() => setDesktopState(desktopOn()), []); // eslint-disable-line react-hooks/set-state-in-effect -- the browser's permission
+  // The list is live (new notices appear as they arrive); read stays read.
+  const items = db.notifications.filter((n) => n.personId === me.id);
+  const markRead = (ids: string[] | "all") => act((d, m) => markNotificationsRead(d, m, ids));
+
+  const open = (n: Notification) => {
+    if (!n.read) markRead([n.id]);
+    if (/^[A-Z]+-\d+$/.test(n.target)) {
+      setNotificationsOpen(false);
+      openTicket(n.target);
+    } else if (n.target.startsWith("/")) { // a page, e.g. "/people" when someone joins
+      setNotificationsOpen(false);
+      router.push(href(n.target));
+    }
+  };
+  const openRef = useRef(open);
+  useEffect(() => { openRef.current = open; });
 
   useEffect(() => {
     if (!notificationsOpen) return;
@@ -34,8 +52,8 @@ export function NotificationsPanel() {
     return () => document.removeEventListener("keydown", onKey);
   }, [notificationsOpen, setNotificationsOpen]);
 
-  // A new mention while you're here pops up right away ("Ayla mentioned you in Design spec"); what was already there
-  // when you signed in isn't news.
+  // Something new for you while 1Fold is open: a chime (a louder one when it's urgent), a toast, and — if you're in
+  // another tab or app — a desktop alert. What was already there when you signed in isn't news.
   const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
     const mine = db.notifications.filter((n) => n.personId === me.id);
@@ -43,7 +61,11 @@ export function NotificationsPanel() {
     for (const n of mine) {
       if (seen.current.has(n.id)) continue;
       seen.current.add(n.id);
-      if (n.kind === "mention") toast(`🔔 ${personById(n.actorId)?.name ?? "Someone"} ${n.text}`, undefined, "info");
+      if (n.read) continue;
+      const who = personById(n.actorId)?.name ?? "Someone";
+      playSound(n.urgent ? "urgent" : "notify");
+      toast(`${n.urgent ? "🚨 Urgent: " : "🔔 "}${who} ${n.text}`, undefined, n.urgent ? "error" : "info");
+      alertDesktop(n.urgent ? `🚨 ${who} needs you` : `${who} · 1Fold`, n.text, n.id, () => openRef.current(n));
     }
   }, [db.notifications, me.id, personById, toast]);
 
@@ -53,16 +75,6 @@ export function NotificationsPanel() {
     (n) => (tab === "All" || (tab === "Mentioned" ? n.kind === "mention" : n.kind === "assigned")) && (!unreadOnly || !n.read),
   );
 
-  const open = (n: Notification) => {
-    setReadIds((prev) => new Set(prev).add(n.id));
-    if (/^[A-Z]+-\d+$/.test(n.target)) {
-      setNotificationsOpen(false);
-      openTicket(n.target);
-    } else if (n.target.startsWith("/")) { // a page, e.g. "/people" when someone joins
-      setNotificationsOpen(false);
-      router.push(href(n.target));
-    }
-  };
 
   return (
     <>
@@ -71,7 +83,11 @@ export function NotificationsPanel() {
         <div className="panel-header" style={{ marginBottom: 16 }}>
           <h2 className="panel-title">Notifications</h2>
           <span className="spacer" />
-          <IconButton label="Mark all as read" onClick={() => setReadIds(new Set(items.map((x) => x.id)))}>
+          {desktopSupported() && (
+            <IconButton label={desktop ? "Desktop alerts are on — turn off" : "Turn on desktop alerts"}
+              onClick={async () => setDesktopState(await setDesktop(!desktop))}>{desktop ? <BellRing /> : <MonitorOff />}</IconButton>
+          )}
+          <IconButton label="Mark all as read" onClick={() => markRead("all")}>
             <CheckCheck />
           </IconButton>
           <IconButton label="Close" onClick={() => setNotificationsOpen(false)}><X /></IconButton>
@@ -92,6 +108,7 @@ export function NotificationsPanel() {
                 <button type="button" className="notification-row" data-unread={!n.read} onClick={() => open(n)}>
                   <Avatar personId={n.actorId} />
                   <span style={{ flex: 1, textAlign: "left" }}>
+                    {n.urgent && <span className="notification-urgent">Urgent</span>}
                     <strong style={{ fontWeight: 500 }}>{personById(n.actorId)?.name}</strong> {n.text}
                     <span className="notification-meta">
                       {KIND_ICON[n.kind]} {relativeTime(n.at)}
