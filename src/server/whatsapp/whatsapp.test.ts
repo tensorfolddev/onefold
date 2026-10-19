@@ -310,7 +310,7 @@ test("admins set their company's WhatsApp — the brief's time and days (or off)
   assert.equal((await companyWhatsApp(admin)).settings.templates.signOff, "🤍 *1FOLD By TensorFold* 🤍");
 });
 
-test("a company's own number: admins connect it; teammates link to it and hear from it; another company's code doesn't link through it; disconnected, it's 1FOLD's bot again", async () => {
+test("a company's own number: admins set it up; once paired, teammates link to it and hear from it; another company's code doesn't link through it; disconnected, it's 1FOLD's bot again", async () => {
   const { botFor, dropCompanyBot, requestCompanyBot, setCompanyBotState, takeCompanyBotRequests } = await import("./companyBot.ts");
   const { sendOutbox } = await import("./outbox.ts");
   const { queueAlerts } = await import("./urgent.ts");
@@ -322,8 +322,8 @@ test("a company's own number: admins connect it; teammates link to it and hear f
   await requestCompanyBot(admin, "pair");
   assert.deepEqual(await takeCompanyBotRequests(), [{ orgId: admin.orgId, request: "pair" }]);
   assert.deepEqual(await takeCompanyBotRequests(), []); // each request runs once
-  assert.equal((await botFor(admin.orgId)).own, true);
-  await assert.rejects(createLinkCode(dev), /isn't connected/); // its own number isn't up yet: 1FOLD's isn't used instead
+  assert.equal((await botFor(admin.orgId)).own, false); // being set up, not paired yet: still 1FOLD's bot
+  assert.match((await createLinkCode(dev)).url, /^https:\/\/wa\.me\/923000000001\?/);
 
   await setCompanyBotState(admin.orgId, "connected", { phone: "923009990000" });
   const { code, url } = await createLinkCode(dev);
@@ -340,6 +340,8 @@ test("a company's own number: admins connect it; teammates link to it and hear f
   await sendOutbox((orgId) => (orgId === admin.orgId ? own : main)); // back up: sent from the company's number
   assert.deepEqual([own.sent.at(-1)?.text, main.sent.length], ["🚨 ping", 0]);
 
+  await setCompanyBotState(admin.orgId, "connecting"); // paired, briefly down: no other number meanwhile
+  await assert.rejects(createLinkCode(dev), /isn't connected/);
   await dropCompanyBot(admin.orgId); // disconnected
   assert.deepEqual(await botFor(admin.orgId), { state: "connected", phone: "923000000001", own: false });
 });

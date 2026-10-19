@@ -7,7 +7,7 @@ import { PANEL_SLUG } from "../../data/session.ts";
 import { statusOf } from "../../domain/selectors/product.ts";
 import { snapshotFor, withoutArchived } from "../../domain/snapshot.ts";
 import type { Person, Ticket } from "../../domain/types.ts";
-import { DEFAULT_SETTINGS, minutesOf, wordsText, type WhatsAppSettings } from "../../domain/whatsapp.ts";
+import { DEFAULT_SETTINGS, message, minutesOf, type WhatsAppSettings } from "../../domain/whatsapp.ts";
 import { loadCompany } from "../company/store.ts";
 import { database, inScope } from "../db/client.ts";
 import * as s from "../db/schema.ts";
@@ -80,9 +80,9 @@ export function briefText(company: Db, person: Person, clock: { day: string; hou
   if ((!total && !opts.whenEmpty) || !person.panel) return null;
   const lines = [
     LINE, `        *${db.org.name}*`, `  ${fullDate(clock.day)} | ${part(clock.day, { weekday: "long" })}`, LINE, "", "",
-    `*${greeting(clock.hour)}, ${person.name.split(" ")[0]},*`, "",
+    message(settings, "briefGreeting", { greeting: greeting(clock.hour), name: person.name.split(" ")[0] }), "",
   ];
-  if (!total) lines.push("You have no pending tasks 🎉");
+  if (!total) lines.push(message(settings, "briefEmpty"));
   else {
     lines.push(`You have total *${plural(total, "task")}* pending`, "");
     for (const p of projects) lines.push(`🧩🧩  *${p.name}* : ${plural(p.tickets.length, "Task")} pending`);
@@ -97,7 +97,7 @@ export function briefText(company: Db, person: Person, clock: { day: string; hou
       if (p.tickets.length > MAX_PER_PROJECT) lines.push("", `_…and ${p.tickets.length - MAX_PER_PROJECT} more — see All your work_`);
     });
   }
-  lines.push(LINE, `📋 All your work: ${appUrl}/my-work`, "", `Reply ${wordsText(settings.words)} anytime for updates.`, "", settings.templates.signOff);
+  lines.push(LINE, message(settings, "briefClosing", { link: `${appUrl}/my-work` }));
   return lines.join("\n");
 }
 

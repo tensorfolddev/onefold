@@ -1,7 +1,8 @@
-// A company's own WhatsApp number, instead of 1FOLD's bot: its admins connect it (a QR, like WhatsApp Web) from
-// Integrations → WhatsApp bot, and the worker runs it beside 1FOLD's. Everything for that company — briefs, alerts,
-// replies, linking — then goes through it; while it's down, alerts wait and briefs go by email (never from another
-// number). Disconnecting it puts the company back on 1FOLD's bot.
+// A company's own WhatsApp number, instead of 1FOLD's bot: its admins set it up (a QR, like WhatsApp Web) from
+// Integrations → Team Bot, and the worker runs it beside 1FOLD's. Once it's paired, everything for that company —
+// briefs, alerts, replies, linking — goes through it; while it's reconnecting, alerts wait and briefs go by email
+// (never from another number). Until it's paired, or once WhatsApp logs it out or it's disconnected, the company is on
+// 1FOLD's bot.
 import { eq, sql } from "drizzle-orm";
 import { database } from "../db/client.ts";
 import * as s from "../db/schema.ts";
@@ -54,10 +55,13 @@ export async function companyBotIds(): Promise<string[]> {
   return (await database().select({ orgId: s.companyBots.orgId }).from(s.companyBots)).map((r) => r.orgId);
 }
 
-/** The number a company's teammates link to and hear from: its own, if it has one, else 1FOLD's. */
+/** Whether a company's own number is the one in use: it's paired (connected, or reconnecting with its session). */
+export const ownInUse = (own: CompanyBot | null): own is CompanyBot => !!own?.phone && (own.state === "connected" || own.state === "connecting");
+
+/** The number a company's teammates link to and hear from: its own, once it's paired, else 1FOLD's. */
 export async function botFor(orgId: string): Promise<{ state: BotState; phone: string | null; own: boolean }> {
   const own = await companyBot(orgId);
-  if (own) return { state: own.state, phone: own.phone, own: true };
+  if (ownInUse(own)) return { state: own.state, phone: own.phone, own: true };
   const [main] = await database().select({ state: s.whatsappBot.state, phone: s.whatsappBot.phone }).from(s.whatsappBot).where(eq(s.whatsappBot.id, 1));
   return { state: (main?.state ?? "off") as BotState, phone: main?.phone ?? null, own: false };
 }

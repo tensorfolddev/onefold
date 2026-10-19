@@ -12,7 +12,7 @@ import { IconButton } from "@/ui/primitives";
 type BotState = "off" | "pairing" | "connecting" | "connected" | "logged_out";
 interface MyWhatsApp { available: boolean; linked: { phone: string; briefs: boolean; linkedAt: string } | null }
 interface BotStatus { state: BotState; qr: string | null; phone: string | null; request: string | null; updatedAt: string }
-interface Status { me: MyWhatsApp; botInfo: Pick<BotStatus, "state" | "phone">; bot: BotStatus | null }
+interface Status { me: MyWhatsApp; botInfo: Pick<BotStatus, "state" | "phone"> & { own: boolean }; bot: BotStatus | null }
 interface LinkCode { code: string; url: string; botPhone: string; expiresAt: string }
 
 const problemOf = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong — please try again");

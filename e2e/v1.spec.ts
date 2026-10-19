@@ -1214,74 +1214,68 @@ test("My docs: a public link lets anyone read the page signed out — with its i
   await expect(stranger.getByRole("heading", { name: "This page isn't available" })).toBeVisible();
 });
 
-test("Integrations center: Claude and WhatsApp for you; for admins the WhatsApp bot (its number) and Team WhatsApp (brief, words, messages)", async ({ page }) => {
+test("Integrations center: Claude and WhatsApp for everyone; Team Bot for admins — set up with a QR, members, brief, templates, deliveries", async ({ page }) => {
   await signUp(page, "Relay", email("integrations"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("link", { name: "Integrations" }).click(); // beside the bell
   await expect(page).toHaveURL(/\/admin\/integrations$/);
   await expect(page.getByRole("heading", { name: "Your work, wherever you are" })).toBeVisible();
   const cards = page.locator(".int-grid");
-  await expect(cards.locator(".int-card")).toHaveCount(4); // Claude, WhatsApp — and for admins, the WhatsApp bot and Team WhatsApp
+  await expect(cards.locator(".int-card")).toHaveCount(3); // Claude, WhatsApp — and for admins, Team Bot
   await expect(cards.getByText("Connected", { exact: true })).toHaveCount(0); // said on a card only once it's connected
   await page.getByLabel("Search integrations").fill("claude");
   await expect(cards.locator(".int-card")).toHaveCount(1);
   await page.getByLabel("Search integrations").fill("");
   await page.getByRole("navigation", { name: "Categories" }).getByRole("button", { name: /For your company/ }).click();
-  await expect(cards.locator(".int-card")).toHaveCount(2);
-  await cards.getByRole("link", { name: /^WhatsApp bot/ }).click(); // the bot's number: one place
-  await expect(page).toHaveURL(/\/admin\/integrations\/whatsapp-bot$/);
-  await page.getByRole("button", { name: "Connect the bot" }).click();
-  await expect(page.getByRole("heading", { name: "1FOLD's bot" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your own number" })).toBeVisible(); // or the company's own number
-  const asked = page.waitForResponse((r) => r.ok() && r.url().endsWith("/api/whatsapp/company-bot") && !!r.request().postData()?.includes("pair"));
-  await page.getByRole("button", { name: "Connect your number" }).click();
-  await asked;
-  await expect(page.getByText("Getting the code ready…")).toBeVisible(); // the worker shows the QR next (none runs in tests)
-  const back = page.waitForResponse((r) => r.ok() && r.url().endsWith("/api/whatsapp/company-bot") && !!r.request().postData()?.includes("logout"));
-  await page.getByRole("button", { name: "Use 1FOLD's bot" }).click(); // and back: nothing left waiting for a worker
-  await back;
-  await page.getByRole("link", { name: "Integrations", exact: true }).first().click();
+  await cards.getByRole("link", { name: /^Team Bot/ }).click();
+  await expect(page).toHaveURL(/\/admin\/integrations\/team-bot$/);
+  await expect(page.getByRole("heading", { name: "Team Bot", level: 1 })).toBeVisible();
 
-  await page.getByRole("navigation", { name: "Categories" }).getByRole("button", { name: /For your company/ }).click();
-  await cards.getByRole("link", { name: /^Team WhatsApp/ }).click(); // how it talks to the team: another
-  await expect(page).toHaveURL(/\/admin\/integrations\/team-whatsapp$/);
-  await expect(page.getByRole("heading", { name: "Team WhatsApp", level: 1 })).toBeVisible();
-  await expect(page.getByRole("list").filter({ hasText: "send each teammate" })).toContainText("working day at 09:00"); // a recipe, from the settings
-  await page.getByRole("tab", { name: /Connected/ }).click();
-  await expect(page.getByRole("list", { name: "Who's linked" })).toContainText("Not linked");
+  // Set up bot: the QR shows at the top (the worker makes it — none runs in tests), with a fresh one or cancel.
+  const asked = (what: string) => page.waitForResponse((r) => r.ok() && r.url().endsWith("/api/whatsapp/company-bot") && !!r.request().postData()?.includes(what));
+  let request = asked("pair");
+  await page.getByRole("button", { name: "Set up bot" }).click();
+  await request;
+  await expect(page.getByRole("heading", { name: "Set up your team bot" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Regenerate QR" })).toBeVisible();
+  request = asked("logout");
+  await page.getByRole("button", { name: "Cancel pairing" }).click();
+  await request;
+  await expect(page.getByRole("button", { name: "Set up bot" })).toBeVisible();
+
+  await expect(page.getByRole("table", { name: "Members" })).toContainText("Not connected"); // Members: a table, status per person
 
   const saved = () => page.waitForResponse((r) => r.ok() && r.url().endsWith("/api/whatsapp/company") && r.request().method() === "POST");
   await page.getByRole("tab", { name: "Daily brief", exact: true }).click();
   await expect(page).toHaveURL(/\?tab=Daily(%20|\+)brief$/); // the tab is in the address
   await page.getByLabel("Time").fill("08:30");
-  await page.getByRole("button", { name: "Sat" }).click();
-  await expect(page.locator(".int-panel")).toContainText("Every Mon, Tue, Wed, Thu, Fri and Sat at 08:30");
+  await page.getByRole("group", { name: "Days" }).getByRole("button", { name: "Sat" }).click();
+  await expect(page.locator(".tb-told")).toContainText("Every Mon, Tue, Wed, Thu, Fri and Sat at 08:30");
   let done = saved();
-  await page.locator(".int-panel").getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await done;
 
-  await page.getByRole("tab", { name: "Reply words", exact: true }).click();
+  await page.getByRole("tab", { name: "Templates", exact: true }).click(); // reply words and every template, one page
   await page.getByLabel("New reply word").fill("status");
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  done = saved();
-  await page.locator(".int-panel").getByRole("button", { name: "Save", exact: true }).click();
-  await done;
-
-  await page.getByRole("tab", { name: "Messages", exact: true }).click();
-  await page.getByRole("tab", { name: /Sign-off/ }).click();
-  await page.getByRole("textbox", { name: "Sign-off" }).fill("— The Relay team");
+  await page.getByLabel("New reply word").press("Enter");
+  await expect(page.getByRole("list", { name: "Reply words" })).toContainText("STATUS");
+  const list = page.getByRole("navigation", { name: "Templates" });
+  await expect(list).toContainText("Greeting"); // the daily brief's own templates too
+  await list.getByRole("button", { name: /Sign-off/ }).click();
+  await page.getByRole("textbox", { name: /Sign-off/ }).fill("— The Relay team");
   await expect(page.getByLabel("Preview")).toHaveText("— The Relay team");
   done = saved();
-  await page.getByRole("button", { name: "Save messages" }).click();
+  await page.getByRole("button", { name: "Save templates" }).click();
   await done;
 
   await page.reload(); // all of it kept, and the same tab still open
-  await expect(page.getByRole("tab", { name: /Sign-off/ })).toContainText("Reworded");
+  await expect(page.getByRole("navigation", { name: "Templates" }).getByRole("button", { name: /Sign-off/ })).toContainText("Edited");
+  await expect(page.getByRole("list", { name: "Reply words" })).toContainText("STATUS");
   await page.getByRole("tab", { name: "Daily brief", exact: true }).click();
   await expect(page.getByLabel("Time")).toHaveValue("08:30");
-  await expect(page.getByRole("button", { name: "Sat" })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("tab", { name: "Overview", exact: true }).click();
-  await expect(page.getByRole("list").filter({ hasText: "send each teammate" })).toContainText("Mon, Tue, Wed, Thu, Fri and Sat at 08:30");
+  await expect(page.getByRole("group", { name: "Days" }).getByRole("button", { name: "Sat" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("tab", { name: "Deliveries", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Deliveries" })).toContainText("Nothing sent yet.");
 });
 
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {

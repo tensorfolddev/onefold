@@ -79,7 +79,10 @@ every("company WhatsApp requests", 3000, async () => {
   const requests = await takeCompanyBotRequests();
   for (const { orgId, request } of requests) {
     const own = companyBridge(orgId);
-    if (request === "pair" && !own.running()) await own.start();
+    if (request === "pair") { // set up — or, while it's pairing, a fresh QR (Regenerate)
+      if (own.running() && !own.connected()) await own.stop();
+      if (!own.running()) await own.start();
+    }
     if (request === "logout") { // back on 1FOLD's bot
       await own.logout();
       companies.delete(orgId);
@@ -88,9 +91,14 @@ every("company WhatsApp requests", 3000, async () => {
   }
   return requests.length ? requests : undefined;
 });
-/** Who sends for a company: its own number if it has one (even while that's down — then nothing goes), else 1FOLD's. */
-const senderFor = (orgId: string | null) => {
+/** A company's own number, once it's paired (a session saved — connected, or reconnecting); else none: 1FOLD's bot. */
+const ownFor = (orgId: string | null) => {
   const own = orgId ? companies.get(orgId) : undefined;
+  return own?.hasSession() ? own : undefined;
+};
+/** Who sends for a company: its own number once paired (while it's reconnecting, nothing goes), else 1FOLD's. */
+const senderFor = (orgId: string | null) => {
+  const own = ownFor(orgId);
   if (own) return own.connected() ? own : null;
   return bridge.connected() ? bridge : null;
 };
@@ -99,7 +107,7 @@ const senderFor = (orgId: string | null) => {
 every("whatsapp alerts", 5_000, async () => sendOutbox(senderFor));
 
 every("daily briefs", MINUTE, async () => {
-  const run = await sendDueBriefs({ whatsapp: bridge, appUrl: APP_URL, whatsappFor: (orgId) => companies.get(orgId) ?? null });
+  const run = await sendDueBriefs({ whatsapp: bridge, appUrl: APP_URL, whatsappFor: (orgId) => ownFor(orgId) ?? null });
   return run.whatsapp + run.email + run.none + run.failed > 0 ? run : undefined;
 });
 
