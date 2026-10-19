@@ -1,28 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import { Archive, Building2, IdCard, MessageCircle, Plus, Trash2, Users } from "lucide-react";
 import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { TeamsManager } from "@/features/people/TeamsManager";
 import { ArchivedDocs } from "@/features/docs/ArchivedDocs";
-import { useWhatsApp, WhatsAppBotSettings } from "@/features/whatsapp/WhatsApp";
+import { botBusy, useWhatsApp, WhatsAppBotSettings } from "@/features/whatsapp/WhatsApp";
 import { errorOf, FormError } from "@/ui/fields";
 import { SettingsLayout, type SettingsSection } from "@/ui/SettingsLayout";
 
 /** Admin Settings: the company itself, and the company-wide lists every picker in the app uses. */
 export default function SettingsPage() {
   const { panel } = useMe();
-  const { status } = useWhatsApp(60_000); // only platform admins get the bot (status.bot)
+  // Only platform admins get the bot (status.bot); while it's being paired, check every couple of seconds.
+  const [fast, setFast] = useState(false);
+  const { status, reload } = useWhatsApp(fast ? 2000 : 60_000);
+  const bot = status?.bot ?? null;
+  const busy = botBusy(bot);
+  useEffect(() => { setFast(busy); }, [busy]); // eslint-disable-line react-hooks/set-state-in-effect -- polling speed follows the server's state
   if (panel !== "admin") notFound();
   const sections: SettingsSection[] = [
     { id: "company", label: "Company", icon: Building2, hint: "Its name, and who can join it.", body: <Company /> },
     { id: "job-titles", label: "Job titles", icon: IdCard, hint: "The titles people pick from. Renaming one updates everyone who has it.", body: <JobTitles /> },
     { id: "teams", label: "Teams", icon: Users, hint: "Your teams and their leads, and who's on which.", body: <TeamsManager /> },
     { id: "archived", label: "Archived", icon: Archive, hint: "Company pages someone archived: bring them back, or delete them for good.", body: <ArchivedDocs productKey="" /> },
-    ...(status?.bot ? [{
-      id: "whatsapp", label: "WhatsApp bot", icon: MessageCircle, body: <div className="settings-card settings-pad"><WhatsAppBotSettings bare /></div>,
+    ...(bot ? [{
+      id: "whatsapp", label: "WhatsApp bot", icon: MessageCircle,
+      body: <div className="settings-card settings-pad"><WhatsAppBotSettings bot={bot} onAsked={async () => { setFast(true); await reload(); }} /></div>,
       hint: "The number this server sends daily briefs from — for platform admins. Use a dedicated SIM, not a personal number.",
     }] : []),
   ];
