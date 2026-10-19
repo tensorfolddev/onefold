@@ -9,7 +9,7 @@ import { loadCompany, saveCompany, type Loaded } from "./company/store.ts";
 import { instant } from "./company/rows.ts";
 import { database, inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
-import { resetEmail, sendEmail, verifyEmail } from "./email.ts";
+import { deliverEmail, resetEmail, sendEmail, verifyEmail, type Sent } from "./email.ts";
 import { journal } from "./journal.ts";
 
 const DAY_MS = 86_400_000;
@@ -279,12 +279,12 @@ export async function emailVerified(userId: string): Promise<boolean> {
   return !!row?.at;
 }
 
-/** Emails a "confirm your email" link (nothing to do if it's already confirmed). False if the email couldn't be sent. */
-export async function sendVerification(userId: string, appUrl: string): Promise<boolean> {
+/** Emails a "confirm your email" link (nothing to do if it's already confirmed) — or says why it couldn't. */
+export async function sendVerification(userId: string, appUrl: string): Promise<Sent> {
   const [user] = await database().select().from(s.users).where(eq(s.users.id, userId));
-  if (!user || user.emailVerifiedAt) return true;
+  if (!user || user.emailVerifiedAt) return { ok: true };
   const token = await issueLink(user.id, "verify", VERIFY_MS);
-  return sendEmail(verifyEmail({ to: user.email, link: `${appUrl}/verify/${token}` }), { orgId: await companyOf(user.id) });
+  return deliverEmail(verifyEmail({ to: user.email, link: `${appUrl}/verify/${token}` }), { orgId: await companyOf(user.id) });
 }
 
 /** Confirms the email a link was sent to. Opening the link twice is fine (it only ever confirms). */

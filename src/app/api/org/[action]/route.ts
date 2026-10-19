@@ -33,7 +33,8 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/org/[action
     }
     if (action === "verify-email") {
       limit(`verify-email:${who.userId}`, 3, 15 * MINUTE);
-      if (!(await sendVerification(who.userId, appUrl(req)))) return refuse("Couldn't send the email — please try again later", 503);
+      const sent = await sendVerification(who.userId, appUrl(req));
+      if (!sent.ok) return refuse(`Couldn't send it. ${sent.reason}`, 503);
       return ok({});
     }
     return refuse("Not found", 404);
