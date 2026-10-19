@@ -152,6 +152,14 @@ export const decisions = pgTable("decisions", {
   why: text("why").notNull(),
   byId: text("by_id").notNull(),
   date: day("date").notNull(),
+  status: text("status"), // proposed | accepted | rejected | superseded; NULL = accepted
+  context: text("context"),
+  alternatives: text("alternatives"),
+  consequences: text("consequences"),
+  ticketKeys: jsonb("ticket_keys"),
+  docIds: jsonb("doc_ids"),
+  supersededBy: text("superseded_by"),
+  updatedAt: ts("updated_at"),
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 

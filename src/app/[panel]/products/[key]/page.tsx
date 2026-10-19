@@ -34,7 +34,7 @@ export default function ProductOverview() {
             <ul className="decision-mini-list">
               {recent.map((d) => (
                 <li key={d.id}>
-                  <Link href={href(`/products/${key}/decisions`)} className="decision-mini">
+                  <Link href={href(`/products/${key}/decisions?d=${d.id}`)} className="decision-mini">
                     <span>{d.title}</span>
                     <span className="muted">{shortDate(d.date)}</span>
                   </Link>

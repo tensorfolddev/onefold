@@ -98,3 +98,28 @@ test("groups: anyone who writes in a space groups its pages; deleting a group ke
   assert.equal(db.docs.find((d) => d.id === a.key)!.groupId, undefined);
   assert.ok(db.docs.some((d) => d.id === a.key), "pages stay");
 });
+
+test("decisions: a full record — status, context, alternatives, consequences, links — and superseding", async () => {
+  const { addDecision, updateDecision } = await import("./docs.ts");
+  const ticket = db0.tickets.find((t) => t.productKey === "AP")!;
+  assert.throws(() => addDecision(db0, sara, "AP", { title: "x", why: "y" }), AccessError); // developers don't record decisions
+  let db = addDecision(db0, lead, "AP", { title: "Use Postgres", why: "One database for everything", status: "proposed",
+    context: "We need search", alternatives: "Elastic", consequences: "Run backups", ticketKeys: [ticket.key, "NOPE-1"] });
+  const d = db.decisions.at(-1)!;
+  assert.deepEqual([d.status, d.context, d.alternatives, d.consequences, d.ticketKeys], ["proposed", "We need search", "Elastic", "Run backups", [ticket.key]]);
+  db = updateDecision(db, lead, d.id, { status: "accepted" });
+  assert.equal(db.decisions.find((x) => x.id === d.id)!.status, "accepted");
+  db = addDecision(db, lead, "AP", { title: "Use SQLite", why: "Simpler" });
+  const newer = db.decisions.at(-1)!;
+  db = updateDecision(db, lead, d.id, { supersededBy: newer.id });
+  assert.deepEqual([db.decisions.find((x) => x.id === d.id)!.status, db.decisions.find((x) => x.id === d.id)!.supersededBy], ["superseded", newer.id]);
+  assert.throws(() => updateDecision(db, lead, d.id, { supersededBy: d.id }), /another decision/);
+  assert.throws(() => updateDecision(db, lead, d.id, { status: "maybe" as never }), /Unknown decision status/);
+});
+
+test("decisions: the caller names a new decision, so the browser and the server agree on its id", async () => {
+  const { addDecision } = await import("./docs.ts");
+  const db = addDecision(db0, lead, "AP", { title: "Use RLS", why: "Org isolation" }, "dec-1");
+  assert.equal(db.decisions.at(-1)!.id, "dec-1");
+  assert.throws(() => addDecision(db, lead, "AP", { title: "Again", why: "Same id" }, "dec-1"), /already exists/);
+});

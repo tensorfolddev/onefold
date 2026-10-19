@@ -108,18 +108,12 @@
 .badge-outline.is-neutral { color: var(--secondary-text-color); border-color: var(--ui-border-color); }
 
 /* ---------- Decisions (update-card style) ---------- */
-.decision-log .toolbar { margin-bottom: 8px; }
 .decision-list { display: flex; flex-direction: column; gap: 16px; max-width: 750px; }
 .decision-card {
   display: flex; flex-direction: column; gap: 12px; max-width: 750px; padding: 24px;
   background: var(--primary-background-color);
   border: 1px solid var(--ui-border-color); border-radius: var(--border-radius-medium);
 }
-.decision-author { display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; }
-.decision-author .avatar { width: 38px; height: 38px; }
-.decision-author-name { font-weight: 700; }
-.decision-title { font-size: 18px; font-weight: 500; line-height: 24px; }
-.decision-why { font-size: 16px; line-height: 24px; }
 .decision-form { margin-bottom: 16px; }
 .decision-form .field { display: flex; flex-direction: column; gap: 4px; }
 .decision-form .field-label { font-size: 14px; line-height: 21px; color: var(--secondary-text-color); }
