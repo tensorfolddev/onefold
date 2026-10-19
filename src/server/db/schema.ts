@@ -113,6 +113,7 @@ export const products = pgTable("products", {
   description: text("description").notNull(),
   waitingApproval: text("waiting_approval"),
   icon: jsonb("icon"),
+  priorities: jsonb("priorities"), // this project's own names/colours for the four priority levels
   groupId: text("group_id"),
   createdAt: day("created_at").notNull(),
   archivedAt: ts("archived_at"), // set = archived: read-only, hidden from developers

@@ -74,6 +74,8 @@ export interface Product {
   memberIds: string[]; // besides PM + project manager, who can open this product
   icon?: ProductIcon;
   groupId?: string; // unset = "Ungrouped"
+  /** This project's own names and colours for the four priority levels; a level not here keeps the default. */
+  priorities?: Partial<Record<Priority, PriorityLook>>;
   createdAt: string; // ISO date
   // Archived: read-only, out of every list and everyone's work, invisible to developers — until it's restored.
   archivedAt?: string; // ISO time
@@ -81,7 +83,8 @@ export interface Product {
 }
 
 export type StatusCategory = "backlog" | "todo" | "in_progress" | "done" | "cancelled";
-export type Tone = "backlog" | "todo" | "working" | "review" | "stuck" | "done" | "cancelled";
+export type Tone = "backlog" | "todo" | "working" | "review" | "stuck" | "done" | "cancelled"
+  | "pink" | "teal" | "sky" | "lime" | "brown" | "navy"; // more colours for lists of your own
 
 export interface Status {
   id: string;
@@ -94,6 +97,7 @@ export interface Status {
 
 export type TicketType = "epic" | "task" | "bug";
 export type Priority = "critical" | "high" | "medium" | "low";
+export interface PriorityLook { name?: string; color?: string }
 
 export interface PullRequest {
   number: number;

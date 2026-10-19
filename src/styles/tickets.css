@@ -145,6 +145,15 @@ button.priority-cell:hover { filter: brightness(0.94); }
 .kanban-col-header[data-tone="todo"] { background: color-mix(in srgb, var(--tone-todo) 85%, #fff); }
 .kanban-col-header[data-tone="review"] { background: color-mix(in srgb, var(--tone-review) 85%, #fff); }
 .kanban-col-header[data-tone="cancelled"] { background: color-mix(in srgb, var(--tone-cancelled) 85%, #fff); }
+.kanban-col-header:is([data-tone="pink"], [data-tone="teal"], [data-tone="sky"], [data-tone="lime"], [data-tone="brown"], [data-tone="navy"]) {
+  background: color-mix(in srgb, var(--list-tone) 85%, #fff);
+}
+.kanban-col-header[data-tone="pink"] { --list-tone: var(--tone-pink); }
+.kanban-col-header[data-tone="teal"] { --list-tone: var(--tone-teal); }
+.kanban-col-header[data-tone="sky"] { --list-tone: var(--tone-sky); }
+.kanban-col-header[data-tone="lime"] { --list-tone: var(--tone-lime); }
+.kanban-col-header[data-tone="brown"] { --list-tone: var(--tone-brown); }
+.kanban-col-header[data-tone="navy"] { --list-tone: var(--tone-navy); }
 .kanban-count { font-weight: 400; }
 .kanban-col-body {
   display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; padding: 12px; overflow-y: auto;

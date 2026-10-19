@@ -21,6 +21,12 @@ export const CATEGORY_TONE: Record<StatusCategory, Tone> = {
 };
 
 export const toneVar = (tone: Tone) => `var(--tone-${tone})`;
+/** The colours a list can take, by the name people see. (Red is "stuck": its tickets count as blocked.) */
+export const TONE_NAME: Record<Tone, string> = {
+  backlog: "Grey", todo: "Blue", working: "Orange", review: "Purple", stuck: "Red", done: "Green", cancelled: "Dark grey",
+  pink: "Pink", teal: "Teal", sky: "Sky", lime: "Lime", brown: "Brown", navy: "Navy",
+};
+export const TONES = Object.keys(TONE_NAME) as Tone[];
 
 export const STAGES: Stage[] = ["INTAKE", "DEFINE", "PLAN", "BUILD", "RELEASE"];
 

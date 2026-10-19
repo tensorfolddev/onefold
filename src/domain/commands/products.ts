@@ -1,5 +1,5 @@
 import { now, today } from "../clock.ts";
-import type { Person, Product, ProductIcon, Stage } from "../types.ts";
+import type { Person, Priority, PriorityLook, Product, ProductIcon, Stage } from "../types.ts";
 import { listsFor, PRODUCT_COLORS, type Db } from "../../data/db.ts";
 import { check, COLORS, fail, id, personOf, productKeyError, productOf, replace, requiredError, STAGES, ValidationError } from "./shared.ts";
 
@@ -192,4 +192,42 @@ export function approveStage(db: Db, me: Person, productKey: string): Db {
     stageRequests: db.stageRequests.filter((r) => r.productKey !== productKey),
     products: replace(db.products, (p) => p.key === productKey, (p) => ({ ...p, stage, waitingApproval: undefined })),
   };
+}
+
+// ---------- priorities: four fixed levels; each project may rename and recolour them ----------
+
+export const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"];
+export const DEFAULT_PRIORITY_NAME: Record<Priority, string> = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+const MAX_PRIORITY_NAME = 20;
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** Renames and/or recolours one priority level for a project (null = back to the default). Who edits lists does this. */
+export function setPriority(db: Db, me: Person, productKey: string, priority: Priority, look: PriorityLook | null): Db {
+  const product = productOf(db, productKey);
+  check(me, "statuses.edit", { product });
+  if (!PRIORITIES.includes(priority)) throw new ValidationError("Unknown priority");
+  const rest = Object.fromEntries(Object.entries(product.priorities ?? {}).filter(([p]) => p !== priority));
+  if (look === null) return withPriorities(db, productKey, rest);
+  const next: PriorityLook = {};
+  if (look.name !== undefined) {
+    const name = typeof look.name === "string" ? look.name.trim() : "";
+    fail(requiredError("Priority name", name));
+    if (name.length > MAX_PRIORITY_NAME) throw new ValidationError(`Keep it under ${MAX_PRIORITY_NAME} characters`);
+    const taken = PRIORITIES.filter((p) => p !== priority).map((p) => (product.priorities?.[p]?.name ?? DEFAULT_PRIORITY_NAME[p]).toLowerCase());
+    if (taken.includes(name.toLowerCase())) throw new ValidationError(`There is already a priority called ${name}`);
+    if (name !== DEFAULT_PRIORITY_NAME[priority]) next.name = name;
+  } else if (product.priorities?.[priority]?.name) next.name = product.priorities[priority]!.name;
+  if (look.color !== undefined) {
+    if (typeof look.color !== "string" || !HEX.test(look.color)) throw new ValidationError("Pick a colour from the list");
+    next.color = look.color.toLowerCase();
+  } else if (product.priorities?.[priority]?.color) next.color = product.priorities[priority]!.color;
+  return withPriorities(db, productKey, Object.keys(next).length ? { ...rest, [priority]: next } : rest);
+}
+
+function withPriorities(db: Db, productKey: string, priorities: Product["priorities"]): Db {
+  const empty = !priorities || !Object.keys(priorities).length;
+  return { ...db, products: replace(db.products, (p) => p.key === productKey, (p) => {
+    const { priorities: _old, ...rest } = p; // eslint-disable-line @typescript-eslint/no-unused-vars -- replaced below
+    return empty ? rest : { ...rest, priorities };
+  }) };
 }

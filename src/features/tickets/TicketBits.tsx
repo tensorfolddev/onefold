@@ -4,11 +4,22 @@ import { useDb } from "@/data/StoreProvider";
 import { Avatar } from "@/ui/primitives";
 import { epicLabel } from "@/domain/selectors/epics";
 import { shortDate } from "@/domain/status";
-import type { Priority, PullRequest, Requirement, Ticket, TicketType } from "@/domain/types";
+import type { Priority, Product, PullRequest, Requirement, Ticket, TicketType } from "@/domain/types";
 
 export const PRIORITY_LABEL: Record<Priority, string> = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
 export const PRIORITY_RANK: Record<Priority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 export const TYPE_LABEL: Record<TicketType, string> = { epic: "Epic", task: "Task", bug: "Bug" };
+
+/** A priority level as this project shows it: its own name and colour (Settings → Priorities), or the defaults. */
+export function priorityLook(product: Product | undefined, p: Priority): { label: string; style?: React.CSSProperties } {
+  const own = product?.priorities?.[p];
+  return { label: own?.name ?? PRIORITY_LABEL[p], style: own?.color ? ({ "--prio": own.color } as React.CSSProperties) : undefined };
+}
+export function usePriorityLook(productKey: string) {
+  const { productByKey } = useDb();
+  const product = productByKey(productKey);
+  return (p: Priority) => priorityLook(product, p);
+}
 
 export const requirementById = (list: Requirement[], id?: string) => list.find((r) => r.id === id);
 export const isOverdue = (t: Ticket, done: boolean) => !!t.due && !done && t.due < today();
@@ -44,16 +55,18 @@ export function Assignees({ ids, max = 3 }: { ids?: string[]; max?: number }) {
 }
 
 /** A ticket's priority as a small tag in its colour — on board cards. */
-export function PriorityChip({ priority }: { priority: Priority }) {
+export function PriorityChip({ priority, productKey }: { priority: Priority; productKey: string }) {
+  const { label, style } = usePriorityLook(productKey)(priority);
   return (
-    <span className="card-priority" data-priority={priority} title={`${PRIORITY_LABEL[priority]} priority`}>
-      <Flag aria-hidden />{PRIORITY_LABEL[priority]}
+    <span className="card-priority" data-priority={priority} style={style} title={`${label} priority`}>
+      <Flag aria-hidden />{label}
     </span>
   );
 }
 
-export function PriorityCell({ priority }: { priority: Priority }) {
-  return <span className="priority-cell" data-priority={priority}>{PRIORITY_LABEL[priority]}</span>;
+export function PriorityCell({ priority, productKey }: { priority: Priority; productKey: string }) {
+  const { label, style } = usePriorityLook(productKey)(priority);
+  return <span className="priority-cell" data-priority={priority} style={style}>{label}</span>;
 }
 
 /** monday-style due date: overdue → red alert, done → green check + strikethrough. */

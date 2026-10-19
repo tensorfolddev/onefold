@@ -10,7 +10,7 @@ import type { Priority, Product, Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { Avatar, IconButton } from "@/ui/primitives";
 import { shortDate } from "@/domain/status";
-import { Assignees, DueDate, isOverdue, PRIORITY_LABEL } from "./TicketBits";
+import { Assignees, DueDate, isOverdue, usePriorityLook } from "./TicketBits";
 
 const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"];
 
@@ -146,16 +146,18 @@ export function AssigneeField({ ticket, product, onCard }: { ticket: Ticket; pro
 /** `onCard`: the trigger is the card's priority tag, and the menu floats over the board. */
 export function PriorityField({ ticket, onCard }: { ticket: Ticket; onCard?: boolean }) {
   const { updateTicket } = useAppState();
+  const look = usePriorityLook(ticket.productKey);
+  const cur = look(ticket.priority);
   return (
     <Popover
       width={160} className="priority-menu" floating={onCard}
       trigger={({ open, toggle }) => (
         <button
-          type="button" className={onCard ? "card-priority" : "priority-cell"} data-priority={ticket.priority}
+          type="button" className={onCard ? "card-priority" : "priority-cell"} data-priority={ticket.priority} style={cur.style}
           aria-haspopup="menu" aria-expanded={open} onClick={toggle}
-          aria-label={`Priority: ${PRIORITY_LABEL[ticket.priority]}. Change priority`}
+          aria-label={`Priority: ${cur.label}. Change priority`}
         >
-          {onCard && <Flag aria-hidden />}{PRIORITY_LABEL[ticket.priority]}
+          {onCard && <Flag aria-hidden />}{cur.label}
         </button>
       )}
     >
@@ -163,10 +165,10 @@ export function PriorityField({ ticket, onCard }: { ticket: Ticket; onCard?: boo
         PRIORITIES.map((pr) => (
           <button
             key={pr} type="button" role="menuitemradio" aria-checked={pr === ticket.priority}
-            className="menu-item" data-priority={pr}
+            className="menu-item" data-priority={pr} style={look(pr).style}
             onClick={() => { if (pr !== ticket.priority) updateTicket(ticket.key, { priority: pr }); close(); }}
           >
-            {PRIORITY_LABEL[pr]}
+            {look(pr).label}
           </button>
         ))
       }

@@ -164,7 +164,7 @@ function GridRow({ ticket, selected, onSelect }: { ticket: Ticket; selected: boo
       </span>
       <span className="grid-cell col-owner" role="cell"><Owner ids={ticket.assigneeIds} /></span>
       <span className="grid-cell col-status" role="cell"><StatusCell ticket={ticket} /></span>
-      <span className="grid-cell col-priority" role="cell"><PriorityCell priority={ticket.priority} /></span>
+      <span className="grid-cell col-priority" role="cell"><PriorityCell priority={ticket.priority} productKey={ticket.productKey} /></span>
       <span className="grid-cell col-due" role="cell"><DueDate ticket={ticket} done={done} /></span>
       <span className="grid-cell col-time" role="cell">
         <span className="time-text">{ticket.estimateH ? formatHours(ticket.estimateH) : "—"}</span>

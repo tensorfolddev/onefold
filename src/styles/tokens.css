@@ -754,6 +754,12 @@
   --tone-backlog: var(--color-explosive);
   --tone-review: var(--color-purple);
   --tone-cancelled: var(--color-american_gray);
+  --tone-pink: #ff5ac4;
+  --tone-teal: #00a9a0;
+  --tone-sky: #4eccf6;
+  --tone-lime: #9cd326;
+  --tone-brown: #7f5347;
+  --tone-navy: #225091;
   /* kanban header tints (measured) */
   --tint-done: #33d391;
   --tint-working: #fdbc64;

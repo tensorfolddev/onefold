@@ -50,6 +50,7 @@ export const deleteStatus = wrap("deleteStatus");
 export const createProduct = wrap("createProduct");
 export const updateProduct = wrap("updateProduct");
 export const setProductLook = wrap("setProductLook");
+export const setPriority = wrap("setPriority");
 export const setMember = wrap("setMember");
 export const requestStage = wrap("requestStage");
 export const approveStage = wrap("approveStage");

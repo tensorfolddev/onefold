@@ -182,7 +182,7 @@ function MetaGrid({ ticket, product, editable, onNavigate }: PanelProps & { onNa
         )}
       </dd>
       <dt>Priority</dt>
-      <dd className="meta-priority">{editable ? <PriorityField ticket={ticket} /> : <PriorityCell priority={ticket.priority} />}</dd>
+      <dd className="meta-priority">{editable ? <PriorityField ticket={ticket} /> : <PriorityCell priority={ticket.priority} productKey={ticket.productKey} />}</dd>
       <dt>Due</dt>
       <dd>{editable ? <DueField ticket={ticket} done={done} /> : <DueDate ticket={ticket} done={done} />}</dd>
       <dt>Estimate</dt>

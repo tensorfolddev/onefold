@@ -11,7 +11,7 @@ import {
 } from "./people.ts";
 import {
   addGroup, approveStage, archiveProduct, createProduct, deleteGroup, deleteProduct, moveProduct, renameGroup, requestStage,
-  restoreProduct, setMember, setProductLook, updateProduct,
+  restoreProduct, setMember, setPriority, setProductLook, updateProduct,
 } from "./products.ts";
 import { addAttachment, addDependency, removeAttachment, removeDependency, setSection } from "./template.ts";
 import { addComment, archiveTickets, createTicket, deleteTickets, moveTicket, restoreTickets, updateTicket } from "./tickets.ts";
@@ -23,7 +23,7 @@ export const commands = {
   // board lists
   addStatus, updateStatus, moveStatus, deleteStatus,
   // products
-  createProduct, updateProduct, setProductLook, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
+  createProduct, updateProduct, setProductLook, setPriority, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
   // docs
   addDoc, deleteDoc, addDecision, updateDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, notifyDocMentions,
@@ -38,7 +38,7 @@ export {
   createTicket, updateTicket, moveTicket, deleteTickets, addComment, archiveTickets, restoreTickets,
   setSection, addDependency, removeDependency, addAttachment, removeAttachment,
   addStatus, updateStatus, moveStatus, deleteStatus,
-  createProduct, updateProduct, setProductLook, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
+  createProduct, updateProduct, setProductLook, setPriority, setMember, requestStage, approveStage, addGroup, renameGroup, deleteGroup,
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
   addDoc, deleteDoc, addDecision, updateDecision, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
@@ -50,7 +50,7 @@ export type Commands = typeof commands;
 export type CommandName = keyof Commands;
 
 export { AccessError, ValidationError } from "./shared.ts";
-export { deletePhrase } from "./products.ts";
+export { deletePhrase, DEFAULT_PRIORITY_NAME, PRIORITIES } from "./products.ts";
 export { ticketDeletePhrase } from "./tickets.ts";
 export { DECISION_STATUSES, docDeletePhrase, mentionable, withSubpages } from "./docs.ts";
 export type { DecisionInput, DecisionPatch } from "./docs.ts";

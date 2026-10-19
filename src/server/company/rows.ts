@@ -54,7 +54,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     products: db.products.map((p) => r(p.key, {
       name: p.name, type: p.type, client: opt(p.client), stage: p.stage, health: p.health, pmId: p.pmId,
       projectManagerId: p.projectManagerId, color: p.color, description: p.description, waitingApproval: opt(p.waitingApproval),
-      icon: opt(p.icon), groupId: opt(p.groupId), createdAt: p.createdAt,
+      icon: opt(p.icon), priorities: p.priorities && Object.keys(p.priorities).length ? p.priorities : null, groupId: opt(p.groupId), createdAt: p.createdAt,
       archivedAt: instantOrNull(p.archivedAt), archivedBy: opt(p.archivedBy),
     })),
     productMembers: db.products.flatMap((p) => p.memberIds.map((m) => r(`${p.key}:${m}`, { productId: p.key, memberId: m }))),
@@ -135,6 +135,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     description: str(p.description), waitingApproval: und(p.waitingApproval),
     memberIds: (membersOf.get(p.id) ?? []).map((m) => str(m.memberId)), icon: und<ProductIcon>(p.icon), groupId: und(p.groupId),
     createdAt: str(p.createdAt),
+    ...(p.priorities ? { priorities: p.priorities as Product["priorities"] } : {}),
     ...(p.archivedAt ? { archivedAt: instant(str(p.archivedAt)), archivedBy: und<string>(p.archivedBy) } : {}),
   }));
   const statusesByProduct: Record<string, Status[]> = Object.fromEntries(products.map((p) => [p.key, (listsOf.get(p.key) ?? []).map((s) => ({
