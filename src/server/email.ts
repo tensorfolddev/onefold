@@ -13,6 +13,13 @@ const SEND_TIMEOUT_MS = 10_000;
 /** Whether emails really reach people (Resend), or at least an inbox tests can read. Gates "confirm your email". */
 export const emailEnabled = () => !!process.env.RESEND_API_KEY || !!process.env.EMAIL_OUTBOX_DIR;
 
+const DEFAULT_FROM = "1Fold <onboarding@resend.dev>";
+/** How email is set up here, for Integrations → Email: through Resend (from which address), a test inbox, or not at all. */
+export const emailStatus = (): { mode: "resend" | "outbox" | "off"; from: string } => ({
+  mode: process.env.RESEND_API_KEY ? "resend" : process.env.EMAIL_OUTBOX_DIR ? "outbox" : "off",
+  from: process.env.EMAIL_FROM || DEFAULT_FROM,
+});
+
 export async function sendEmail(msg: Email): Promise<boolean> {
   try {
     const key = process.env.RESEND_API_KEY;
@@ -20,7 +27,7 @@ export async function sendEmail(msg: Email): Promise<boolean> {
       const res = await fetch(RESEND_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: process.env.EMAIL_FROM || "1Fold <onboarding@resend.dev>", to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
+        body: JSON.stringify({ from: process.env.EMAIL_FROM || DEFAULT_FROM, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
         signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`Resend answered ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -99,4 +106,13 @@ export const botDownEmail = (p: { to: string; settingsUrl: string }) => message(
     "Until it's connected again, briefs go out by email. To reconnect: Settings → WhatsApp → Connect the bot, then scan the code from the bot's phone (Linked devices → Link a device)."],
   { label: "Open Settings", url: p.settingsUrl },
   "You get this because you can manage 1Fold's WhatsApp bot (PLATFORM_ADMIN_EMAILS).",
+);
+
+/** Integrations → Email: a test, to the admin who asked for it. */
+export const testEmail = (p: { to: string; orgName: string; integrationsUrl: string }) => message(
+  p.to, "1Fold can send you email",
+  [`This is a test from Integrations → Email at ${p.orgName}.`,
+    "Invites, password resets, email confirmations, and the daily brief when WhatsApp is down all go out this way."],
+  { label: "Open Integrations", url: p.integrationsUrl },
+  "You get this because you asked for a test email in 1Fold.",
 );

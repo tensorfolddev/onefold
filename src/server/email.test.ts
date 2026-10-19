@@ -98,3 +98,24 @@ test("using one reset link kills the others; an expired link is refused", async 
   assert.match((await resetLinkProblem(old))!, /expired or was already used/);
   await assert.rejects(resetPassword(old, NEW_PASSWORD), /expired or was already used/);
 });
+
+test("how email is set up here, for Integrations → Email: Resend (from which address), a test inbox, or not at all — never the key", async () => {
+  const { emailStatus } = await import("./email.ts");
+  const saved = { key: process.env.RESEND_API_KEY, outbox: process.env.EMAIL_OUTBOX_DIR, from: process.env.EMAIL_FROM };
+  try {
+    process.env.RESEND_API_KEY = "re_secret";
+    process.env.EMAIL_FROM = "Acme <hello@acme.example>";
+    assert.deepEqual(emailStatus(), { mode: "resend", from: "Acme <hello@acme.example>" });
+    assert.equal(JSON.stringify(emailStatus()).includes("re_secret"), false);
+    delete process.env.RESEND_API_KEY;
+    process.env.EMAIL_OUTBOX_DIR = "/tmp/outbox";
+    assert.equal(emailStatus().mode, "outbox");
+    delete process.env.EMAIL_OUTBOX_DIR;
+    delete process.env.EMAIL_FROM;
+    assert.deepEqual(emailStatus(), { mode: "off", from: "1Fold <onboarding@resend.dev>" });
+  } finally {
+    for (const [k, v] of [["RESEND_API_KEY", saved.key], ["EMAIL_OUTBOX_DIR", saved.outbox], ["EMAIL_FROM", saved.from]] as const) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});

@@ -1221,7 +1221,7 @@ test("Integrations center: Claude and WhatsApp for everyone; Team Bot for admins
   await expect(page).toHaveURL(/\/admin\/integrations$/);
   await expect(page.getByRole("heading", { name: "Your work, wherever you are" })).toBeVisible();
   const cards = page.locator(".int-grid");
-  await expect(cards.locator(".int-card")).toHaveCount(3); // Claude, WhatsApp — and for admins, Team Bot
+  await expect(cards.locator(".int-card")).toHaveCount(4); // Claude, WhatsApp — and for admins, Team Bot and Email
   await expect(cards.getByText("Connected", { exact: true })).toHaveCount(0); // said on a card only once it's connected
   await page.getByLabel("Search integrations").fill("claude");
   await expect(cards.locator(".int-card")).toHaveCount(1);
@@ -1298,6 +1298,25 @@ test("Notifications & sounds: anyone picks the sound a notification makes — an
   dialog = await open();
   await expect(dialog.getByRole("radiogroup", { name: "New notification" }).getByRole("radio", { name: "Bell" })).toHaveAttribute("aria-checked", "true");
   await expect(dialog.getByRole("radiogroup", { name: "Urgent (@@)" }).getByRole("radio", { name: "Siren" })).toHaveAttribute("aria-checked", "true");
+});
+
+test("Integrations → Email: an admin sees how email is set up (never the key) and sends themselves a test", async ({ page }) => {
+  await signUp(page, "Postman", email("postman"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/integrations");
+  await page.locator(".int-grid").getByRole("link", { name: /^Email/ }).click();
+  await expect(page.getByRole("heading", { name: "Email", level: 1 })).toBeVisible();
+  await expect(page.locator(".int-app-cta").getByRole("status")).toContainText("Test inbox (development)"); // e2e: no Resend key, a test inbox
+  await expect(page.locator(".int-recipes")).toContainText("forgets their password");
+  await page.getByRole("button", { name: "Send a test email" }).click();
+  await expect(page.locator(".toast-message", { hasText: `Test email sent to ${email("postman")}` })).toBeVisible();
+  await expect.poll(async () => {
+    for (const f of await readdir(OUTBOX).catch(() => [] as string[])) {
+      const mail = JSON.parse(await readFile(join(OUTBOX, f), "utf8")) as { to: string; subject: string };
+      if (mail.to === email("postman") && mail.subject === "1Fold can send you email") return true;
+    }
+    return false;
+  }, { timeout: 15_000 }).toBe(true);
 });
 
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {

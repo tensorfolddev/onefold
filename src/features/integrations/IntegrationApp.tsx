@@ -6,7 +6,7 @@
 // Members, Daily brief, Templates, Deliveries.
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, RefreshCw, Smartphone, Unlink, Zap } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Mail, RefreshCw, Smartphone, Unlink, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, message as problemOf } from "@/data/api";
 import { useMe } from "@/data/StoreProvider";
@@ -17,7 +17,7 @@ import {
 import { PairingQr, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { Tabs } from "@/ui/primitives";
-import { appOf, RecipeText, useAppStatuses, type App, type AppStatus } from "./catalog";
+import { appOf, emailLabel, RecipeText, useAppStatuses, useEmailStatus, type App, type AppStatus } from "./catalog";
 
 const TEAM_TABS = ["Members", "Daily brief", "Templates", "Deliveries"] as const;
 const POLL_MS = 2000; // while the bot is being set up: the QR changes every ~20 s
@@ -34,7 +34,9 @@ export function IntegrationApp({ id }: { id: string }) {
       </div>
     );
   }
-  return app.id === "team-bot" ? <TeamBotApp app={app} /> : <PersonalApp app={app} status={statuses[app.id]} />;
+  if (app.id === "team-bot") return <TeamBotApp app={app} />;
+  if (app.id === "email") return <EmailApp app={app} />;
+  return <PersonalApp app={app} status={statuses[app.id]} />;
 }
 
 /** The tab in the address (?tab=…), so a tab can be linked to and survives a reload. */
@@ -68,18 +70,9 @@ function Banner({ app, action }: { app: App; action: React.ReactNode }) {
 
 const Connected = ({ label }: { label: string }) => <span className="int-connected-pill" role="status"><Check aria-hidden /> {label}</span>;
 
-/** Claude and your own WhatsApp — the same panel for everyone: connected from a dialog, explained below. */
-function PersonalApp({ app, status }: { app: App; status: AppStatus }) {
-  const [open, setOpen] = useState(false);
-  const label = app.id === "claude" ? (status.connected ? "Manage tokens" : "Connect Claude") : status.connected ? "Manage" : "Connect WhatsApp";
+/** What an integration does (as recipes), how it works, and the facts. */
+function Overview({ app }: { app: App }) {
   return (
-    <div className="page int-app">
-      <Banner app={app} action={(
-        <>
-          {status.connected && <Connected label={status.label} />}
-          <button type="button" className={`btn btn-lg ${status.connected ? "btn-secondary" : "btn-primary"}`} onClick={() => setOpen(true)}>{label}</button>
-        </>
-      )} />
       <div className="int-overview">
         <div className="int-overview-main">
           <section aria-labelledby="int-recipes">
@@ -101,11 +94,56 @@ function PersonalApp({ app, status }: { app: App; status: AppStatus }) {
           <dl>
             <dt>Category</dt><dd>{app.category}</dd>
             <dt>Works with</dt><dd>{app.worksWith}</dd>
-            <dt>Who can use it</dt><dd>Everyone, for themselves</dd>
+            <dt>Who can use it</dt><dd>{app.adminOnly ? "Your company's admins" : "Everyone, for themselves"}</dd>
             <dt>Made by</dt><dd>1FOLD</dd>
           </dl>
         </aside>
       </div>
+  );
+}
+
+/** Email, for admins: whether it's set up (and from which address), a test to yourself, and how to set it up. */
+function EmailApp({ app }: { app: App }) {
+  const { toast } = useMe();
+  const status = useEmailStatus();
+  const [sending, setSending] = useState(false);
+  const test = async () => {
+    setSending(true);
+    try {
+      const { to } = await api<{ to: string }>("/api/email/test", {});
+      toast(`Test email sent to ${to}`, undefined, "success");
+    } catch (e) {
+      toast(problemOf(e), undefined, "error");
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div className="page int-app">
+      <Banner app={app} action={status && (
+        <>
+          {status.mode === "resend" ? <Connected label={emailLabel(status)} /> : <span className="int-status" role="status"><span className="int-dot" aria-hidden />{emailLabel(status)}</span>}
+          <button type="button" className="btn btn-lg btn-primary" disabled={sending || status.mode === "off"} onClick={() => void test()}><Mail aria-hidden /> Send a test email</button>
+        </>
+      )} />
+      <Overview app={app} />
+    </div>
+  );
+}
+
+/** Claude and your own WhatsApp — the same panel for everyone: connected from a dialog, explained below. */
+function PersonalApp({ app, status }: { app: App; status: AppStatus }) {
+  const [open, setOpen] = useState(false);
+  const label = app.id === "claude" ? (status.connected ? "Manage tokens" : "Connect Claude") : status.connected ? "Manage" : "Connect WhatsApp";
+  return (
+    <div className="page int-app">
+      <Banner app={app} action={(
+        <>
+          {status.connected && <Connected label={status.label} />}
+          <button type="button" className={`btn btn-lg ${status.connected ? "btn-secondary" : "btn-primary"}`} onClick={() => setOpen(true)}>{label}</button>
+        </>
+      )} />
+      <Overview app={app} />
       {open && (app.id === "claude" ? <McpDialog onClose={() => setOpen(false)} /> : <WhatsAppDialog onClose={() => setOpen(false)} />)}
     </div>
   );
