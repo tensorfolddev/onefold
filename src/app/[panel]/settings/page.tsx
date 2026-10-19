@@ -2,32 +2,39 @@
 
 import { useState } from "react";
 import { notFound } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { Archive, Building2, IdCard, MessageCircle, Plus, Trash2, Users } from "lucide-react";
 import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
-import { IconButton } from "@/ui/primitives";
 import { TeamsManager } from "@/features/people/TeamsManager";
 import { ArchivedDocs } from "@/features/docs/ArchivedDocs";
-import { WhatsAppBotSettings } from "@/features/whatsapp/WhatsApp";
-import { errorOf, Field, FormError } from "@/ui/fields";
+import { useWhatsApp, WhatsAppBotSettings } from "@/features/whatsapp/WhatsApp";
+import { errorOf, FormError } from "@/ui/fields";
+import { SettingsLayout, type SettingsSection } from "@/ui/SettingsLayout";
 
 /** Admin Settings: the company itself, and the company-wide lists every picker in the app uses. */
 export default function SettingsPage() {
   const { panel } = useMe();
+  const { status } = useWhatsApp(60_000); // only platform admins get the bot (status.bot)
   if (panel !== "admin") notFound();
+  const sections: SettingsSection[] = [
+    { id: "company", label: "Company", icon: Building2, hint: "Its name, and who can join it.", body: <Company /> },
+    { id: "job-titles", label: "Job titles", icon: IdCard, hint: "The titles people pick from. Renaming one updates everyone who has it.", body: <JobTitles /> },
+    { id: "teams", label: "Teams", icon: Users, hint: "Your teams and their leads, and who's on which.", body: <TeamsManager /> },
+    { id: "archived", label: "Archived", icon: Archive, hint: "Company pages someone archived: bring them back, or delete them for good.", body: <ArchivedDocs productKey="" /> },
+    ...(status?.bot ? [{
+      id: "whatsapp", label: "WhatsApp bot", icon: MessageCircle, body: <div className="settings-card settings-pad"><WhatsAppBotSettings bare /></div>,
+      hint: "The number this server sends daily briefs from — for platform admins. Use a dedicated SIM, not a personal number.",
+    }] : []),
+  ];
   return (
-    <div className="page admin-page">
+    <div className="page admin-page settings-page">
       <header className="page-header">
         <div>
           <h1 className="page-title">Settings</h1>
-          <p className="page-subtitle">Your company, job titles and teams</p>
+          <p className="page-subtitle">Your company, its job titles and teams</p>
         </div>
       </header>
-      <Company />
-      <JobTitles />
-      <TeamsManager />
-      <WhatsAppBotSettings />
-      <ArchivedDocs productKey="" />
+      <SettingsLayout sections={sections} />
     </div>
   );
 }
@@ -38,42 +45,48 @@ function Company() {
   const [name, setName] = useState(org.name);
   const [error, setError] = useState<string | null>(null);
   const canLock = !isFreeMail(org.emailDomain);
+  const changed = name.trim() !== org.name;
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     const err = errorOf(() => updateOrg(db, me, { name }));
     if (err) return setError(err);
-    if (name.trim() !== org.name && act((d, m) => updateOrg(d, m, { name }), { success: "Company renamed" })) setError(null);
+    if (changed && act((d, m) => updateOrg(d, m, { name }), { success: "Company renamed" })) setError(null);
   };
+  const lock = (on: boolean) => act((d, m) => updateOrg(d, m, { domainLock: on }), {
+    success: on ? `Invites limited to @${org.emailDomain}` : "Invites open to any email",
+  });
 
   return (
-    <section className="admin-teams" aria-labelledby="company-title">
-      <header className="team-header">
-        <h2 id="company-title" className="team-title">Company</h2>
-        <span className="muted">Short name: {org.slug}</span>
-      </header>
-      <form className="admin-inline-form" onSubmit={save} noValidate>
-        <Field label="Company name">
-          <input className="admin-input" value={name} onChange={(e) => { setName(e.target.value); setError(null); }} />
-        </Field>
-        <button type="submit" className="btn btn-secondary" disabled={name.trim() === org.name}>Save name</button>
-        <FormError message={error} />
+    <div className="settings-card">
+      <form className="settings-line" onSubmit={save} noValidate>
+        <span className="settings-line-text">
+          <label htmlFor="company-name">Company name</label>
+          <span>On every page, and in the emails 1Fold sends</span>
+        </span>
+        <span className="settings-line-control">
+          <input id="company-name" className="admin-input" value={name} maxLength={100} onChange={(e) => { setName(e.target.value); setError(null); }} />
+          {changed && <button type="submit" className="btn btn-primary">Save</button>}
+        </span>
+        {error && <span className="settings-line-error"><FormError message={error} /></span>}
       </form>
+      <div className="settings-line">
+        <span className="settings-line-text">
+          <strong>Short name</strong>
+          <span>Picked when the company was made; it doesn&apos;t change</span>
+        </span>
+        <code className="settings-slug">{org.slug}</code>
+      </div>
       {canLock && (
-        <label className="settings-toggle">
-          <input
-            type="checkbox" role="switch" checked={org.domainLock}
-            onChange={(e) => act((d, m) => updateOrg(d, m, { domainLock: e.target.checked }), {
-              success: e.target.checked ? `Invites limited to @${org.emailDomain}` : "Invites open to any email",
-            })}
-          />
-          <span>
-            <strong>Only @{org.emailDomain} emails can join</strong>
-            <span className="muted">Turn off to invite contractors or clients with other email addresses.</span>
+        <div className="settings-line">
+          <span className="settings-line-text">
+            <strong id="domain-lock">Only @{org.emailDomain} emails can join</strong>
+            <span>Turn off to invite contractors or clients with other email addresses</span>
           </span>
-        </label>
+          <button type="button" role="switch" aria-checked={org.domainLock} aria-labelledby="domain-lock" className="switch" onClick={() => lock(!org.domainLock)} />
+        </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -97,39 +110,32 @@ function JobTitles() {
   };
 
   return (
-    <section className="admin-teams" aria-labelledby="job-titles">
-      <header className="team-header">
-        <h2 id="job-titles" className="team-title">Job titles</h2>
-        <span className="muted">{db.jobTitles.length} titles · renaming one updates everyone who has it</span>
-      </header>
-      <form className="admin-inline-form" onSubmit={add} noValidate>
-        <Field label="New job title">
-          <input className="admin-input" value={name} placeholder="e.g. Data Scientist" onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <button type="submit" className="btn btn-secondary"><Plus aria-hidden /> Add job title</button>
-        <FormError message={error} />
-      </form>
-      <ul className="admin-titles">
+    <div className="settings-card">
+      <ul className="settings-rows" aria-label="Job titles">
         {db.jobTitles.map((t) => {
           const n = usage(t);
           return (
-            <li key={t} className="admin-title-row">
-              <input
-                key={t} className="admin-input" defaultValue={t} aria-label={`Rename ${t}`}
-                onBlur={(e) => rename(t, e.currentTarget)}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-              />
-              <span className="admin-title-count">{n} {n === 1 ? "person" : "people"}</span>
-              <IconButton
-                label={n ? `${t} is in use` : `Delete ${t}`}
-                onClick={() => act((d, m) => deleteJobTitle(d, m, t), { success: `${t} deleted`, undoable: true })}
-              >
-                <Trash2 />
-              </IconButton>
+            <li key={t} className="settings-row is-plain">
+              <input key={t} className="settings-name" defaultValue={t} aria-label={`Rename ${t}`} maxLength={60}
+                onBlur={(e) => rename(t, e.currentTarget)} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
+              <span className="settings-row-count">{n ? `${n} ${n === 1 ? "person" : "people"}` : "Nobody yet"}</span>
+              <span className="settings-row-tools">
+                <button type="button" className="settings-icon-btn is-danger" disabled={n > 0}
+                  aria-label={n ? `${t} is in use` : `Delete ${t}`} data-tip={n ? "In use — rename it instead" : "Delete"}
+                  onClick={() => act((d, m) => deleteJobTitle(d, m, t), { success: `${t} deleted`, undoable: true })}>
+                  <Trash2 aria-hidden />
+                </button>
+              </span>
             </li>
           );
         })}
       </ul>
-    </section>
+      <form className="settings-add" onSubmit={add} noValidate>
+        <input value={name} placeholder="New job title — e.g. Data Scientist" aria-label="New job title" maxLength={60}
+          onChange={(e) => { setName(e.target.value); setError(null); }} />
+        <button type="submit" className="btn btn-secondary" disabled={!name.trim()}><Plus aria-hidden /> Add</button>
+      </form>
+      {error && <div className="settings-pad"><FormError message={error} /></div>}
+    </div>
   );
 }
