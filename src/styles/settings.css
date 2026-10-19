@@ -51,6 +51,31 @@
 .settings-icon-btn:disabled { opacity: 0.35; cursor: default; }
 .settings-icon-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 0; }
 
+/* Company settings: label + control lines; plain rows of titles, teams and people */
+.settings-pad { padding: 14px 16px; }
+.settings-subhead { margin: 8px 0 0; font: 600 15px/22px var(--title-font-family); }
+.settings-line {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 24px;
+  min-height: 72px; padding: 14px 20px; border-top: 1px solid var(--layout-border-color);
+}
+.settings-line:first-child { border-top: 0; }
+.settings-line-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.settings-line-text > :first-child { font-size: 14px; font-weight: 600; color: var(--primary-text-color); }
+.settings-line-text > :last-child { font-size: 13px; color: var(--secondary-text-color); }
+.settings-line-control { display: flex; align-items: center; gap: 8px; }
+.settings-line-control .admin-input { width: 280px; max-width: 100%; }
+.settings-line-error { grid-column: 1 / -1; }
+.settings-slug {
+  padding: 4px 10px; border-radius: 6px; font: 500 13px/20px var(--font-mono, ui-monospace, monospace);
+  color: var(--secondary-text-color); background: var(--allgrey-background-color);
+}
+.settings-row.is-plain { grid-template-columns: minmax(0, 1fr) 120px 40px; padding-left: 20px; }
+.settings-row.is-team { grid-template-columns: minmax(0, 1fr) 200px 96px 40px; padding-left: 20px; }
+.settings-row.is-person { grid-template-columns: minmax(0, 1fr) minmax(0, 180px) 200px; padding-left: 20px; }
+.settings-row-empty { color: var(--secondary-text-color); font-size: 14px; }
+.settings-person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.settings-row.is-plain .settings-name, .settings-row.is-team .settings-name { margin-left: -8px; }
+
 /* Swatches */
 .settings-swatch { display: block; width: 24px; height: 24px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08); }
 button.settings-swatch:not(.is-pick):hover { box-shadow: 0 0 0 2px var(--primary-background-color), 0 0 0 4px var(--ui-border-color); }
@@ -88,4 +113,10 @@ button.settings-swatch:not(.is-pick):hover { box-shadow: 0 0 0 2px var(--primary
   .settings-row > :nth-child(3) { grid-area: k; justify-self: start; }
   .settings-row > :nth-child(4), .settings-row-preview { display: none; }
   .settings-row-tools { grid-area: t; }
+  .settings-line { grid-template-columns: minmax(0, 1fr); }
+  .settings-line-control .admin-input { width: 100%; }
+  .settings-row.is-plain, .settings-row.is-team, .settings-row.is-person { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: none; }
+  .settings-row.is-plain > *, .settings-row.is-team > *, .settings-row.is-person > * { grid-area: auto; }
+  .settings-row.is-team > .settings-kind, .settings-row.is-person > .settings-kind { grid-column: 1 / -1; justify-self: stretch; }
+  .settings-row.is-team > :nth-child(4), .settings-row.is-person > :nth-child(4) { display: flex; }
 }

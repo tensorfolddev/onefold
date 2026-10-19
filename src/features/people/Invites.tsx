@@ -3,7 +3,10 @@
 // Inviting teammates: emails + a role → one-time links, made by the server (it stores only each link's hash, so a
 // link is shown once). The server emails each person their link; the links are also shown once to copy, as a backup.
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, MailCheck, MailWarning, Plus, Send, Undo2, X } from "lucide-react";
+import {
+  Briefcase, Check, ClipboardPaste, Code2, Copy, Globe, Lock, Mail, MailCheck, MailWarning, Plus, RotateCw, Send, ShieldCheck, Undo2, X,
+  type LucideIcon,
+} from "lucide-react";
 import { addDays } from "@/domain/clock";
 import { INVITE_DAYS, inviteMembers, inviteState, revokeInvite, type InviteInput } from "@/data/commands";
 import { ApiError } from "@/data/api";
@@ -16,9 +19,9 @@ import { PANEL_LABEL } from "@/features/shell/AppShell";
 
 const PANELS: Panel[] = ["developer", "manager", "admin"];
 const PANEL_HINT: Record<Panel, string> = {
-  developer: "works on their products: tickets, docs, the roadmap",
-  manager: "runs their products and team",
-  admin: "everything, including people and settings",
+  developer: "Works on their products: tickets, docs, the roadmap",
+  manager: "Runs their products and team",
+  admin: "Everything, including people and settings",
 };
 
 /** Stands in for a link's hash when checking the form here; the server makes the real one. */
@@ -43,24 +46,31 @@ interface Row { id: number; email: string; panel: Panel }
 
 /** Invites wait for a confirmed email (so nobody invites people in the name of an address they don't own). */
 function ConfirmEmailFirst() {
-  const { me, sendVerification, toast } = useMe();
+  const { me, sendVerification } = useMe();
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const resend = async () => {
     setBusy(true);
     const problem = await sendVerification();
     setBusy(false);
-    toast(problem ?? `Sent — check ${me.email}`);
+    setNote(problem ? { ok: false, text: problem } : { ok: true, text: `Sent — check ${me.email}` });
   };
   return (
-    <div className="auth-note inv-confirm" role="status">
-      <MailWarning aria-hidden />
-      <span>
-        <strong>Confirm your email to send invites.</strong> We emailed a link to {me.email} — open it, then come back here.{" "}
-        <button type="button" className="btn-link" onClick={resend} disabled={busy}>{busy ? "Sending…" : "Send it again"}</button>
+    <div className="inv-confirm" role="status">
+      <span className="inv-confirm-icon" aria-hidden><MailWarning /></span>
+      <span className="inv-confirm-text">
+        <strong>Confirm your email to send invites.</strong>
+        <span>We emailed a link to <b>{me.email}</b> — open it, then come back here.</span>
+        {note && <span className={`inv-confirm-note${note.ok ? "" : " is-error"}`} role={note.ok ? undefined : "alert"}>{note.text}</span>}
       </span>
+      <button type="button" className="btn btn-secondary inv-confirm-btn" onClick={() => void resend()} disabled={busy}>
+        <RotateCw aria-hidden /> {busy ? "Sending…" : "Send it again"}
+      </button>
     </div>
   );
 }
+
+const PANEL_ICON: Record<Panel, LucideIcon> = { developer: Code2, manager: Briefcase, admin: ShieldCheck };
 
 /** One row per person. Pasting a list ("a@x.io, b@x.io") splits it into rows. Hands back the invites it created. */
 export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
@@ -111,30 +121,41 @@ export function InviteForm({ onInvited, onCancel, cancelLabel = "Cancel" }: {
       <div className="inv-rows">
         {rows.map((r, i) => (
           <div key={r.id} className="inv-row">
-            <label className="input inv-email">
-              <input
-                type="email" inputMode="email" autoComplete="off" spellCheck={false} autoFocus={i === 0}
-                placeholder={domain ? `teammate@${domain}` : "teammate@company.com"} aria-label={`Email ${i + 1}`}
-                value={r.email} onChange={(e) => update(r.id, { email: e.target.value })} onPaste={(e) => onPaste(r, e)}
-              />
-            </label>
-            <select className="admin-input inv-panel" aria-label={`Role for email ${i + 1}`} value={r.panel}
+            <span className={`inv-avatar${r.email.trim() ? " is-filled" : ""}`} aria-hidden>{r.email.trim() ? r.email.trim()[0].toUpperCase() : <Mail />}</span>
+            <input
+              className="inv-email" type="email" inputMode="email" autoComplete="off" spellCheck={false} autoFocus={i === 0}
+              placeholder={domain ? `teammate@${domain}` : "teammate@company.com"} aria-label={`Email ${i + 1}`}
+              value={r.email} onChange={(e) => update(r.id, { email: e.target.value })} onPaste={(e) => onPaste(r, e)}
+            />
+            <select className="inv-panel" aria-label={`Role for email ${i + 1}`} value={r.panel}
               onChange={(e) => update(r.id, { panel: e.target.value as Panel })}>
               {PANELS.map((p) => <option key={p} value={p}>{PANEL_LABEL[p]}</option>)}
             </select>
-            <IconButton label={`Remove email ${i + 1}`} onClick={() => remove(r.id)}><X /></IconButton>
+            <button type="button" className="inv-remove" aria-label={`Remove email ${i + 1}`} onClick={() => remove(r.id)}><X aria-hidden /></button>
           </div>
         ))}
       </div>
-      <button type="button" className="btn btn-tertiary inv-add" onClick={() => add([""], rows[rows.length - 1].panel)}>
-        <Plus aria-hidden /> Add another
-      </button>
+      <div className="inv-tools">
+        <button type="button" className="btn btn-tertiary inv-add" onClick={() => add([""], rows[rows.length - 1].panel)}>
+          <Plus aria-hidden /> Add another
+        </button>
+        <span className="inv-tip"><ClipboardPaste aria-hidden /> Paste a list to add several at once</span>
+      </div>
       <ul className="inv-roles" aria-label="What each role can do">
-        {PANELS.map((p) => <li key={p}><strong>{PANEL_LABEL[p]}</strong> — {PANEL_HINT[p]}</li>)}
+        {PANELS.map((p) => {
+          const Icon = PANEL_ICON[p];
+          return (
+            <li key={p} className="inv-role" data-panel={p}>
+              <span className="inv-role-icon" aria-hidden><Icon /></span>
+              <span><strong>{PANEL_LABEL[p]}</strong><span>{PANEL_HINT[p]}</span></span>
+            </li>
+          );
+        })}
       </ul>
-      <p className="inv-hint">
-        {domain ? `Only @${domain} emails can join (admins can change this in Settings).` : "Any email can join."}{" "}
-        Paste a list to add several at once.
+      <p className="inv-domain">
+        {domain
+          ? <><Lock aria-hidden /> <span>Only @{domain} emails can join (admins can change this in Settings).</span></>
+          : <><Globe aria-hidden /> <span>Any email can join.</span></>}
       </p>
       <FormError message={error} />
       <div className="inv-foot">

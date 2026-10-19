@@ -84,10 +84,6 @@
 .admin-inline-form .admin-field { width: 280px; max-width: 100%; }
 .admin-inline-form > .btn { height: 40px; }
 .admin-inline-form .admin-error { flex-basis: 100%; }
-.admin-team-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 24px; }
-.admin-team-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
-.admin-team-count { font-size: 13px; }
-.admin-subtitle { margin-bottom: 8px; }
 
 /* ---------- Members ---------- */
 .admin-members .section-title .muted { font-size: 14px; font-weight: 400; margin-left: 4px; }
@@ -131,17 +127,8 @@
 }
 .admin-credentials dt { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--secondary-text-color); }
 .admin-credentials dd { margin: 2px 0 0; font-size: 16px; user-select: all; }
-.admin-team-foot { display: flex; align-items: center; justify-content: space-between; }
 
 /* ---------- Settings: job titles ---------- */
-.admin-titles { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; margin-bottom: 24px; }
-.admin-title-row {
-  display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 8px;
-  border: 1px solid var(--layout-border-color); border-radius: 10px; background: var(--primary-background-color);
-}
-.admin-title-row .admin-input { flex: 1; min-width: 0; height: 34px; border-color: transparent; }
-.admin-title-row .admin-input:hover:not(:focus) { border-color: var(--ui-border-color); }
-.admin-title-count { flex: none; font-size: 13px; color: var(--secondary-text-color); }
 .admin-settings-link { margin: 4px 0 20px; font-size: 14px; color: var(--secondary-text-color); }
 .admin-settings-link a { color: var(--primary-color); text-decoration: underline; }
 
@@ -248,16 +235,87 @@
 /* ---------- Invites: email + role rows → copyable links ---------- */
 .inv-dialog { width: min(640px, calc(100vw - 32px)); }
 .inv-body { display: flex; flex-direction: column; gap: 16px; padding: 18px 24px 22px; overflow-y: auto; }
-.inv-form { display: flex; flex-direction: column; gap: 10px; }
+.inv-form { display: flex; flex-direction: column; gap: 14px; }
 .inv-rows { display: flex; flex-direction: column; gap: 8px; }
-.inv-row { display: grid; grid-template-columns: 1fr 132px 32px; gap: 8px; align-items: center; }
-.inv-row .input { height: 40px; }
-.inv-panel { height: 40px; }
-.inv-add { align-self: flex-start; }
-.inv-roles { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 10px 12px; list-style: none; font-size: 13px; color: var(--secondary-text-color); background: var(--allgrey-background-color); border-radius: var(--border-radius-medium); }
-.inv-roles strong { color: var(--primary-text-color); font-weight: 500; }
+/* One email per row: a single rounded field with its avatar, the address, the role and ✕ inside */
+.inv-row {
+  display: flex; align-items: center; gap: 4px; height: 48px; padding: 0 6px 0 8px;
+  border: 1px solid var(--ui-border-color); border-radius: 12px; background: var(--primary-background-color);
+  transition: border-color var(--motion-productive-short) var(--motion-timing-transition), box-shadow var(--motion-productive-short) var(--motion-timing-transition);
+}
+.inv-row:hover { border-color: var(--primary-text-color); }
+.inv-row:focus-within { border-color: var(--primary-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent); }
+.inv-avatar {
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  font-size: 13px; font-weight: 600; color: var(--secondary-text-color); background: var(--allgrey-background-color);
+  transition: background-color var(--motion-productive-short), color var(--motion-productive-short);
+}
+.inv-avatar svg { width: 15px; height: 15px; }
+.inv-avatar.is-filled { color: #fff; background: var(--primary-color); }
+.inv-email {
+  flex: 1; min-width: 0; height: 100%; padding: 0 8px; border: 0; outline: none; background: transparent;
+  font: inherit; font-size: 14px; color: var(--primary-text-color);
+}
+.inv-email::placeholder { color: var(--secondary-text-color); }
+/* The role sits inside the row: no box of its own, just a divider (beats the shared :root select look) */
+.inv-row select.inv-panel {
+  flex: none; width: auto; height: 32px; padding: 0 32px 0 12px; border: 0; border-left: 1px solid var(--layout-border-color); border-radius: 0;
+  font-weight: 500; background-color: transparent; box-shadow: none; background-position: calc(100% - 17px) 52%, calc(100% - 12px) 52%;
+}
+.inv-row select.inv-panel:hover:not(:disabled) { border-color: var(--layout-border-color); color: var(--primary-color); }
+.inv-row select.inv-panel:focus, .inv-row select.inv-panel:focus-visible { box-shadow: none; border-color: var(--layout-border-color); }
+.inv-row select.inv-panel:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 6px; }
+.inv-remove {
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--secondary-text-color);
+}
+.inv-remove svg { width: 16px; height: 16px; }
+.inv-remove:hover { color: var(--primary-text-color); background: var(--primary-background-hover-color); }
+.inv-remove:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 0; }
+.inv-tools { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-top: -4px; }
+.inv-add { margin-left: -8px; }
+.inv-tip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--secondary-text-color); }
+.inv-tip svg { width: 14px; height: 14px; }
+/* What each role can do: three small cards */
+.inv-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.inv-role {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px;
+  background: var(--allgrey-background-color); font-size: 12px; line-height: 17px; color: var(--secondary-text-color);
+}
+.inv-role > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.inv-role strong { font-size: 13px; font-weight: 600; color: var(--primary-text-color); }
+.inv-role-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: #fff; background: var(--role); }
+.inv-role-icon svg { width: 15px; height: 15px; }
+.inv-role[data-panel="developer"] { --role: var(--color-grass_green, #00c875); }
+.inv-role[data-panel="manager"] { --role: var(--color-bright-blue, #579bfc); }
+.inv-role[data-panel="admin"] { --role: var(--color-purple, #a25ddc); }
+.inv-domain { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 18px; color: var(--secondary-text-color); }
+.inv-domain svg { flex: none; width: 14px; height: 14px; margin-top: 2px; }
+/* Narrow (the sign-up panel, phones): the banner's button and the role cards stack */
+.inv-form { container-type: inline-size; }
+@container (max-width: 520px) {
+  .inv-confirm { flex-wrap: wrap; }
+  .inv-confirm-text { flex-basis: calc(100% - 44px); }
+  .inv-confirm-btn { margin-left: 44px; align-self: flex-start; }
+  .inv-roles { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .inv-role { flex-direction: row; align-items: center; gap: 10px; padding: 10px 12px; }
+  .inv-role > span:last-child { flex-direction: row; flex-wrap: wrap; gap: 0 6px; align-items: baseline; }
+}
+/* Confirm your email first */
+.inv-confirm {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--warning-color, #fdab3d) 12%, var(--primary-background-color));
+  border: 1px solid color-mix(in srgb, var(--warning-color, #fdab3d) 35%, transparent);
+}
+.inv-confirm-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #fff; background: var(--warning-color, #fdab3d); }
+.inv-confirm-icon svg { width: 16px; height: 16px; }
+.inv-confirm-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 19px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+.inv-confirm-text strong { font-size: 14px; font-weight: 600; color: var(--primary-text-color); }
+.inv-confirm-text b { font-weight: 600; color: var(--primary-text-color); }
+.inv-confirm-note { margin-top: 4px; font-weight: 500; color: var(--positive-color); }
+.inv-confirm-note.is-error { color: var(--negative-color); }
+.inv-confirm-btn { flex: none; align-self: center; }
 .inv-hint { font-size: 13px; line-height: 19px; color: var(--secondary-text-color); }
-.inv-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; }
+.inv-foot { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
 .inv-links { display: flex; flex-direction: column; gap: 12px; }
 .inv-link-list { display: flex; flex-direction: column; gap: 8px; list-style: none; }
 .inv-link-row {
@@ -268,9 +326,6 @@
 .inv-sent { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--positive-color); }
 .inv-sent.is-off { color: var(--secondary-text-color); }
 .inv-sent svg { width: 14px; height: 14px; }
-.inv-confirm { border-radius: var(--border-radius-medium); }
-.inv-confirm .btn-link { font: inherit; font-weight: 500; color: var(--primary-color); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
-.inv-confirm .btn-link:disabled { color: var(--disabled-text-color, var(--secondary-text-color)); cursor: default; }
 .inv-link-url { grid-column: 1; font-size: 12px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-link-row .btn { grid-column: 2; grid-row: 1 / span 2; }
 .inv-pending { margin-top: 32px; }
@@ -278,27 +333,10 @@
 .inv-pending-title .muted { font-weight: 400; }
 @media (max-width: 767px) {
   .inv-body { padding: 16px; }
-  .inv-row { grid-template-columns: 1fr 112px 32px; }
   .inv-link-row { grid-template-columns: 1fr; }
   .inv-link-row .btn { grid-column: 1; grid-row: auto; justify-self: start; }
 }
 
-/* ---------- Settings: on/off rows ---------- */
-.settings-toggle { display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; max-width: 560px; cursor: pointer; }
-.settings-toggle > span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
-.settings-toggle strong { font-weight: 500; }
-.settings-toggle input {
-  appearance: none; flex: none; position: relative; width: 36px; height: 20px; margin-top: 1px; border-radius: 999px;
-  background: var(--ui-border-color); transition: background-color 150ms; cursor: pointer;
-}
-.settings-toggle input::after {
-  content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
-  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: transform 150ms;
-}
-.settings-toggle input:checked { background: var(--primary-color); }
-.settings-toggle input:checked::after { transform: translateX(16px); }
-.settings-toggle input:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .settings-toggle input, .settings-toggle input::after { transition: none; } }
 
 /* ---------- WhatsApp: the brief dialog and the bot in Settings ---------- */
 .wa-dialog { width: min(520px, 100vw); }

@@ -156,41 +156,26 @@ export const BOT_STATE: Record<BotState, string> = {
   logged_out: "Disconnected — scan again",
 };
 
-/** Settings → WhatsApp: the environment's bot. Only platform admins (PLATFORM_ADMIN_EMAILS) see it. */
-/** Pairing the bot (platform admins). `bare`: just the controls, inside another page's section. */
-export function WhatsAppBotSettings({ bare = false }: { bare?: boolean }) {
-  const { toast } = useMe();
-  const [fast, setFast] = useState(false);
-  const { status, reload } = useWhatsApp(fast ? 2000 : 30_000);
-  const bot = status?.bot ?? null;
-  const busy = !!bot && (!!bot.request || bot.state === "pairing" || bot.state === "connecting");
-  useEffect(() => { setFast(busy); }, [busy]); // eslint-disable-line react-hooks/set-state-in-effect -- polling speed follows the server's state
-  if (!bot) return null;
+/** While the bot is being paired, connected or asked to do something: worth checking every couple of seconds. */
+export const botBusy = (bot: BotStatus | null) => !!bot && (!!bot.request || bot.state === "pairing" || bot.state === "connecting");
 
+/**
+ * Settings → WhatsApp bot (platform admins, PLATFORM_ADMIN_EMAILS): pair the environment's bot by scanning a QR from
+ * its own phone, or disconnect it. The page keeps the status fresh; `onAsked` runs after each request.
+ */
+export function WhatsAppBotSettings({ bot, onAsked }: { bot: BotStatus; onAsked: () => Promise<void> }) {
+  const { toast } = useMe();
   const ask = async (request: "pair" | "logout") => {
     try {
       await api(`/api/whatsapp/${request}`, {});
-      setFast(true);
-      await reload();
+      await onAsked();
     } catch (e) {
       toast(problemOf(e));
     }
   };
 
-  const Wrap = bare ? "div" : "section";
   return (
-    <Wrap className={bare ? "wa-bot-bare" : "admin-teams"} aria-labelledby={bare ? undefined : "wa-bot-title"}>
-      {!bare && (
-        <>
-          <header className="team-header">
-            <h2 id="wa-bot-title" className="team-title">WhatsApp</h2>
-            <span className="chip sm wa-state" data-state={bot.state}>{BOT_STATE[bot.state]}</span>
-          </header>
-          <p className="muted wa-intro">
-            The number 1Fold sends daily briefs from — use a dedicated SIM, not a personal number. This environment has its own.
-          </p>
-        </>
-      )}
+    <div className="wa-bot-bare">
       {bot.request ? (
         <p className="auth-loading"><span className="auth-spinner" aria-hidden /> Waiting for the worker to {bot.request === "pair" ? "start pairing" : "log out"}…</p>
       ) : bot.state === "pairing" && bot.qr ? (
@@ -206,12 +191,12 @@ export function WhatsAppBotSettings({ bare = false }: { bare?: boolean }) {
           <span className="wa-linked"><Check aria-hidden /> Sending from <strong>{shownPhone(bot.phone)}</strong></span>
           <button type="button" className="btn btn-tertiary is-danger" onClick={() => void ask("logout")}><Unlink aria-hidden /> Disconnect</button>
         </div>
-      ) : bot.state === "connecting" ? null : (
+      ) : bot.state === "connecting" ? <p className="auth-loading"><span className="auth-spinner" aria-hidden /> {BOT_STATE.connecting}</p> : (
         <div className="inv-foot wa-foot">
           {bot.state === "logged_out" && <span className="auth-error">WhatsApp logged the bot out. Until it&apos;s scanned again, briefs go by email.</span>}
           <button type="button" className="btn btn-primary" onClick={() => void ask("pair")}><ExternalLink aria-hidden /> Connect the bot</button>
         </div>
       )}
-    </Wrap>
+    </div>
   );
 }
