@@ -1050,6 +1050,69 @@ test("docs: a page that opens with a Claude artifact link is marked as one, wear
   await expect(card).toBeVisible();
 });
 
+test("Settings → Archived: tick several (or Select all), then restore or delete them for good together", async ({ page }) => {
+  await signUp(page, "Bulk", email("bulk"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Bundle");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const productUrl = new URL(page.url()).pathname;
+  const prefix = productUrl.split("/").pop();
+  await page.goto(`${productUrl}/tickets`);
+  for (const title of ["First old idea", "Second old idea", "Third old idea"]) {
+    await page.getByRole("button", { name: "New ticket" }).click();
+    await page.getByLabel("New ticket title").fill(title);
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "More actions" }).click(); // a new ticket opens itself
+    const archivedIt = page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok() && !!r.request().postData()?.includes("archiveTickets"));
+    await page.getByRole("menuitem", { name: "Archive ticket" }).click();
+    await archivedIt;
+    await expect(page.locator(".ticket-panel")).toHaveCount(0);
+  }
+
+  await page.goto(`${productUrl}/settings`);
+  const archived = page.locator(".archived-tickets");
+  await expect(archived.getByRole("checkbox", { name: /^Select / })).toHaveCount(4); // all, and one per ticket
+  await archived.getByRole("checkbox", { name: "Select all archived tickets" }).check();
+  await expect(archived.getByText("3 selected")).toBeVisible();
+  await archived.getByRole("checkbox", { name: `Select ${prefix}-3` }).uncheck();
+  await expect(archived.getByText("2 selected")).toBeVisible();
+  await archived.getByRole("region", { name: "Select archived tickets" }).getByRole("button", { name: "Delete forever" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete 2 tickets for good?" });
+  await expect(dialog).toContainText(`${prefix}-2, ${prefix}-1`); // as listed: most recently archived first
+  await expect(dialog.getByRole("button", { name: "Delete forever" })).toBeDisabled();
+  await dialog.getByLabel("Type Delete 2 tickets to confirm").fill("Delete 2 tickets");
+  await dialog.getByRole("button", { name: "Delete forever" }).click();
+  await expect(archived).not.toContainText("First old idea");
+  await expect(archived).not.toContainText("Second old idea");
+  await expect(archived).toContainText("Third old idea");
+  await archived.getByRole("checkbox", { name: "Select all archived tickets" }).check();
+  await archived.getByRole("region", { name: "Select archived tickets" }).getByRole("button", { name: "Restore" }).click();
+  await expect(archived).toContainText("Nothing archived");
+
+  // Docs: the same, for pages.
+  for (let i = 0; i < 2; i += 1) {
+    await page.goto("/admin/docs");
+    await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
+    await expect(page).toHaveURL(/\/admin\/docs\/.+/);
+    await page.getByRole("button", { name: "Page actions" }).click();
+    await page.getByRole("menuitem", { name: "Archive page" }).click();
+    await expect(page).toHaveURL(/\/admin\/docs$/);
+  }
+  await page.goto("/admin/settings");
+  const docs = page.locator(".archived-docs");
+  await docs.getByRole("checkbox", { name: "Select all archived docs" }).check();
+  await expect(docs.getByText("2 selected")).toBeVisible();
+  await docs.getByRole("region", { name: "Select archived docs" }).getByRole("button", { name: "Delete forever" }).click();
+  const docDialog = page.getByRole("dialog", { name: "Delete 2 docs for good?" });
+  await docDialog.getByLabel("Type Delete 2 docs to confirm").fill("Delete 2 docs");
+  await docDialog.getByRole("button", { name: "Delete forever" }).click();
+  await expect(docs).toContainText("Nothing archived");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
