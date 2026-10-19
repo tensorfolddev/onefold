@@ -191,6 +191,7 @@ export const docs = pgTable("docs", {
   ownerId: text("owner_id"), // a personal page (My docs): its owner's, private until shared
   sharedWith: jsonb("shared_with"), // on a personal top page: [{ personId, edit? }]
   companyAccess: text("company_access"), // on a personal top page: "view" | "edit" for everyone at the company
+  isPublic: boolean("is_public"), // on a personal top page: it has a public link (in public_links)
   template: text("template"),
   updated: day("updated").notNull(),
   authorId: text("author_id").notNull(),
@@ -397,6 +398,19 @@ export const apiTokens = pgTable("api_tokens", {
   lastUsedAt: ts("last_used_at"),
   revokedAt: ts("revoked_at"),
 }, (t) => [index("api_tokens_member").on(t.orgId, t.memberId)]);
+
+/**
+ * Public links to pages in My docs: anyone with /share/<token> reads that page (and the pages inside it), signed out.
+ * No row-level security, like api_tokens: the request brings only the token. The token stays here — never in the
+ * company data every browser gets — so only the page's owner (who asks the server) ever sees it.
+ */
+export const publicLinks = pgTable("public_links", {
+  token: text("token").primaryKey(), // 32 random bytes, base64url
+  orgId: text("org_id").notNull(),
+  docId: text("doc_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("public_links_doc").on(t.orgId, t.docId)]);
 
 // ---------- WhatsApp (platform tables: the worker reads them across companies, so no row-level security) ----------
 

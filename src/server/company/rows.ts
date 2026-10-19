@@ -71,7 +71,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     milestones: db.milestones.map((m) => r(m.id, { productId: m.productKey, name: m.name, due: m.due, pct: m.pct, lateDays: m.lateDays })),
     docs: db.docs.map((d) => r(d.id, {
       productId: opt(d.productKey), parentId: opt(d.parentId), groupId: opt(d.groupId), kind: d.kind, title: d.title, icon: opt(d.icon), cover: opt(d.cover), link: opt(d.link),
-      ownerId: opt(d.ownerId), sharedWith: d.sharedWith?.length ? d.sharedWith : null, companyAccess: opt(d.companyAccess),
+      ownerId: opt(d.ownerId), sharedWith: d.sharedWith?.length ? d.sharedWith : null, companyAccess: opt(d.companyAccess), isPublic: d.isPublic ? true : null,
       template: opt(d.template), updated: d.updated, authorId: d.authorId, createdAt: instantOrNull(d.createdAt),
       updatedAt: instantOrNull(d.updatedAt), updatedBy: opt(d.updatedBy), rev: d.rev ?? null,
       archivedAt: instantOrNull(d.archivedAt), archivedBy: opt(d.archivedBy),
@@ -199,6 +199,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
       ...(d.ownerId ? { ownerId: str(d.ownerId) } : {}),
       ...((d.sharedWith as DocShare[] | null)?.length ? { sharedWith: d.sharedWith as DocShare[] } : {}),
       ...(d.companyAccess === "view" || d.companyAccess === "edit" ? { companyAccess: d.companyAccess } : {}),
+      ...(d.isPublic ? { isPublic: true } : {}),
       ...(d.template ? { template: str(d.template) } : {}),
       ...(d.createdAt ? { createdAt: instant(str(d.createdAt)) } : {}),
       ...(d.updatedAt ? { updatedAt: instant(str(d.updatedAt)), updatedBy: und<string>(d.updatedBy), rev: und<number>(d.rev) } : {}),

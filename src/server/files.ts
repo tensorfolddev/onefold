@@ -26,7 +26,7 @@ const ID_RE = /^[A-Za-z0-9_-]{1,64}$/; // org and file ids (base64url): never ".
 const CLEANUP_GRACE_MS = 60 * 60_000; // an upload is on disk a moment before its ticket mentions it
 
 export const filesDir = () => resolve(/*turbopackIgnore: true*/ process.env.FILES_DIR ?? join(process.cwd(), "data", "files"));
-const fileAt = (orgId: string, id: string) => {
+export const fileAt = (orgId: string, id: string) => {
   if (!ID_RE.test(orgId) || !ID_RE.test(id)) throw new Error("Bad file id");
   return join(/*turbopackIgnore: true*/ filesDir(), orgId, id);
 };
@@ -155,8 +155,26 @@ export async function checkDocUpload(who: SessionRow, owner: string | FileOwner)
   await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => { editableOwner(await mustLoad(tx, who), who, o); });
 }
 
+/** How a stored file goes back to a browser — the same for a signed-in reader and a public link's. Images and PDFs open in
+ * the browser; anything else is only ever downloaded. */
+export function fileResponse(file: { bytes: Buffer; type: string; name: string; download?: boolean }, download: boolean, cache = "private, max-age=3600"): Response {
+  const saved = file.download || download;
+  return new Response(new Uint8Array(file.bytes), {
+    headers: {
+      "Content-Type": file.download ? "application/octet-stream" : file.type,
+      "Content-Length": String(file.bytes.length),
+      "Content-Disposition": `${saved ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+      "Cache-Control": cache, // short enough that losing access means losing the file soon
+      Vary: "Cookie",
+      "X-Content-Type-Options": "nosniff",
+      // A PDF (known from its bytes) stays out of the sandbox so every browser's built-in viewer can show it; it still may load nothing.
+      "Content-Security-Policy": file.type === "application/pdf" ? "default-src 'none'" : "default-src 'none'; sandbox",
+    },
+  });
+}
+
 /** What a doc file is, from its bytes: an image (by its header), a PDF, or anything else (always downloaded). */
-const opensInBrowser = (type: string) => type.startsWith("image/") || type === "application/pdf";
+export const opensInBrowser = (type: string) => type.startsWith("image/") || type === "application/pdf";
 
 export function fileType(b: Buffer): string {
   const image = inspectImage(b);

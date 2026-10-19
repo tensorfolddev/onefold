@@ -205,6 +205,7 @@ export interface Doc {
   ownerId?: string; // a personal page (My docs): its owner's, private until shared (see docAccess.ts)
   sharedWith?: DocShare[]; // on a personal top page: the people it's shared with
   companyAccess?: "view" | "edit"; // on a personal top page: shared with everyone at the company
+  isPublic?: boolean; // on a personal top page: anyone with its link can read it (the link itself is kept server side)
   template?: string; // the template it started from
   updated: string; // day of the last edit
   authorId: string;

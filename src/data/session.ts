@@ -63,5 +63,5 @@ export function safeNext(next: string | null, panel: Panel) {
 
 /** Pages anyone can open without signing in (plus the emailed links below). */
 export const PUBLIC_PATHS = ["/signin", "/signup", "/forgot"];
-const LINK_PAGES = ["/invite/", "/reset/", "/verify/"];
+const LINK_PAGES = ["/invite/", "/reset/", "/verify/", "/share/"]; // /share/: a page someone made public
 export const isPublicPath = (p: string) => PUBLIC_PATHS.includes(p) || LINK_PAGES.some((prefix) => p.startsWith(prefix));

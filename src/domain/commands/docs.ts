@@ -252,7 +252,7 @@ export function moveDoc(db: Db, me: Person, docId: string, to: { parentId?: stri
     throw new AccessError(); // to the top of My docs would take it out of what's shared: its owner's call
   }
   const moved: Doc = { ...doc };
-  if (parentId) { moved.parentId = parentId; delete moved.groupId; } else delete moved.parentId;
+  if (parentId) { moved.parentId = parentId; delete moved.groupId; delete moved.isPublic; } else delete moved.parentId; // only a top page has a public link
   const rest = db.docs.filter((d) => d.id !== docId);
   const at = to.beforeId ? rest.findIndex((d) => d.id === to.beforeId) : -1;
   return { ...db, docs: at < 0 ? [...rest, moved] : [...rest.slice(0, at), moved, ...rest.slice(at)] };
@@ -433,6 +433,14 @@ export function deleteDocGroup(db: Db, me: Person, groupId: string): Db {
       return out;
     }),
   };
+}
+
+/** Server only: marks a personal top page as readable by anyone with its link (or not). Its owner's call alone. */
+export function setDocPublic(db: Db, me: Person, docId: string, on: boolean): Db {
+  const doc = liveDocOf(db, docId);
+  if (!doc.ownerId || doc.parentId) throw new ValidationError("Only a top page in My docs gets a public link");
+  if (!canDoc(db.docs, me, "doc.share", doc)) throw new AccessError();
+  return { ...db, docs: replace(db.docs, (d) => d.id === docId, (d) => ({ ...d, isPublic: on === true ? true : undefined })) };
 }
 
 /** Puts a page (with its subpages) in a group of its space — at the top level — or takes it out (null). */

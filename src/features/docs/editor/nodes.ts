@@ -111,7 +111,9 @@ export const FileCard = Node.create({
   parseHTML() { return [{ tag: "div[data-file-card]", getAttrs: (el) => ({ href: (el as HTMLElement).dataset.fileCard, name: (el as HTMLElement).textContent }) }]; },
   renderHTML({ node }) {
     const href = safeHref(String(node.attrs.href)) ?? "";
-    return ["div", { "data-file-card": href, class: "doc-file-card" }, ["a", { href: `${href}?download=1`, download: node.attrs.name }, node.attrs.name]];
+    const pdf = /\.pdf$/i.test(String(node.attrs.name)); // opens in a new tab; anything else downloads
+    return ["div", { "data-file-card": href, class: "doc-file-card" },
+      ["a", pdf ? { href, target: "_blank", rel: "noopener noreferrer" } : { href: `${href}?download=1`, download: node.attrs.name }, node.attrs.name]];
   },
   markdownTokenizer: {
     name: "fileCard",
