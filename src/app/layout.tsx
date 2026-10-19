@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Figtree, Poppins } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "@/data/StoreProvider";
+import { TooltipLayer } from "@/ui/TooltipLayer";
 
 const figtree = Figtree({
   variable: "--font-figtree",
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${figtree.variable} ${poppins.variable}`}>
       <body className="light-app-theme">
         <StoreProvider>{children}</StoreProvider>
+        <TooltipLayer />
       </body>
     </html>
   );

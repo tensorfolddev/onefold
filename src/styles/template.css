@@ -47,7 +47,6 @@
 .tp-side .estimate-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; width: 100%; }
 .tp-side .estimate-input { width: 92px; }
 .tp-side .meta-time .progress, .tp-side .estimate-edit .progress { width: 100%; flex-basis: 100%; }
-.tp-side .ticket-meta .tooltip { left: auto; right: 0; transform: none; }
 
 /* Template outline (sidebar): progress + every section as a jump link */
 .tpl-badge {
@@ -124,8 +123,6 @@
 .tpl-sec-tools .btn-icon { width: 28px; height: 28px; }
 .tpl-sec-tools .btn-icon svg { width: 15px; height: 15px; }
 .tpl-sec-body { padding-left: 40px; }
-/* these buttons sit on the right edge: open their tooltips leftwards so they never stick out of the panel */
-.tpl-sec-head .tooltip, .tpl-item-x .tooltip { left: auto; right: 0; transform: none; }
 
 /* text */
 .tpl-text { margin: 0 -10px; padding: 6px 10px; font-size: 15px; line-height: 23px; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: var(--border-radius-small); }

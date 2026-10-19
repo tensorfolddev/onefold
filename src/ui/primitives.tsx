@@ -18,13 +18,9 @@ export function Avatar({ personId, size = "md" }: { personId?: string; size?: "s
   );
 }
 
+/** A tooltip on whatever it wraps — drawn by the app's one tooltip layer (ui/TooltipLayer), so nothing clips it. */
 export function Tooltip({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <span className="tooltip-host">
-      {children}
-      <span className="tooltip" role="tooltip">{label}</span>
-    </span>
-  );
+  return <span className="tooltip-host" data-tip={label}>{children}</span>;
 }
 
 /** Icon-only button: always has a tooltip + aria-label (DESIGN.md guardrail). */
