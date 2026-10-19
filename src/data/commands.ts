@@ -64,6 +64,7 @@ export const addDoc = wrap("addDoc");
 export const deleteDoc = wrap("deleteDoc");
 // New docs are made by POST /api/docs (the server also writes the first body), never as a replayed step.
 export const updateDoc = wrap("updateDoc");
+export const updateDecision = wrap("updateDecision");
 export const moveDoc = wrap("moveDoc");
 export const archiveDocs = wrap("archiveDocs");
 export const restoreDocs = wrap("restoreDocs");

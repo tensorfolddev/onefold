@@ -62,7 +62,11 @@ export function toRows(db: Db): Record<TableName, Row[]> {
       productId: key, name: s.name, category: s.category, tone: s.tone, system: opt(s.system),
     }))),
     requirements: db.requirements.map((q) => r(q.id, { productId: q.productKey, code: q.code, title: q.title })),
-    decisions: db.decisions.map((d) => r(d.id, { productId: d.productKey, title: d.title, why: d.why, byId: d.byId, date: d.date })),
+    decisions: db.decisions.map((d) => r(d.id, {
+      productId: d.productKey, title: d.title, why: d.why, byId: d.byId, date: d.date, status: opt(d.status), context: opt(d.context),
+      alternatives: opt(d.alternatives), consequences: opt(d.consequences), ticketKeys: d.ticketKeys?.length ? d.ticketKeys : null,
+      docIds: d.docIds?.length ? d.docIds : null, supersededBy: opt(d.supersededBy), updatedAt: instantOrNull(d.updatedAt),
+    })),
     milestones: db.milestones.map((m) => r(m.id, { productId: m.productKey, name: m.name, due: m.due, pct: m.pct, lateDays: m.lateDays })),
     docs: db.docs.map((d) => r(d.id, {
       productId: opt(d.productKey), parentId: opt(d.parentId), groupId: opt(d.groupId), kind: d.kind, title: d.title, icon: opt(d.icon), cover: opt(d.cover),
@@ -164,7 +168,17 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     statusesByProduct,
     tickets,
     requirements: t.requirements.map((q): Requirement => ({ id: q.id, productKey: str(q.productId), code: str(q.code), title: str(q.title) })),
-    decisions: t.decisions.map((d): Decision => ({ id: d.id, productKey: str(d.productId), title: str(d.title), why: str(d.why), byId: str(d.byId), date: str(d.date) })),
+    decisions: t.decisions.map((d): Decision => ({
+      id: d.id, productKey: str(d.productId), title: str(d.title), why: str(d.why), byId: str(d.byId), date: str(d.date),
+      ...(d.status ? { status: d.status as Decision["status"] } : {}),
+      ...(d.context ? { context: str(d.context) } : {}),
+      ...(d.alternatives ? { alternatives: str(d.alternatives) } : {}),
+      ...(d.consequences ? { consequences: str(d.consequences) } : {}),
+      ...((d.ticketKeys as string[] | null)?.length ? { ticketKeys: d.ticketKeys as string[] } : {}),
+      ...((d.docIds as string[] | null)?.length ? { docIds: d.docIds as string[] } : {}),
+      ...(d.supersededBy ? { supersededBy: str(d.supersededBy) } : {}),
+      ...(d.updatedAt ? { updatedAt: instant(str(d.updatedAt)) } : {}),
+    })),
     milestones: t.milestones.map((m): Milestone => ({
       id: m.id, productKey: str(m.productId), name: str(m.name), due: str(m.due), pct: m.pct as number, lateDays: m.lateDays as number,
     })),

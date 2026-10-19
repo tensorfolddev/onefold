@@ -642,6 +642,50 @@ test("docs connect: an @mention notifies, a ticket key becomes a live chip, and 
   await expect(page.locator(".doc-backlinks")).toContainText("Untitled");
 });
 
+test("decisions: recorded with a why, opened by link, edited in place, and superseded by a later one", async ({ page }) => {
+  await signUp(page, "Tau", email("tau"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Ledger");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  await page.goto(`${new URL(page.url()).pathname}/decisions`);
+
+  const record = async (title: string, why: string) => {
+    await page.getByRole("button", { name: "New decision" }).click();
+    const dialog = page.getByRole("dialog", { name: "Record a decision" });
+    await dialog.getByLabel("Decision", { exact: true }).fill(title);
+    await dialog.getByLabel("Why").fill(why);
+    await dialog.getByRole("button", { name: "Record decision" }).click();
+    await expect(dialog).toHaveCount(0);
+  };
+  await page.getByRole("button", { name: "New decision" }).click();
+  await page.getByRole("button", { name: "Record decision" }).click();
+  await expect(page.getByText("Give the decision a title.")).toBeVisible(); // a decision needs its title and why
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await record("Bill monthly", "Lower commitment for new teams.");
+  await record("Bill yearly", "Cash up front; churn is low.");
+
+  await page.getByRole("button", { name: /Bill monthly/ }).click();
+  await expect(page).toHaveURL(/\?d=/); // a decision has its own link
+  const panel = page.getByRole("dialog", { name: "Bill monthly" });
+  const saved = page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok() && !!r.request().postData()?.includes('"updateDecision"'));
+  await panel.getByLabel("Consequences").fill("Revenue arrives slower.");
+  await panel.getByLabel("Consequences").blur();
+  await saved;
+  await page.reload(); // the link reopens it, edit kept
+  await expect(panel.getByLabel("Consequences")).toHaveValue("Revenue arrives slower.");
+
+  await panel.getByLabel("Superseded by").selectOption({ label: "Superseded by: Bill yearly" });
+  await expect(panel.getByRole("button", { name: /Superseded by Bill yearly/ })).toBeVisible();
+  await expect(panel.getByLabel("Status")).toHaveValue("superseded");
+  await panel.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("tab", { name: /Superseded/ }).click();
+  await expect(page.locator(".decision-row")).toHaveCount(1);
+  await expect(page.locator(".decision-row")).toContainText("Bill monthly");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

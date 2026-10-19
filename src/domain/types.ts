@@ -152,13 +152,24 @@ export interface Requirement {
   title: string;
 }
 
+export type DecisionStatus = "proposed" | "accepted" | "rejected" | "superseded";
+
+/** A decision record (ADR-style): what was decided, why, what else was weighed, what it means — and what it's linked to. */
 export interface Decision {
   id: string;
   productKey: string;
   title: string;
-  why: string;
+  why: string; // the decision and its reasoning
   byId: string;
   date: string;
+  status?: DecisionStatus; // none = accepted (decisions recorded before statuses existed)
+  context?: string; // the problem or situation that called for it
+  alternatives?: string; // options considered, and why not
+  consequences?: string; // what it means: trade-offs, follow-ups
+  ticketKeys?: string[];
+  docIds?: string[];
+  supersededBy?: string; // the decision that replaced this one
+  updatedAt?: string;
 }
 
 export interface Milestone {

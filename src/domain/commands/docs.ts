@@ -1,6 +1,6 @@
 import { now, today } from "../clock.ts";
 import { can, isOnProduct } from "../permissions.ts";
-import type { Doc, DocKind, Person } from "../types.ts";
+import type { Decision, DecisionStatus, Doc, DocKind, Person } from "../types.ts";
 import type { Db } from "../../data/db.ts";
 import { check, fail, id, productOf, replace, requiredError, ValidationError } from "./shared.ts";
 
@@ -19,11 +19,62 @@ export function deleteDoc(db: Db, me: Person, docId: string): Db {
   return { ...db, docs: db.docs.filter((d) => d.id !== docId) };
 }
 
-export function addDecision(db: Db, me: Person, productKey: string, input: { title: string; why: string }): Db {
+export const DECISION_STATUSES: DecisionStatus[] = ["proposed", "accepted", "rejected", "superseded"];
+const MAX_DECISION_TEXT = 8000;
+
+export interface DecisionInput {
+  title: string; why: string; status?: DecisionStatus; context?: string; alternatives?: string; consequences?: string;
+  ticketKeys?: string[]; docIds?: string[];
+}
+
+/** The optional parts of a decision, checked: a known status, text within bounds, links to things that exist. */
+function decisionExtras(db: Db, input: Partial<DecisionInput>): Partial<Decision> {
+  const out: Partial<Decision> = {};
+  if (input.status !== undefined) {
+    if (!DECISION_STATUSES.includes(input.status)) throw new ValidationError("Unknown decision status");
+    out.status = input.status;
+  }
+  for (const field of ["context", "alternatives", "consequences"] as const) {
+    const v = input[field];
+    if (v === undefined) continue;
+    if (v.length > MAX_DECISION_TEXT) throw new ValidationError("That's too long — link a doc for the details");
+    out[field] = v.trim();
+  }
+  if (input.ticketKeys !== undefined) out.ticketKeys = [...new Set(input.ticketKeys)].filter((k) => db.tickets.some((t) => t.key === k)).slice(0, 50);
+  if (input.docIds !== undefined) out.docIds = [...new Set(input.docIds)].filter((k) => db.docs.some((d) => d.id === k)).slice(0, 50);
+  return out;
+}
+
+/** The caller passes the id, so the browser and the server name the new decision the same (it can be opened at once). */
+export function addDecision(db: Db, me: Person, productKey: string, input: DecisionInput, decisionId: string = id()): Db {
   check(me, "decision.add", { product: productOf(db, productKey) });
   fail(requiredError("Decision", input.title));
   fail(requiredError("Why", input.why));
-  return { ...db, decisions: [...db.decisions, { id: id(), productKey, title: input.title.trim(), why: input.why.trim(), byId: me.id, date: today() }] };
+  fail(typeof decisionId !== "string" || !decisionId || decisionId.length > 64 ? "Invalid decision id." : null);
+  fail(db.decisions.some((d) => d.id === decisionId) ? "That decision already exists." : null);
+  const decision: Decision = {
+    id: decisionId, productKey, title: input.title.trim(), why: input.why.trim(), byId: me.id, date: today(),
+    ...decisionExtras(db, input), updatedAt: now(),
+  };
+  return { ...db, decisions: [...db.decisions, decision] };
+}
+
+/** Edits a decision; superseding it (by another decision of the same project) also marks it superseded. */
+export function updateDecision(db: Db, me: Person, decisionId: string, patch: Partial<DecisionInput> & { supersededBy?: string | null }): Db {
+  const cur = db.decisions.find((d) => d.id === decisionId);
+  if (!cur) throw new ValidationError("Decision not found");
+  check(me, "decision.add", { product: productOf(db, cur.productKey) });
+  const next: Decision = { ...cur, ...decisionExtras(db, patch), updatedAt: now() };
+  if (patch.title !== undefined) { fail(requiredError("Decision", patch.title)); next.title = patch.title.trim(); }
+  if (patch.why !== undefined) { fail(requiredError("Why", patch.why)); next.why = patch.why.trim(); }
+  if (patch.supersededBy === null) delete next.supersededBy;
+  else if (patch.supersededBy !== undefined) {
+    const by = db.decisions.find((d) => d.id === patch.supersededBy);
+    if (!by || by.productKey !== cur.productKey || by.id === cur.id) throw new ValidationError("Pick another decision of this project");
+    next.supersededBy = by.id;
+    next.status = "superseded";
+  }
+  return { ...db, decisions: replace(db.decisions, (d) => d.id === decisionId, () => next) };
 }
 
 export function upsertMilestone(db: Db, me: Person, productKey: string, input: { id?: string; name: string; due: string; pct: number }): Db {

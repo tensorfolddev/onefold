@@ -1,112 +1,116 @@
 "use client";
 
+// A product's decision log: a timeline of decision records, by month, newest first. Search it, filter it by status,
+// open one (?d=<id>, so it can be linked) to read or edit it in the side panel.
 import { useState } from "react";
-import { Plus, Scale } from "lucide-react";
-import { addDecision } from "@/data/commands";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { FileText, Plus, Scale, Search, Ticket } from "lucide-react";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
-import { Avatar, EmptyState } from "@/ui/primitives";
-import type { Decision } from "@/domain/types";
+import type { Decision, DecisionStatus } from "@/domain/types";
+import { Avatar, EmptyState, Tabs } from "@/ui/primitives";
+import { DecisionPanel, NewDecision, STATUS, StatusPill, statusOf } from "./DecisionPanel";
 
-export function DecisionCard({ decision }: { decision: Decision }) {
+const FILTERS = ["All", ...(Object.keys(STATUS) as DecisionStatus[]).map((s) => STATUS[s].label)];
+const month = (date: string) => new Date(`${date.slice(0, 7)}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+const haystack = (d: Decision) => [d.title, d.why, d.context, d.alternatives, d.consequences, ...(d.ticketKeys ?? [])].join(" ").toLowerCase();
+
+function DecisionRow({ decision, replacedBy, onOpen }: { decision: Decision; replacedBy?: Decision; onOpen: () => void }) {
   const { personById } = useMe();
+  const status = statusOf(decision);
+  const tickets = decision.ticketKeys?.length ?? 0;
+  const docs = decision.docIds?.length ?? 0;
   return (
-    <article className="decision-card">
-      <header className="decision-author">
-        <Avatar personId={decision.byId} />
-        <span className="decision-author-name">{personById(decision.byId)?.name}</span>
-        <span className="muted">{shortDate(decision.date)}</span>
-      </header>
-      <h3 className="decision-title">{decision.title}</h3>
-      <p className="decision-why"><strong>Why:</strong> {decision.why}</p>
-    </article>
+    <li className="decision-entry" style={{ "--status": STATUS[status].color } as React.CSSProperties}>
+      <button type="button" className={`decision-row${status === "superseded" || status === "rejected" ? " is-faded" : ""}`} onClick={onOpen}>
+        <span className="decision-row-head">
+          <span className="decision-row-title">{decision.title}</span>
+          <StatusPill status={status} />
+        </span>
+        <span className="decision-row-why">{decision.why}</span>
+        <span className="decision-row-meta">
+          <Avatar personId={decision.byId} size="sm" />
+          <span>{personById(decision.byId)?.name ?? "Someone"}</span>
+          <span aria-hidden>·</span>
+          <time dateTime={decision.date}>{shortDate(decision.date)}</time>
+          {tickets > 0 && <span className="decision-row-count" data-tip={`${tickets} linked ticket${tickets === 1 ? "" : "s"}`}><Ticket aria-hidden />{tickets}</span>}
+          {docs > 0 && <span className="decision-row-count" data-tip={`${docs} linked doc${docs === 1 ? "" : "s"}`}><FileText aria-hidden />{docs}</span>}
+          {replacedBy && <span className="decision-row-replaced">→ {replacedBy.title}</span>}
+        </span>
+      </button>
+    </li>
   );
 }
 
-type Errors = { title?: string; why?: string };
-
 export function DecisionLog({ productKey }: { productKey: string }) {
-  const { db, act, can, productByKey } = useMe();
+  const { db, can, productByKey } = useMe();
+  const router = useRouter();
+  const pathname = usePathname();
+  const openId = useSearchParams().get("d");
   const product = productByKey(productKey);
   const canAdd = !!product && can("decision.add", { product });
-  const items = db.decisions
+  const [filter, setFilter] = useState("All");
+  const [query, setQuery] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const all = db.decisions
     .filter((d) => d.productKey === productKey)
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  const [formOpen, setFormOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [why, setWhy] = useState("");
-  const [errors, setErrors] = useState<Errors>({});
-
-  const close = () => {
-    setFormOpen(false);
-    setTitle("");
-    setWhy("");
-    setErrors({});
-  };
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const next: Errors = {
-      title: title.trim() ? undefined : "Give the decision a title.",
-      why: why.trim() ? undefined : "Explain why — future you will ask.",
-    };
-    setErrors(next);
-    if (next.title || next.why) return;
-    if (act((d, m) => addDecision(d, m, productKey, { title, why }), { success: "Decision recorded" })) close();
-  };
+  const byId = new Map(all.map((d) => [d.id, d]));
+  const count = (label: string) => (label === "All" ? all.length : all.filter((d) => STATUS[statusOf(d)].label === label).length);
+  const q = query.trim().toLowerCase();
+  const shown = all.filter((d) => (filter === "All" || STATUS[statusOf(d)].label === filter) && (!q || haystack(d).includes(q)));
+  const months = Map.groupBy(shown, (d) => month(d.date));
+  const open = openId ? byId.get(openId) : undefined;
+  const openDecision = (id: string | null) => router.replace(id ? `${pathname}?d=${id}` : pathname, { scroll: false });
 
   return (
-    <div className="decision-log">
-      <div className="toolbar">
-        <h2 className="section-title">Decision log</h2>
-        <span className="spacer" />
-        {canAdd && !formOpen && (
-          <button type="button" className="btn btn-primary" onClick={() => setFormOpen(true)}>
-            <Plus aria-hidden /> Record decision
-          </button>
-        )}
-      </div>
+    <div className="decisions">
+      <header className="decisions-head">
+        <div>
+          <h2 className="decisions-title">Decisions</h2>
+          <p className="decisions-sub">Why we chose what we chose, so nobody has to ask twice.</p>
+        </div>
+        {canAdd && <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}><Plus aria-hidden /> New decision</button>}
+      </header>
 
-      {formOpen && (
-        <form className="decision-card decision-form" onSubmit={submit} noValidate>
-          <label className="field">
-            <span className="field-label">Decision</span>
-            <span className="input">
-              <input
-                autoFocus value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140}
-                placeholder="e.g. Use Supabase Auth instead of custom login"
-                aria-invalid={!!errors.title} aria-describedby={errors.title ? "decision-title-error" : undefined}
-              />
-            </span>
-            {errors.title && <span id="decision-title-error" className="field-error">{errors.title}</span>}
-          </label>
-          <label className="field">
-            <span className="field-label">Why</span>
-            <textarea
-              className="textarea" rows={3} value={why} onChange={(e) => setWhy(e.target.value)} maxLength={1000}
-              placeholder="What did it save, what did it cost, who agreed?"
-              aria-invalid={!!errors.why} aria-describedby={errors.why ? "decision-why-error" : undefined}
-            />
-            {errors.why && <span id="decision-why-error" className="field-error">{errors.why}</span>}
-          </label>
-          <div className="decision-form-actions">
-            <button type="button" className="btn btn-tertiary" onClick={close}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Save decision</button>
+      {all.length > 0 && (
+        <>
+          <div className="decisions-mix" role="img" aria-label={FILTERS.slice(1).map((f) => `${count(f)} ${f.toLowerCase()}`).join(", ")}>
+            {(Object.keys(STATUS) as DecisionStatus[]).map((s) => {
+              const n = count(STATUS[s].label);
+              return n ? <span key={s} style={{ flexGrow: n, background: STATUS[s].color }} /> : null;
+            })}
           </div>
-        </form>
+          <div className="decisions-toolbar">
+            <Tabs ariaLabel="Filter by status" active={filter} onSelect={setFilter} items={FILTERS.map((label) => ({ label, count: count(label) }))} />
+            <label className="docs-search decisions-search">
+              <Search aria-hidden />
+              <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search decisions" aria-label="Search decisions" />
+            </label>
+          </div>
+        </>
       )}
 
-      {items.length ? (
-        <ol className="decision-list">
-          {items.map((d) => <li key={d.id}><DecisionCard decision={d} /></li>)}
-        </ol>
+      {!all.length ? (
+        <EmptyState icon={<Scale aria-hidden />} title="No decisions yet">
+          Record why the team chose one path over another — the context, the options, the trade-offs.
+        </EmptyState>
+      ) : !shown.length ? (
+        <EmptyState icon={<Search aria-hidden />} title="Nothing matches">Try another word or status.</EmptyState>
       ) : (
-        !formOpen && (
-          <EmptyState icon={<Scale aria-hidden />} title="No decisions yet">
-            Record why the team chose one path over another, so nobody has to ask twice.
-          </EmptyState>
-        )
+        [...months].map(([label, items]) => (
+          <section key={label} className="decisions-month" aria-label={label}>
+            <h3 className="decisions-month-title">{label} <span className="muted">{items.length}</span></h3>
+            <ol className="decisions-timeline">
+              {items.map((d) => <DecisionRow key={d.id} decision={d} replacedBy={d.supersededBy ? byId.get(d.supersededBy) : undefined} onOpen={() => openDecision(d.id)} />)}
+            </ol>
+          </section>
+        ))
       )}
+
+      {open && <DecisionPanel key={open.id} decision={open} onClose={() => openDecision(null)} onOpen={openDecision} />}
+      {creating && <NewDecision productKey={productKey} onClose={() => setCreating(false)} />}
     </div>
   );
 }
