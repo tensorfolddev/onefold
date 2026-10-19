@@ -1,4 +1,8 @@
 /* ---------- Project settings: a menu on the side, sections on the right ---------- */
+/* Only the settings scroll; the project's header and tabs stay put (as on Docs). */
+.work-area:has(.product-space .settings) { overflow: hidden; display: flex; flex-direction: column; }
+.product-space:has(.settings) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 0; }
+.product-space:has(.settings) > .product-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 48px; }
 .settings { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; align-items: start; max-width: 1080px; }
 .settings-nav { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 2px; }
 .settings-nav-item {
@@ -73,6 +77,8 @@ button.settings-swatch:not(.is-pick):hover { box-shadow: 0 0 0 2px var(--primary
 .settings-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 900px) {
+  .work-area:has(.product-space .settings) { overflow: auto; display: block; }
+  .product-space:has(.settings) > .product-body { overflow: visible; }
   .settings { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .settings-nav { position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none; }
   .settings-nav-item { flex: none; }
