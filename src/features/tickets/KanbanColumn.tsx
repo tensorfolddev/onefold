@@ -75,7 +75,7 @@ function CardFoot({ ticket, done, editable, alwaysDate, children }: {
   }
   return (
     <>
-      <PriorityChip priority={ticket.priority} />
+      <PriorityChip priority={ticket.priority} productKey={ticket.productKey} />
       {ticket.due ? <span className="due-chip"><DueDate ticket={ticket} done={done} /></span> : alwaysDate && <span className="due-chip is-empty">No date</span>}
       {children}
       <span className="spacer" />

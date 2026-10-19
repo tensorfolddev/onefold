@@ -812,6 +812,39 @@ test("right-click a ticket — on the board or in the table — to open it, copy
   await expect(page.getByRole("menu", { name: /actions/ })).toHaveCount(0);
 });
 
+test("project settings: statuses and priorities, named and coloured your way, show on the board", async ({ page }) => {
+  await signUp(page, "Psi", email("psi"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Orbit");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const project = new URL(page.url()).pathname;
+  await page.goto(`${project}/settings`);
+
+  await page.getByLabel("New list name").fill("QA");
+  await page.getByRole("button", { name: "Add status" }).click();
+  await page.getByRole("button", { name: /^Colour of QA/ }).click();
+  await page.getByRole("radio", { name: "Teal" }).click();
+  await expect(page.getByRole("button", { name: "Colour of QA: Teal" })).toBeVisible();
+
+  const name = page.getByLabel("Name of the normal priority");
+  await name.fill("Normal");
+  await name.press("Enter");
+  await page.getByRole("button", { name: "Colour of Normal" }).click();
+  await page.getByRole("radio", { name: "#ff5ac4" }).click();
+
+  await page.goto(`${project}/tickets`);
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Check it");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.keyboard.press("Escape");
+  const card = page.locator(".kanban-card", { hasText: "Check it" });
+  await expect(card.getByRole("button", { name: "Priority: Normal. Change priority" })).toBeVisible(); // medium, renamed
+  await expect(page.locator(".kanban-col-header", { hasText: "QA" })).toHaveAttribute("data-tone", "teal");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

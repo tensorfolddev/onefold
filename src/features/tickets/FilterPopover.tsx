@@ -7,7 +7,7 @@ import type { Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
 import { EMPTY_FILTERS, FILTER_COLS, valuesOf, type FilterCol, type Filters } from "./filters";
-import { PRIORITY_LABEL, TYPE_LABEL, TypeIcon } from "./TicketBits";
+import { PRIORITY_LABEL, priorityLook, TYPE_LABEL, TypeIcon } from "./TicketBits";
 import { useDb } from "@/data/StoreProvider";
 import { epicLabel, epicsOf } from "@/domain/selectors/epics";
 
@@ -28,9 +28,10 @@ function optionsFor(col: FilterCol, productKey: string, all: Ticket[], { db, per
     case "type":
       return (Object.keys(TYPE_LABEL) as Ticket["type"][]).map((t) => ({ value: t, label: TYPE_LABEL[t], icon: <TypeIcon type={t} /> }));
     case "priority":
-      return (Object.keys(PRIORITY_LABEL) as Ticket["priority"][]).map((pr) => ({
-        value: pr, label: PRIORITY_LABEL[pr], icon: <span className="chip-dot priority-dot" data-priority={pr} aria-hidden />,
-      }));
+      return (Object.keys(PRIORITY_LABEL) as Ticket["priority"][]).map((pr) => {
+        const look = priorityLook(db.products.find((p) => p.key === productKey), pr);
+        return { value: pr, label: look.label, icon: <span className="chip-dot priority-dot" data-priority={pr} style={look.style} aria-hidden /> };
+      });
     case "epic":
       return [
         ...epicsOf(db, productKey).map((e) => ({

@@ -146,6 +146,12 @@
 .status-cell[data-tone="review"] { background-color: var(--tone-review); }
 .status-cell[data-tone="backlog"] { background-color: var(--tone-backlog); }
 .status-cell[data-tone="cancelled"] { background-color: var(--tone-cancelled); }
+.status-cell[data-tone="pink"] { background-color: var(--tone-pink); }
+.status-cell[data-tone="teal"] { background-color: var(--tone-teal); }
+.status-cell[data-tone="sky"] { background-color: var(--tone-sky); }
+.status-cell[data-tone="lime"] { background-color: var(--tone-lime); }
+.status-cell[data-tone="brown"] { background-color: var(--tone-brown); }
+.status-cell[data-tone="navy"] { background-color: var(--tone-navy); }
 
 .status-pill {
   display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px 0 0;

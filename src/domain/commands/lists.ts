@@ -1,3 +1,4 @@
+import { TONES } from "../status.ts";
 import type { Person, Status, StatusCategory, Tone } from "../types.ts";
 import type { Db } from "../../data/db.ts";
 import { check, fail, id, productOf, replace, requiredError, ValidationError } from "./shared.ts";
@@ -14,6 +15,7 @@ const editableList = (db: Db, productKey: string, statusId: string) => {
   if (list.system) throw new ValidationError(FIXED_LIST);
   return list;
 };
+const toneError = (tone?: Tone) => (tone !== undefined && !TONES.includes(tone) ? "Pick a colour from the list" : null);
 const withLists = (db: Db, productKey: string, lists: Status[]): Db =>
   ({ ...db, statusesByProduct: { ...db.statusesByProduct, [productKey]: lists } });
 const listNameError = (db: Db, productKey: string, name: string, exceptId?: string) =>
@@ -21,11 +23,16 @@ const listNameError = (db: Db, productKey: string, name: string, exceptId?: stri
   (listsOf(db, productKey).some((s) => s.id !== exceptId && s.name.toLowerCase() === name.trim().toLowerCase())
     ? `There is already a list called ${name.trim()}` : null);
 
-export function addStatus(db: Db, me: Person, productKey: string, input: { name: string; category?: StatusCategory; tone?: Tone }): Db {
+/** A new list. The caller passes its id, so the browser and the server name it the same (it can be edited at once). */
+export function addStatus(db: Db, me: Person, productKey: string, input: { name: string; category?: StatusCategory; tone?: Tone },
+  statusId = `${productKey.toLowerCase()}-${id().slice(0, 8)}`): Db {
   check(me, "statuses.edit", { product: productOf(db, productKey) });
   fail(listNameError(db, productKey, input.name));
+  fail(toneError(input.tone));
+  fail(typeof statusId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(statusId) ? "Invalid list id" : null);
+  fail(Object.values(db.statusesByProduct).flat().some((s) => s.id === statusId) ? "That list already exists" : null);
   const status: Status = {
-    id: `${productKey.toLowerCase()}-${id().slice(0, 8)}`, name: input.name.trim(),
+    id: statusId, name: input.name.trim(),
     category: input.category ?? "in_progress", tone: input.tone ?? "working",
   };
   return withLists(db, productKey, [...listsOf(db, productKey), status]);
@@ -35,6 +42,7 @@ export function updateStatus(db: Db, me: Person, productKey: string, statusId: s
   check(me, "statuses.edit", { product: productOf(db, productKey) });
   editableList(db, productKey, statusId);
   if (patch.name !== undefined) fail(listNameError(db, productKey, patch.name, statusId));
+  fail(toneError(patch.tone));
   const clean = { ...patch, ...(patch.name !== undefined && { name: patch.name.trim() }) };
   return withLists(db, productKey, replace(listsOf(db, productKey), (s) => s.id === statusId, (s) => ({ ...s, ...clean })));
 }

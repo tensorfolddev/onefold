@@ -64,3 +64,12 @@ test("a decision keeps its own label and note colour through rows and back", () 
   const back = fromRows(orgRow(withOne), withPositions(toRows(withOne)), new Map(db.people.map((p) => [p.id, p.email])));
   assert.deepEqual(back.decisions.at(-1), extra);
 });
+
+test("a project keeps its own priority names and colours through rows and back", () => {
+  const db = demoDb();
+  const priorities = { critical: { name: "Urgent", color: "#ff0055" }, low: { name: "Someday" } };
+  const withOne = { ...db, products: db.products.map((p) => (p.key === "AP" ? { ...p, priorities } : p)) };
+  const back = fromRows(orgRow(withOne), withPositions(toRows(withOne)), new Map(db.people.map((p) => [p.id, p.email])));
+  assert.deepEqual(back.products.find((p) => p.key === "AP")!.priorities, priorities);
+  assert.equal(back.products.find((p) => p.key !== "AP")!.priorities, undefined);
+});

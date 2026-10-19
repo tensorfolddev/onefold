@@ -4,13 +4,12 @@ import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Lock, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
 import { addStatus, createTicket, deleteStatus, moveStatus, updateStatus } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
-import { CATEGORY_LABEL, toneVar } from "@/domain/status";
+import { CATEGORY_LABEL, TONE_NAME, TONES, toneVar } from "@/domain/status";
 import type { Status, StatusCategory, Tone } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { IconButton, Tooltip } from "@/ui/primitives";
 
-const TONES: Tone[] = ["backlog", "todo", "working", "review", "stuck", "done", "cancelled"];
 const CATEGORIES = Object.keys(CATEGORY_LABEL) as StatusCategory[];
 
 /** Inline name input shared by "Rename" and "Add list": Enter saves, Escape cancels. */
@@ -97,7 +96,7 @@ export function ListHeader({ productKey, status, count, lists, canManage, onAddT
                 <div className="kanban-tones" role="radiogroup" aria-label="List colour">
                   {TONES.map((tone) => (
                     <button
-                      key={tone} type="button" role="radio" aria-checked={status.tone === tone} aria-label={tone}
+                      key={tone} type="button" role="radio" aria-checked={status.tone === tone} aria-label={TONE_NAME[tone]}
                       className="kanban-tone" style={{ background: toneVar(tone) }} onClick={() => patch({ tone })}
                     />
                   ))}
@@ -169,7 +168,10 @@ export function AddList({ productKey }: { productKey: string }) {
         <div className="kanban-add-form">
           <NameInput
             label="New list name"
-            onSave={(name) => !!act((d, m) => addStatus(d, m, productKey, { name }), { success: `${name.trim()} list added` })}
+            onSave={(name) => {
+              const listId = `${productKey.toLowerCase()}-${crypto.randomUUID().slice(0, 8)}`; // named here so the server keeps it
+              return !!act((d, m) => addStatus(d, m, productKey, { name }, listId), { success: `${name.trim()} list added` });
+            }}
             onCancel={() => setAdding(false)}
           />
         </div>
