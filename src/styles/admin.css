@@ -331,6 +331,18 @@
   border: 1px solid var(--layout-border-color); border-radius: var(--border-radius-medium); overflow: hidden;
 }
 .archived-row { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 12px; }
+.archived-row.is-selected, .archived-docs li.is-selected { background: color-mix(in srgb, var(--primary-selected-color) 55%, transparent); }
+/* Select all / "3 selected" over an archived list; the actions show once something is picked. */
+.bulk-head {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 44px;
+  margin-top: 12px; padding: 4px 8px 4px 12px; border-radius: var(--border-radius-medium); font-size: 14px;
+  transition: background var(--motion-productive-short);
+}
+.bulk-head.is-on { background: var(--primary-selected-color); }
+.bulk-all { display: inline-flex; align-items: center; gap: 12px; margin-right: auto; font-weight: 500; color: var(--secondary-text-color); cursor: pointer; }
+.bulk-head.is-on .bulk-all { color: var(--primary-text-color); }
+.bulk-head .btn svg { width: 16px; height: 16px; }
+.bulk-head + .archived-list, .bulk-head + ul { margin-top: 6px; }
 .archived-row + .archived-row { border-top: 1px solid var(--layout-border-color); }
 .archived-open { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; text-align: left; color: var(--primary-text-color); }
 .archived-open:hover .archived-title, .archived-open:focus-visible .archived-title { text-decoration: underline; }
