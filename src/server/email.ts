@@ -1,7 +1,7 @@
 // Email, through Resend: a company's own account (its admins set it in Integrations → Email — the key encrypted), or
-// else the server's (RESEND_API_KEY, from EMAIL_FROM). With neither nothing leaves the machine: with EMAIL_OUTBOX_DIR
-// set each message is written there as JSON (tests and e2e read them back), otherwise development prints it to the
-// server log. Sending never throws — a failed email is logged and reported as false.
+// else the server's (RESEND_API_KEY, from EMAIL_FROM). With EMAIL_OUTBOX_DIR set nothing leaves the machine: each
+// message is written there as JSON (tests and e2e read them back). With no Resend, development prints it to the
+// server log. Sending never throws — a failed email is logged and reported, with Resend's reason.
 import { mkdir, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
@@ -58,20 +58,22 @@ export function checkResend(input: { key?: unknown; from?: unknown }): { key?: s
   return out;
 }
 
-/** Saves the company's own Resend: a new key (or the one it has) and its From address. */
-export async function saveCompanyResend(orgId: string, memberId: string, input: { key?: unknown; from?: unknown }): Promise<void> {
-  const { key, from } = checkResend(input);
+/** What an admin typed, with a blank field filled in from the company's saved Resend; null when nothing was typed. */
+export async function typedResend(orgId: string, input: { key?: unknown; from?: unknown }): Promise<Resend | null> {
+  const typed = checkResend(input);
+  if (!typed.key && !typed.from) return null;
+  const saved = await companyResend(orgId);
+  const key = typed.key ?? saved?.key;
+  const from = typed.from ?? saved?.from;
+  if (!key) throw new ValidationError("Paste your Resend API key");
   if (!from) throw new ValidationError("Add the From address — like: Acme <hello@acme.com>");
-  await inScope({ orgId }, async (tx) => {
-    if (!key) {
-      const [had] = await tx.select({ orgId: s.companyEmail.orgId }).from(s.companyEmail).where(eq(s.companyEmail.orgId, orgId));
-      if (!had) throw new ValidationError("Paste your Resend API key");
-      await tx.update(s.companyEmail).set({ fromAddress: from, updatedBy: memberId, updatedAt: sql`now()` }).where(eq(s.companyEmail.orgId, orgId));
-      return;
-    }
-    const row = { apiKey: seal(key), keyHint: key.slice(-4), fromAddress: from, updatedBy: memberId, updatedAt: sql`now()` };
-    await tx.insert(s.companyEmail).values({ orgId, ...row }).onConflictDoUpdate({ target: s.companyEmail.orgId, set: row });
-  });
+  return { key, from };
+}
+
+/** Saves the company's own Resend (checked first: the route only saves one that just sent a test email). */
+export async function saveCompanyResend(orgId: string, memberId: string, resend: Resend): Promise<void> {
+  const row = { apiKey: seal(resend.key), keyHint: resend.key.slice(-4), fromAddress: resend.from, updatedBy: memberId, updatedAt: sql`now()` };
+  await inScope({ orgId }, (tx) => tx.insert(s.companyEmail).values({ orgId, ...row }).onConflictDoUpdate({ target: s.companyEmail.orgId, set: row }));
 }
 
 /** Forgets the company's own Resend: its emails go through the server's again (if it has one). */
@@ -98,34 +100,55 @@ export async function emailStatus(orgId?: string): Promise<EmailStatus> {
   return { mode: server ? "server" : process.env.EMAIL_OUTBOX_DIR ? "outbox" : "off", from: server?.from ?? DEFAULT_FROM, hint: null };
 }
 
-/** Sends one email: through `via`, or the company's Resend, or the server's; else to the test inbox, or the log. */
-export async function sendEmail(msg: Email, opts: { orgId?: string; via?: Resend } = {}): Promise<boolean> {
+export type Sent = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Sends one email, and says why when it didn't go (in Resend's own words, like "The acme.com domain is not verified").
+ * A test inbox (EMAIL_OUTBOX_DIR) takes everything, so tests never send real email; otherwise it goes through `via`,
+ * or the company's Resend, or the server's — or, with none, only to the log.
+ */
+export async function deliverEmail(msg: Email, opts: { orgId?: string; via?: Resend } = {}): Promise<Sent> {
   try {
-    const resend = opts.via ?? (await resendFor(opts.orgId));
-    if (resend) {
-      const res = await fetch(RESEND_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${resend.key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: resend.from, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
-        signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`Resend answered ${res.status}: ${(await res.text()).slice(0, 300)}`);
-      return true;
-    }
     const dir = process.env.EMAIL_OUTBOX_DIR;
     if (dir) {
       await mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
       await writeFile(/*turbopackIgnore: true*/ join(dir, `${Date.now()}-${randomBytes(4).toString("hex")}.json`), JSON.stringify(msg));
-      return true;
+      return { ok: true };
     }
-    if (process.env.NEXT_PUBLIC_APP_ENV === "dev") console.info(`[email] (not sent — no Resend set up) to ${msg.to}: ${msg.subject}\n${msg.text}`);
-    else console.warn(`[email] not sent — no Resend set up (Integrations → Email, or RESEND_API_KEY): "${msg.subject}" to ${msg.to}`);
-    return false;
+    const resend = opts.via ?? (await resendFor(opts.orgId));
+    if (!resend) {
+      if (process.env.NEXT_PUBLIC_APP_ENV === "dev") console.info(`[email] (not sent — no Resend set up) to ${msg.to}: ${msg.subject}\n${msg.text}`);
+      else console.warn(`[email] not sent — no Resend set up (Integrations → Email, or RESEND_API_KEY): "${msg.subject}" to ${msg.to}`);
+      return { ok: false, reason: "Email isn't set up yet — add a Resend API key in Integrations → Email" };
+    }
+    const res = await fetch(RESEND_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${resend.key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: resend.from, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    });
+    if (res.ok) return { ok: true };
+    const body = (await res.text()).slice(0, 500);
+    console.error(`[email] Resend refused "${msg.subject}" to ${msg.to} (${res.status}): ${body}`);
+    return { ok: false, reason: `Resend refused it: ${resendMessage(body) ?? `error ${res.status}`}` };
   } catch (e) {
     console.error(`[email] couldn't send "${msg.subject}" to ${msg.to}`, e);
-    return false;
+    return { ok: false, reason: "Couldn't reach Resend — try again in a minute" };
   }
 }
+
+/** Resend's error message, from its JSON answer. */
+function resendMessage(body: string): string | null {
+  try {
+    const m = (JSON.parse(body) as { message?: unknown }).message;
+    return typeof m === "string" && m ? m.slice(0, 300) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Sends one email; false (and logged) when it didn't go. */
+export const sendEmail = async (msg: Email, opts: { orgId?: string; via?: Resend } = {}): Promise<boolean> => (await deliverEmail(msg, opts)).ok;
 
 // ---------- the messages ----------
 

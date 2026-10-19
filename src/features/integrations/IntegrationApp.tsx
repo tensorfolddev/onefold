@@ -124,19 +124,22 @@ function ResendSetup({ status, onSaved }: { status: EmailStatus; onSaved: (s: Em
   const [from, setFrom] = useState(own ? status.from : "");
   const [busy, setBusy] = useState<"test" | "save" | "remove" | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null); // Resend's reason, kept on screen (a toast goes too soon)
   const changed = !!key || from.trim() !== (own ? status.from : "");
 
   const run = async (what: "test" | "save" | "remove", fn: () => Promise<void>) => {
     setBusy(what);
-    try { await fn(); } catch (e) { toast(problemOf(e), undefined, "error"); } finally { setBusy(null); }
+    setProblem(null);
+    try { await fn(); } catch (e) { setProblem(problemOf(e)); } finally { setBusy(null); }
   };
   const test = () => run("test", async () => {
     const { to } = await api<{ to: string }>("/api/email/test", { key: key.trim(), from: from.trim() });
     toast(`Test email sent to ${to} — check your inbox`, undefined, "success");
   });
   const save = () => run("save", async () => {
-    onSaved(await api<EmailStatus>("/api/email/save", { key: key.trim(), from: from.trim() }));
-    toast("Saved — your company's email now goes through your Resend", undefined, "success");
+    const { to, ...saved } = await api<EmailStatus & { to: string }>("/api/email/save", { key: key.trim(), from: from.trim() });
+    onSaved(saved);
+    toast(`Saved — it works: a test email went to ${to}`, undefined, "success");
   });
   const remove = () => run("remove", async () => {
     onSaved(await api<EmailStatus>("/api/email/remove", {}));
@@ -150,7 +153,7 @@ function ResendSetup({ status, onSaved }: { status: EmailStatus; onSaved: (s: Em
           <h2 id="int-resend" className="int-h2">Your Resend</h2>
           <p className="muted">{own
             ? <>Key ending <strong>{status.hint}</strong>. Paste a new one to replace it.</>
-            : <>Send from your own address. Get an API key at <a href="https://resend.com/api-keys" target="_blank" rel="noreferrer noopener">resend.com</a> and verify your domain there.</>}
+            : <>Send from your own address. Get an API key at <a href="https://resend.com/api-keys" target="_blank" rel="noreferrer noopener">resend.com</a>, and verify your domain at <a href="https://resend.com/domains" target="_blank" rel="noreferrer noopener">resend.com/domains</a>.</>}
           </p>
         </div>
         {own && <button type="button" className="btn btn-tertiary is-danger" disabled={!!busy} onClick={() => setRemoving(true)}><Unlink aria-hidden /> Remove</button>}
@@ -159,14 +162,17 @@ function ResendSetup({ status, onSaved }: { status: EmailStatus; onSaved: (s: Em
         <label className="admin-field">
           <span className="admin-field-label">API key</span>
           <input className="admin-input" type="password" autoComplete="off" spellCheck={false} value={key} maxLength={200}
-            placeholder={own ? `re_••••••••${status.hint}` : "re_…"} onChange={(e) => setKey(e.target.value)} />
+            placeholder={own ? `re_••••••••${status.hint}` : "re_…"} onChange={(e) => { setKey(e.target.value); setProblem(null); }} />
         </label>
         <label className="admin-field">
           <span className="admin-field-label">From</span>
           <input className="admin-input" type="text" autoComplete="off" value={from} maxLength={200}
-            placeholder="Acme <hello@acme.com>" onChange={(e) => setFrom(e.target.value)} />
+            placeholder="Acme <hello@acme.com>" onChange={(e) => { setFrom(e.target.value); setProblem(null); }} />
+          <span className="admin-hint muted">On a domain verified in Resend — not gmail.com or another free address</span>
         </label>
+        {problem && <p className="admin-error" role="alert">{problem}</p>}
         <div className="admin-form-actions">
+          {!own && <span className="muted int-setup-note">Save sends you a test email first, and keeps it only if Resend accepts it</span>}
           <button type="button" className="btn btn-secondary" disabled={!!busy || (!key && status.mode === "off")} onClick={() => void test()}>
             <Mail aria-hidden /> {busy === "test" ? "Sending…" : "Send a test email"}
           </button>
