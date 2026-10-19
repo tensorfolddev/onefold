@@ -845,6 +845,40 @@ test("project settings: statuses and priorities, named and coloured your way, sh
   await expect(page.locator(".kanban-col-header", { hasText: "QA" })).toHaveAttribute("data-tone", "teal");
 });
 
+test("members: leads up top, the team as cards with what they carry; add someone by search, remove them", async ({ page, browser }) => {
+  await signUp(page, "Omega", email("omega"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("omdev"));
+  await confirmEmail(page, email("omega"));
+  await page.getByRole("button", { name: "Create invite links" }).click();
+  const link = (await page.locator(".inv-link-url").first().textContent())!;
+  await page.getByRole("button", { name: "Go to Omega" }).click();
+  const dev = await freshPage(browser); // the invitee joins from their own browser
+  await dev.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
+  await dev.goto(link);
+  await dev.getByLabel("Full name").fill("Omar Dev");
+  await dev.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await dev.getByRole("button", { name: "Join Omega" }).click();
+  await expect(dev).toHaveURL(/\/dev$/, { timeout: 20_000 });
+
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Nimbus");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  await page.goto(`${new URL(page.url()).pathname}/members`);
+  await expect(page.getByRole("list", { name: "Leads" })).toContainText("Product manager");
+  await expect(page.getByText("Only the leads so far")).toBeVisible();
+
+  await page.getByRole("button", { name: "Add member" }).click();
+  await page.getByLabel("Search people to add").fill("oma");
+  await page.getByRole("menuitem", { name: /Omar Dev/ }).click();
+  const card = page.getByRole("list", { name: "Team" }).getByRole("listitem").filter({ hasText: "Omar Dev" });
+  await expect(card).toContainText("0 open · 0 done");
+  await card.hover();
+  await card.getByRole("button", { name: "Remove Omar Dev" }).click();
+  await expect(page.getByText("Only the leads so far")).toBeVisible();
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
