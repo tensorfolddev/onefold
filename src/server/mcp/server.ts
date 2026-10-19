@@ -19,6 +19,7 @@ import type { Panel, Person, Product, SectionValue, Ticket } from "../../domain/
 import type { SessionRow } from "../accounts.ts";
 import { limit, MINUTE } from "../auth/rateLimit.ts";
 import { applyComposed, viewFor } from "../changes.ts";
+import { registerDecisionTools } from "./decisionTools.ts";
 import { registerDocTools } from "./docTools.ts";
 import { tokenSession } from "./tokens.ts";
 
@@ -153,7 +154,7 @@ function sectionValue(t: Ticket, sectionId: string, value: string | (string | { 
 
 export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
   const server = new McpServer({ name: "1fold", version: "1.0.0" }, {
-    instructions: "1Fold is a product and ticket tracker with docs. Docs are Markdown pages in the company space or a project's, nested under other pages; read them with get_doc and pass its rev as base_rev when you update_doc. Tickets have keys like CH-12, a type (task, bug, epic), a list (status) and template sections. Products (projects) sit in groups; an archived product is read-only and hidden until it's restored. You act as the person whose API token this is, with their permissions.",
+    instructions: "1Fold is a product and ticket tracker with docs. Docs are Markdown pages in the company space or a project's, nested under other pages; read them with get_doc and pass its rev as base_rev when you update_doc. Each product keeps a decision log (list_decisions, record_decision): what was decided, why, the alternatives and consequences, and which later decision superseded it. Tickets have keys like CH-12, a type (task, bug, epic), a list (status) and template sections. Products (projects) sit in groups; an archived product is read-only and hidden until it's restored. You act as the person whose API token this is, with their permissions.",
   });
   const context = async (): Promise<Ctx> => {
     const view = await viewFor(who);
@@ -184,6 +185,7 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
   const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
 
   registerDocTools(server, { who, context, changeCompany, attempt, findProduct });
+  registerDecisionTools(server, { who, context, changeCompany, attempt, findProduct });
 
   server.registerTool("list_products", {
     title: "List products",
