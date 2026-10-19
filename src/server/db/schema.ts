@@ -160,6 +160,9 @@ export const decisions = pgTable("decisions", {
   docIds: jsonb("doc_ids"),
   supersededBy: text("superseded_by"),
   updatedAt: ts("updated_at"),
+  labelName: text("label_name"), // the team's own status label (e.g. Suspended), with its colour
+  labelColor: text("label_color"),
+  color: text("color"), // the sticky note's colour
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 

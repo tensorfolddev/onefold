@@ -642,7 +642,7 @@ test("docs connect: an @mention notifies, a ticket key becomes a live chip, and 
   await expect(page.locator(".doc-backlinks")).toContainText("Untitled");
 });
 
-test("decisions: recorded with a why, opened by link, edited in place, and superseded by a later one", async ({ page }) => {
+test("decisions: sticky notes by default, a why, edited in place, superseded, your own labels and note colours", async ({ page }) => {
   await signUp(page, "Tau", email("tau"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.goto("/admin/products?new=1");
@@ -651,6 +651,8 @@ test("decisions: recorded with a why, opened by link, edited in place, and super
   await page.getByRole("button", { name: "Create product" }).click();
   await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
   await page.goto(`${new URL(page.url()).pathname}/decisions`);
+  /** The save of this very edit (an earlier one may still be in flight). */
+  const saving = (part: string) => page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok() && !!r.request().postData()?.includes(part));
 
   const record = async (title: string, why: string) => {
     await page.getByRole("button", { name: "New decision" }).click();
@@ -666,11 +668,13 @@ test("decisions: recorded with a why, opened by link, edited in place, and super
   await page.getByRole("button", { name: "Cancel" }).click();
   await record("Bill monthly", "Lower commitment for new teams.");
   await record("Bill yearly", "Cash up front; churn is low.");
+  await expect(page.getByRole("tab", { name: "Notes" })).toHaveAttribute("aria-selected", "true"); // notes first
 
-  await page.getByRole("button", { name: /Bill monthly/ }).click();
+  const note = (title: string) => page.locator(".decision-wall > li").filter({ has: page.getByText(title, { exact: true }) });
+  await note("Bill monthly").locator(".decision-sticky").click();
   await expect(page).toHaveURL(/\?d=/); // a decision has its own link
   const panel = page.getByRole("dialog", { name: "Bill monthly" });
-  const saved = page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok() && !!r.request().postData()?.includes('"updateDecision"'));
+  let saved = saving("Revenue arrives slower.");
   await panel.getByRole("button", { name: "Consequences" }).click(); // unwritten parts are just a link
   await panel.getByLabel("Consequences").fill("Revenue arrives slower.");
   await panel.getByLabel("Consequences").blur();
@@ -679,26 +683,41 @@ test("decisions: recorded with a why, opened by link, edited in place, and super
   await expect(panel.getByRole("button", { name: "Revenue arrives slower." })).toBeVisible(); // reads as text; click to edit
   await expect(panel.getByRole("button", { name: "Context" })).toBeVisible();
 
-  await panel.getByLabel("Status").selectOption("superseded");
+  await panel.getByRole("button", { name: "Status: Accepted. Change status" }).click();
+  await page.getByRole("menuitemradio", { name: "Superseded" }).click();
   await panel.getByLabel("Replaced by").selectOption({ label: "Bill yearly" });
   await expect(panel.getByRole("button", { name: /Replaced by Bill yearly/ })).toBeVisible();
   await panel.getByRole("button", { name: "Close" }).click();
+
+  // A note's colour is yours to pick, and it stays.
+  saved = saving('"color":"#ffcb00"');
+  await note("Bill monthly").hover();
+  await note("Bill monthly").getByRole("button", { name: "Note colour for Bill monthly" }).click();
+  await page.getByRole("radio", { name: "Yellow" }).click();
+  await saved;
+  await page.reload();
+  await expect(note("Bill monthly")).toHaveAttribute("style", /--paper: #ffcb00/);
+
+  // The table: groups by status; a status changes right in the cell, without opening the decision.
+  await page.getByRole("tab", { name: "Table" }).click();
   const superseded = page.getByRole("region", { name: "Superseded" });
   await superseded.getByRole("button", { name: /Superseded/ }).click(); // closed groups open on click
   await expect(superseded.getByRole("row").filter({ hasText: "Bill monthly" })).toContainText("→ Bill yearly");
-
-  // The status changes right in the table, without opening the decision.
-  const accepted = page.getByRole("region", { name: "Accepted" });
-  await accepted.getByLabel("Status of Bill yearly").selectOption("proposed");
+  await page.getByRole("region", { name: "Accepted" }).getByRole("button", { name: "Bill yearly: Accepted. Change status" }).click();
+  await page.getByRole("menuitemradio", { name: "Proposed" }).click();
   await expect(page.getByRole("region", { name: "Proposed" }).getByRole("row").filter({ hasText: "Bill yearly" })).toBeVisible();
   await expect(page).not.toHaveURL(/\?d=/);
 
-  // Or as sticky notes: open questions first, and a note opens the decision.
+  // A label of your own (Suspended): its own colour and its own group.
+  await page.getByRole("region", { name: "Proposed" }).getByRole("button", { name: "Bill yearly: Proposed. Change status" }).click();
+  await page.getByRole("button", { name: "New label" }).click();
+  await page.getByLabel("Label name").fill("Suspended");
+  await page.getByRole("radio", { name: "Purple" }).click();
+  await page.getByRole("button", { name: "Add label" }).click();
+  await expect(page.getByRole("region", { name: "Suspended" }).getByRole("row").filter({ hasText: "Bill yearly" })).toBeVisible();
+
   await page.getByRole("tab", { name: "Notes" }).click();
-  const notes = page.getByRole("list", { name: "Decisions as notes" }).getByRole("button");
-  await expect(notes.first()).toContainText("Bill yearly");
-  await notes.filter({ hasText: "Bill monthly" }).click();
-  await expect(page.getByRole("dialog", { name: "Bill monthly" })).toBeVisible();
+  await expect(note("Bill yearly").locator(".decision-sticky-status")).toHaveText("Suspended");
 });
 
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {

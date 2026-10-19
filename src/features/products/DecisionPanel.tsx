@@ -10,21 +10,14 @@ import { addDecision, updateDecision } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
 import type { Decision, DecisionStatus, Doc } from "@/domain/types";
+import type { DecisionPatch } from "@/data/commands";
 import { docPath } from "@/features/docs/tree";
 import { useAppState } from "@/features/shell/state";
 import { TicketPickerList } from "@/features/tickets/TemplateRelations";
 import { TypeIcon } from "@/features/tickets/TicketBits";
 import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
-
-export const STATUS: Record<DecisionStatus, { label: string; color: string }> = {
-  accepted: { label: "Accepted", color: "#00c875" },
-  proposed: { label: "Proposed", color: "#fdab3d" },
-  rejected: { label: "Rejected", color: "#e2445c" },
-  superseded: { label: "Superseded", color: "#9699a6" },
-};
-export const statusOf = (d: Decision): DecisionStatus => d.status ?? "accepted";
-const tone = (s: DecisionStatus) => ({ "--status": STATUS[s].color }) as React.CSSProperties;
+import { STATUS, StatusMenu, StatusPill, statusOf, tone } from "./DecisionStatus";
 
 const EXTRAS = [
   { field: "context", label: "Context", hint: "What called for a decision?" },
@@ -32,11 +25,6 @@ const EXTRAS = [
   { field: "consequences", label: "Consequences", hint: "Trade-offs, risks, follow-ups." },
 ] as const;
 type Extra = (typeof EXTRAS)[number]["field"];
-type Patch = Parameters<typeof updateDecision>[3];
-
-export function StatusPill({ status }: { status: DecisionStatus }) {
-  return <span className="decision-status" style={tone(status)}>{STATUS[status].label}</span>;
-}
 
 /** Text that reads as text; if you may edit, click it to change it. Saves when you leave it; Escape puts it back. */
 function EditableText({ label, value, editable, hint, startEditing = false, required = false, title = false, onSave, onDone }: {
@@ -117,13 +105,14 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const save = (patch: Patch) => !!act((d, m) => updateDecision(d, m, decision.id, patch));
+  const save = (patch: DecisionPatch) => !!act((d, m) => updateDecision(d, m, decision.id, patch));
   const status = statusOf(decision);
   const keys = decision.ticketKeys ?? [];
   const docIds = decision.docIds ?? [];
   const tickets = keys.map((k) => db.tickets.find((t) => t.key === k)).filter((t) => !!t);
   const docs = docIds.map((id) => db.docs.find((d) => d.id === id && !d.archivedAt)).filter((d) => !!d);
-  const others = db.decisions.filter((d) => d.productKey === decision.productKey && d.id !== decision.id);
+  const siblings = db.decisions.filter((d) => d.productKey === decision.productKey);
+  const others = siblings.filter((d) => d.id !== decision.id);
   const replacedBy = decision.supersededBy ? db.decisions.find((d) => d.id === decision.supersededBy) : undefined;
   const replaces = others.filter((d) => d.supersededBy === decision.id);
   const shownExtras = EXTRAS.filter((x) => decision[x.field] || adding.includes(x.field));
@@ -138,12 +127,7 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
       <aside className="side-panel decision-panel" role="dialog" aria-modal="true" aria-labelledby="decision-panel-title">
         <header className="decision-panel-head">
           <div className="decision-panel-bar">
-            {editable ? (
-              <select className="decision-status-select" aria-label="Status" value={status} style={tone(status)}
-                onChange={(e) => save({ status: e.target.value as DecisionStatus, ...(e.target.value !== "superseded" && { supersededBy: null }) })}>
-                {(Object.keys(STATUS) as DecisionStatus[]).map((s) => <option key={s} value={s}>{STATUS[s].label}</option>)}
-              </select>
-            ) : <StatusPill status={status} />}
+            {editable ? <StatusMenu decision={decision} siblings={siblings} variant="pill" /> : <StatusPill decision={decision} />}
             <span className="spacer" />
             <button type="button" className="docs-topbar-btn" aria-label="Close" data-tip="Close" onClick={onClose}><X aria-hidden /></button>
           </div>
@@ -153,7 +137,7 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
           <p className="decision-panel-meta">{by && <Avatar personId={by.id} size="sm" />} {by?.name ?? "Someone"} · {shortDate(decision.date)}</p>
           {replacedBy && <button type="button" className="decision-banner" onClick={() => onOpen(replacedBy.id)}>Replaced by <strong>{replacedBy.title}</strong> →</button>}
           {replaces.map((d) => <button key={d.id} type="button" className="decision-banner is-quiet" onClick={() => onOpen(d.id)}>Replaces <strong>{d.title}</strong> →</button>)}
-          {editable && status === "superseded" && !replacedBy && others.length > 0 && (
+          {editable && status === "superseded" && !decision.label && !replacedBy && others.length > 0 && (
             <label className="decision-replaced-pick">
               Replaced by
               <select className="decision-add-select" aria-label="Replaced by" value="" onChange={(e) => e.target.value && save({ supersededBy: e.target.value })}>
@@ -254,7 +238,7 @@ export function NewDecision({ productKey, onClose }: { productKey: string; onClo
         </label>
         <div className="decision-status-choice" role="radiogroup" aria-label="Status">
           {(["accepted", "proposed"] as const).map((s) => (
-            <button key={s} type="button" role="radio" aria-checked={f.status === s} style={tone(s)} onClick={() => setF((c) => ({ ...c, status: s }))}>
+            <button key={s} type="button" role="radio" aria-checked={f.status === s} style={tone(STATUS[s].color)} onClick={() => setF((c) => ({ ...c, status: s }))}>
               {s === "accepted" ? "Decided" : "Still open"}
             </button>
           ))}

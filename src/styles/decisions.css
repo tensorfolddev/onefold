@@ -22,12 +22,6 @@
   position: relative; z-index: 1; justify-content: center; padding: 0; color: #fff; background: var(--status);
   font-size: 13px; font-weight: 500; border-left-color: var(--primary-background-color);
 }
-:root .decision-cell-status select {
-  width: 100%; height: 100%; min-height: 40px; padding: 0 8px; border: 0; border-radius: 0; text-align: center; text-align-last: center;
-  font-size: 13px; font-weight: 500; color: #fff; background: transparent; box-shadow: none; cursor: pointer;
-}
-:root .decision-cell-status select:hover { background: rgb(0 0 0 / 0.08); }
-:root .decision-cell-status select:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; }
 .decision-cell-tickets { gap: 4px; overflow: hidden; }
 .decision-key, .decision-more {
   flex: none; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 18px;
@@ -46,13 +40,13 @@
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 28px 24px;
   padding: 12px 4px 24px; list-style: none;
 }
-.decision-wall > li { --tilt: -1.2deg; }
+.decision-wall > li { --tilt: -1.2deg; position: relative; }
 .decision-wall > li:nth-child(3n + 2) { --tilt: 1deg; }
 .decision-wall > li:nth-child(3n) { --tilt: -0.4deg; }
 .decision-sticky {
   position: relative; display: flex; flex-direction: column; gap: 8px; width: 100%; min-height: 210px; padding: 22px 16px 14px;
   text-align: left; color: var(--primary-text-color);
-  background: color-mix(in srgb, var(--status) 26%, var(--primary-background-color));
+  background: color-mix(in srgb, var(--paper, var(--status)) 26%, var(--primary-background-color));
   border-radius: 2px 2px 14px 2px;
   box-shadow: 0 1px 1px rgb(15 23 42 / 0.08), 0 8px 18px -8px rgb(15 23 42 / 0.35);
   transform: rotate(var(--tilt));
@@ -88,14 +82,6 @@
   flex: none; display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: 4px;
   font-size: 12px; font-weight: 500; line-height: 1; color: #fff; background: var(--status); white-space: nowrap;
 }
-:root .decision-status-select {
-  height: 30px; padding: 0 28px 0 12px; border: 0; border-radius: 4px; appearance: none; cursor: pointer;
-  font-size: 13px; font-weight: 500; color: #fff; background-color: var(--status);
-  background-image: linear-gradient(45deg, transparent 50%, #fff 50%), linear-gradient(135deg, #fff 50%, transparent 50%);
-  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
-}
-.decision-status-select:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
-.decision-status-select option { color: var(--primary-text-color); background: var(--primary-background-color); }
 
 /* ---------- The record, opened: reads like a note; text turns into an editor on click ---------- */
 .decision-panel { overflow: hidden; }
@@ -173,3 +159,53 @@
 .decision-status-choice button:hover { border-color: var(--status); }
 .decision-status-choice button[aria-checked="true"] { color: #fff; background: var(--status); border-color: var(--status); }
 
+
+/* ---------- Status menu: the built-in statuses and the team's own labels as solid pills, + New label ---------- */
+.decision-cell-status .popover-anchor { width: 100%; height: 100%; }
+.decision-cell-status-btn {
+  width: 100%; height: 100%; min-height: 40px; padding: 0 8px; font-size: 13px; font-weight: 500; color: #fff; background: transparent;
+}
+.decision-cell-status-btn:hover, .decision-cell-status-btn[aria-expanded="true"] { background: rgb(0 0 0 / 0.08); }
+.decision-cell-status-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; }
+.decision-status-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 12px; border-radius: 4px;
+  font-size: 13px; font-weight: 500; color: #fff; background: var(--status);
+}
+.decision-status-btn svg { width: 14px; height: 14px; }
+.decision-status-btn:hover { filter: brightness(0.95); }
+.decision-status-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.menu.decision-status-menu { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.decision-status-option {
+  height: 32px; padding: 0 10px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #fff; background: var(--status);
+}
+.decision-status-option:hover { filter: brightness(0.94); }
+.decision-status-option[aria-checked="true"] { box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.9), 0 0 0 2px var(--status); }
+.decision-status-option:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.decision-status-sep { margin: 2px 0; border: 0; border-top: 1px solid var(--layout-border-color); }
+.decision-new-label { display: flex; flex-direction: column; gap: 10px; padding: 2px; }
+.decision-new-label-name {
+  height: 34px; padding: 0 10px; font-size: 14px; border: 1px solid var(--ui-border-color); border-radius: 6px;
+  background: var(--primary-background-color); color: var(--primary-text-color);
+}
+.decision-new-label-name:focus { outline: none; border-color: var(--primary-color); }
+.decision-new-label-add { height: 32px; }
+
+/* Colour swatches (labels and notes) */
+.decision-swatches { display: grid; grid-template-columns: repeat(5, 28px); gap: 8px; justify-content: space-between; }
+.decision-swatch { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: #fff; }
+.decision-swatch svg { width: 14px; height: 14px; }
+.decision-swatch:hover { transform: scale(1.08); }
+.decision-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--primary-background-color), 0 0 0 4px var(--primary-text-color); }
+.decision-swatch:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; }
+.menu.decision-color-menu { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+
+/* The note's palette button: top right, shown on hover or keyboard focus */
+.decision-sticky-color { position: absolute; top: 14px; right: 12px; z-index: 1; opacity: 0; transition: opacity 120ms ease-out; }
+.decision-wall > li:hover .decision-sticky-color, .decision-sticky-color:focus-within, .decision-sticky-color:has([aria-expanded="true"]) { opacity: 1; }
+.decision-sticky-color-btn {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--primary-text-color);
+  background: color-mix(in srgb, var(--primary-background-color) 80%, transparent); box-shadow: 0 1px 3px rgb(15 23 42 / 0.18);
+}
+.decision-sticky-color-btn svg { width: 16px; height: 16px; }
+.decision-sticky-color-btn:hover { background: var(--primary-background-color); }
+@media (hover: none) { .decision-sticky-color { opacity: 1; } }

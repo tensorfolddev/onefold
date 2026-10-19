@@ -123,3 +123,22 @@ test("decisions: the caller names a new decision, so the browser and the server 
   assert.equal(db.decisions.at(-1)!.id, "dec-1");
   assert.throws(() => addDecision(db, lead, "AP", { title: "Again", why: "Same id" }, "dec-1"), /already exists/);
 });
+
+test("decisions: your own label (like Suspended) and a note colour; checked, cleared, and superseding drops the label", async () => {
+  const { addDecision, updateDecision } = await import("./docs.ts");
+  let db = addDecision(db0, lead, "AP", { title: "Use RLS", why: "Org isolation" }, "dec-l");
+  const get = () => db.decisions.find((d) => d.id === "dec-l")!;
+  db = updateDecision(db, lead, "dec-l", { label: { name: "  Suspended ", color: "#A25DDC" }, color: "#FFCB00" });
+  assert.deepEqual([get().label, get().color], [{ name: "Suspended", color: "#a25ddc" }, "#ffcb00"]);
+  assert.throws(() => updateDecision(db, lead, "dec-l", { label: { name: "accepted", color: "#a25ddc" } }), /already a status/);
+  assert.throws(() => updateDecision(db, lead, "dec-l", { label: { name: "On hold", color: "purple" } }), /colour/);
+  assert.throws(() => updateDecision(db, lead, "dec-l", { label: { name: "x".repeat(25), color: "#a25ddc" } }), /under 24/);
+  assert.throws(() => updateDecision(db, lead, "dec-l", { color: "red" }), /colour/);
+  assert.throws(() => updateDecision(db, sara, "dec-l", { color: "#ffcb00" }), AccessError); // developers don't edit decisions
+  db = updateDecision(db, lead, "dec-l", { label: null, color: null });
+  assert.deepEqual([get().label, get().color], [undefined, undefined]);
+  db = addDecision(db, lead, "AP", { title: "Use Postgres RLS v2", why: "Newer" }, "dec-m");
+  db = updateDecision(db, lead, "dec-l", { label: { name: "On hold", color: "#579bfc" } });
+  db = updateDecision(db, lead, "dec-l", { supersededBy: "dec-m" });
+  assert.deepEqual([get().status, get().label], ["superseded", undefined]);
+});

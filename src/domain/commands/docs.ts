@@ -1,6 +1,6 @@
 import { now, today } from "../clock.ts";
 import { can, isOnProduct } from "../permissions.ts";
-import type { Decision, DecisionStatus, Doc, DocKind, Person } from "../types.ts";
+import type { Decision, DecisionLabel, DecisionStatus, Doc, DocKind, Person } from "../types.ts";
 import type { Db } from "../../data/db.ts";
 import { check, fail, id, productOf, replace, requiredError, ValidationError } from "./shared.ts";
 
@@ -21,6 +21,21 @@ export function deleteDoc(db: Db, me: Person, docId: string): Db {
 
 export const DECISION_STATUSES: DecisionStatus[] = ["proposed", "accepted", "rejected", "superseded"];
 const MAX_DECISION_TEXT = 8000;
+const MAX_LABEL = 24;
+const HEX = /^#[0-9a-f]{6}$/i;
+
+const hexColour = (c: unknown): string => {
+  if (typeof c !== "string" || !HEX.test(c)) throw new ValidationError("Pick a colour from the list");
+  return c.toLowerCase();
+};
+/** A label of the team's own: a short name that isn't one of the built-in statuses, and a colour. */
+function checkedLabel(label: DecisionLabel): DecisionLabel {
+  const name = typeof label?.name === "string" ? label.name.trim() : "";
+  if (!name) throw new ValidationError("Give the label a name");
+  if (name.length > MAX_LABEL) throw new ValidationError(`Keep a label under ${MAX_LABEL} characters`);
+  if (DECISION_STATUSES.includes(name.toLowerCase() as DecisionStatus)) throw new ValidationError(`"${name}" is already a status — pick it from the list`);
+  return { name, color: hexColour(label.color) };
+}
 
 export interface DecisionInput {
   title: string; why: string; status?: DecisionStatus; context?: string; alternatives?: string; consequences?: string;
@@ -60,19 +75,26 @@ export function addDecision(db: Db, me: Person, productKey: string, input: Decis
 }
 
 /** Edits a decision; superseding it (by another decision of the same project) also marks it superseded. */
-export function updateDecision(db: Db, me: Person, decisionId: string, patch: Partial<DecisionInput> & { supersededBy?: string | null }): Db {
+export type DecisionPatch = Partial<DecisionInput> & { supersededBy?: string | null; label?: DecisionLabel | null; color?: string | null };
+
+export function updateDecision(db: Db, me: Person, decisionId: string, patch: DecisionPatch): Db {
   const cur = db.decisions.find((d) => d.id === decisionId);
   if (!cur) throw new ValidationError("Decision not found");
   check(me, "decision.add", { product: productOf(db, cur.productKey) });
   const next: Decision = { ...cur, ...decisionExtras(db, patch), updatedAt: now() };
   if (patch.title !== undefined) { fail(requiredError("Decision", patch.title)); next.title = patch.title.trim(); }
   if (patch.why !== undefined) { fail(requiredError("Why", patch.why)); next.why = patch.why.trim(); }
+  if (patch.label === null) delete next.label;
+  else if (patch.label !== undefined) next.label = checkedLabel(patch.label);
+  if (patch.color === null) delete next.color;
+  else if (patch.color !== undefined) next.color = hexColour(patch.color);
   if (patch.supersededBy === null) delete next.supersededBy;
   else if (patch.supersededBy !== undefined) {
     const by = db.decisions.find((d) => d.id === patch.supersededBy);
     if (!by || by.productKey !== cur.productKey || by.id === cur.id) throw new ValidationError("Pick another decision of this project");
     next.supersededBy = by.id;
     next.status = "superseded";
+    delete next.label; // "Superseded" says it now
   }
   return { ...db, decisions: replace(db.decisions, (d) => d.id === decisionId, () => next) };
 }

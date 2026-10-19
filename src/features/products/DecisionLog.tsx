@@ -1,50 +1,43 @@
 "use client";
 
-// A product's decision log, as a monday-style table (one group per status, a coloured status cell you can change in
-// place, who decided, when, what it links to) or as a wall of sticky notes coloured by status. Either way a click opens
-// the full record (?d=<id>, so it can be linked).
+// A product's decision log, as a wall of sticky notes (the default) or a monday-style table (one group per status or
+// label, a coloured status cell you can change in place, who decided, when, what it links to). Either way a click
+// opens the full record (?d=<id>, so it can be linked). Notes take a colour of your choosing; statuses can be the
+// team's own labels (Suspended, On hold…).
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, FileText, Plus, Scale, Search, StickyNote, Table2 } from "lucide-react";
-import { updateDecision } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
-import type { Decision, DecisionStatus } from "@/domain/types";
+import type { Decision } from "@/domain/types";
 import { Avatar, EmptyState } from "@/ui/primitives";
-import { DecisionPanel, NewDecision, STATUS, statusOf } from "./DecisionPanel";
+import { DecisionPanel, NewDecision } from "./DecisionPanel";
+import { groupsOf, NoteColorMenu, shownStatus, StatusMenu, tone, type Shown } from "./DecisionStatus";
 
-const GROUPS: DecisionStatus[] = ["proposed", "accepted", "rejected", "superseded"];
 type View = "table" | "notes";
 const VIEW_KEY = "onefold.decisions.view";
 const SHOWN_TICKETS = 2;
-const haystack = (d: Decision) => [d.title, d.why, d.context, d.alternatives, d.consequences, ...(d.ticketKeys ?? [])].join(" ").toLowerCase();
-const tone = (s: DecisionStatus) => ({ "--status": STATUS[s].color, "--group": STATUS[s].color }) as React.CSSProperties;
+const CLOSED = new Set(["rejected", "superseded"]); // groups that start folded
+const haystack = (d: Decision) => [d.title, d.why, d.context, d.alternatives, d.consequences, d.label?.name, ...(d.ticketKeys ?? [])].join(" ").toLowerCase();
 
-function StatusCell({ decision, editable }: { decision: Decision; editable: boolean }) {
-  const { act } = useMe();
-  const status = statusOf(decision);
-  if (!editable) return <span role="cell" className="decision-cell-status" style={tone(status)}>{STATUS[status].label}</span>;
+function StatusCell({ decision, siblings, editable }: { decision: Decision; siblings: Decision[]; editable: boolean }) {
+  const s = shownStatus(decision);
   return (
-    <span role="cell" className="decision-cell-status" style={tone(status)}>
-      <select aria-label={`Status of ${decision.title}`} value={status} onChange={(e) => {
-        const next = e.target.value as DecisionStatus;
-        act((d, m) => updateDecision(d, m, decision.id, { status: next, ...(next !== "superseded" && { supersededBy: null }) }));
-      }}>
-        {GROUPS.map((s) => <option key={s} value={s}>{STATUS[s].label}</option>)}
-      </select>
+    <span role="cell" className="decision-cell-status" style={tone(s.color)}>
+      {editable ? <StatusMenu decision={decision} siblings={siblings} variant="cell" /> : s.label}
     </span>
   );
 }
 
-function Group({ status, items, all, editable, forceOpen, onOpen }: {
-  status: DecisionStatus; items: Decision[]; all: Map<string, Decision>; editable: boolean; forceOpen: boolean; onOpen: (id: string) => void;
+function Group({ group, items, siblings, all, editable, forceOpen, onOpen }: {
+  group: Shown; items: Decision[]; siblings: Decision[]; all: Map<string, Decision>; editable: boolean; forceOpen: boolean; onOpen: (id: string) => void;
 }) {
   const { personById } = useMe();
-  const [open, setOpen] = useState(status === "proposed" || status === "accepted");
+  const [open, setOpen] = useState(!CLOSED.has(group.key));
   const shown = open || forceOpen;
-  const label = STATUS[status].label;
+  const label = group.label;
   return (
-    <section className="docs-board-group decision-group" style={tone(status)} aria-label={label}>
+    <section className="docs-board-group decision-group" style={tone(group.color)} aria-label={label}>
       <button type="button" className="docs-board-head" aria-expanded={shown} onClick={() => setOpen((o) => !o)}>
         <ChevronDown aria-hidden className={shown ? undefined : "is-collapsed"} />
         <span className="docs-board-name">{label}</span>
@@ -67,7 +60,7 @@ function Group({ status, items, all, editable, forceOpen, onOpen }: {
                   <button type="button" className="decision-open" onClick={() => onOpen(d.id)}>{d.title}</button>
                   {replacedBy && <span className="decision-cell-replaced">→ {replacedBy.title}</span>}
                 </span>
-                <StatusCell decision={d} editable={editable} />
+                <StatusCell decision={d} siblings={siblings} editable={editable} />
                 <span role="cell" className="docs-board-person">{by && <><Avatar personId={by.id} size="sm" /> {by.name}</>}</span>
                 <span role="cell" className="docs-board-when"><time dateTime={d.date}>{shortDate(d.date)}</time></span>
                 <span role="cell" className="decision-cell-tickets">
@@ -84,20 +77,22 @@ function Group({ status, items, all, editable, forceOpen, onOpen }: {
   );
 }
 
-/** The wall: one sticky note per decision, open questions first. */
-function StickyWall({ items, all, onOpen }: { items: Decision[]; all: Map<string, Decision>; onOpen: (id: string) => void }) {
+/** The wall: one sticky note per decision, in board order (open questions first), each in its own colour. */
+function StickyWall({ items, groups, all, editable, onOpen }: {
+  items: Decision[]; groups: Shown[]; all: Map<string, Decision>; editable: boolean; onOpen: (id: string) => void;
+}) {
   const { personById } = useMe();
-  const ordered = GROUPS.flatMap((s) => items.filter((d) => statusOf(d) === s));
+  const ordered = groups.flatMap((g) => items.filter((d) => shownStatus(d).key === g.key));
   return (
     <ul className="decision-wall" aria-label="Decisions as notes">
       {ordered.map((d) => {
-        const status = statusOf(d);
+        const s = shownStatus(d);
         const replacedBy = d.supersededBy ? all.get(d.supersededBy) : undefined;
         const keys = d.ticketKeys ?? [];
         return (
-          <li key={d.id} style={tone(status)}>
+          <li key={d.id} style={{ ...tone(s.color), "--paper": d.color ?? s.color } as React.CSSProperties}>
             <button type="button" className="decision-sticky" onClick={() => onOpen(d.id)}>
-              <span className="decision-sticky-status">{STATUS[status].label}</span>
+              <span className="decision-sticky-status">{s.label}</span>
               <span className="decision-sticky-title">{d.title}</span>
               <span className="decision-sticky-why">{d.why}</span>
               {replacedBy && <span className="decision-sticky-replaced">→ {replacedBy.title}</span>}
@@ -108,6 +103,7 @@ function StickyWall({ items, all, onOpen }: { items: Decision[]; all: Map<string
                 {keys.length > SHOWN_TICKETS && <span className="decision-key">+{keys.length - SHOWN_TICKETS}</span>}
               </span>
             </button>
+            {editable && <NoteColorMenu decision={d} />}
           </li>
         );
       })}
@@ -124,9 +120,9 @@ export function DecisionLog({ productKey }: { productKey: string }) {
   const canAdd = !!product && can("decision.add", { product });
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
-  const [view, setViewState] = useState<View>("table");
+  const [view, setViewState] = useState<View>("notes");
   useEffect(() => {
-    try { if (localStorage.getItem(VIEW_KEY) === "notes") setViewState("notes"); } catch { /* per-browser convenience only */ } // eslint-disable-line react-hooks/set-state-in-effect -- this browser's choice
+    try { if (localStorage.getItem(VIEW_KEY) === "table") setViewState("table"); } catch { /* per-browser convenience only */ } // eslint-disable-line react-hooks/set-state-in-effect -- this browser's choice
   }, []);
   const setView = (v: View) => {
     setViewState(v);
@@ -139,6 +135,7 @@ export function DecisionLog({ productKey }: { productKey: string }) {
   const byId = new Map(all.map((d) => [d.id, d]));
   const q = query.trim().toLowerCase();
   const shown = q ? all.filter((d) => haystack(d).includes(q)) : all;
+  const groups = groupsOf(all);
   const open = openId ? byId.get(openId) : undefined;
   const openDecision = (id: string | null) => router.replace(id ? `${pathname}?d=${id}` : pathname, { scroll: false });
 
@@ -173,11 +170,11 @@ export function DecisionLog({ productKey }: { productKey: string }) {
       ) : q && !shown.length ? (
         <EmptyState icon={<Search aria-hidden />} title="Nothing matches">Try another word.</EmptyState>
       ) : view === "notes" ? (
-        <StickyWall items={shown} all={byId} onOpen={openDecision} />
+        <StickyWall items={shown} groups={groups} all={byId} editable={canAdd} onOpen={openDecision} />
       ) : (
         <div className="docs-board">
-          {GROUPS.map((s) => (
-            <Group key={s} status={s} items={shown.filter((d) => statusOf(d) === s)} all={byId} editable={canAdd} forceOpen={!!q} onOpen={openDecision} />
+          {groups.map((g) => (
+            <Group key={g.key} group={g} items={shown.filter((d) => shownStatus(d).key === g.key)} siblings={all} all={byId} editable={canAdd} forceOpen={!!q} onOpen={openDecision} />
           ))}
         </div>
       )}
