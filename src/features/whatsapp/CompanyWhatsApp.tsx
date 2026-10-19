@@ -1,8 +1,8 @@
 "use client";
 
-// Integrations → Company WhatsApp, for admins: who's linked to the bot, what went out (and whether it arrived), when
-// the daily brief goes and on which days, the words that ask the bot for it, and every message the bot sends — each
-// previewed exactly as a teammate will see it, and each back to 1FOLD's own in one click.
+// Integrations → WhatsApp bot, for admins — its tabs: who's linked to the bot, what went out (and whether it arrived),
+// when the daily brief goes and on which days, the words that ask the bot for it, and every message the bot sends —
+// each previewed exactly as a teammate will see it, and each back to 1FOLD's own in one click.
 import { Check, Clock3, MailCheck, MessageSquareText, RefreshCw, RotateCcw, Send, Users, X, CircleSlash, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, message as problemOf } from "@/data/api";
@@ -12,14 +12,11 @@ import {
   DEFAULT_SETTINGS, fill, message, normalWord, scheduleText, TEMPLATE_KEYS, TEMPLATES, WEEKDAY_NAMES, wordsText,
   type TemplateKey, type WhatsAppSettings,
 } from "@/domain/whatsapp";
-import { Avatar, Tabs } from "@/ui/primitives";
+import { Avatar } from "@/ui/primitives";
 
 interface Linked { personId: string; phone: string; briefs: boolean; linkedAt: string }
 interface Delivery { at: string; personId: string | null; kind: string; status: "sent" | "email" | "waiting" | "failed" | "none"; preview: string }
-interface Company { settings: WhatsAppSettings; timeZone: string; linked: Linked[]; log: Delivery[] }
-
-const TABS = ["Connected", "Deliveries", "Daily brief", "Reply words", "Messages"] as const;
-type Tab = (typeof TABS)[number];
+export interface Company { settings: WhatsAppSettings; timeZone: string; linked: Linked[]; log: Delivery[] }
 
 const STATUS: Record<Delivery["status"], { label: string; icon: React.ReactNode; tone: string }> = {
   sent: { label: "Delivered", icon: <Check />, tone: "is-good" },
@@ -48,13 +45,13 @@ function WaText({ text }: { text: string }) {
   );
 }
 
-export function CompanyWhatsApp() {
+/** The company's WhatsApp for its admins (settings, who's linked, what went out), and saving changes to it. */
+export function useCompanyWhatsApp() {
   const { toast } = useMe();
   const [data, setData] = useState<Company | null>(null);
   const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState<Tab>("Connected");
   const [loads, setLoads] = useState(0);
-  const load = () => setLoads((n) => n + 1);
+  const reload = () => setLoads((n) => n + 1);
   useEffect(() => {
     let live = true;
     api<Company>("/api/whatsapp/company")
@@ -64,7 +61,7 @@ export function CompanyWhatsApp() {
   }, [loads]);
 
   /** Saves part of the settings; the server checks it and sends back what's now in force. */
-  const save = async (settings: Partial<WhatsAppSettings>, success: string) => {
+  const save: Save = async (settings, success) => {
     try {
       const next = await api<WhatsAppSettings>("/api/whatsapp/company", { settings });
       setData((d) => (d ? { ...d, settings: next } : d));
@@ -75,25 +72,10 @@ export function CompanyWhatsApp() {
       return false;
     }
   };
-
-  if (failed) return <p className="muted">Couldn&apos;t load your company&apos;s WhatsApp. <button type="button" className="btn btn-tertiary" onClick={load}>Try again</button></p>;
-  if (!data) return <div className="doc-skeleton" aria-busy="true" />;
-  return (
-    <div className="company-wa">
-      <Tabs ariaLabel="Company WhatsApp" active={tab} onSelect={(t) => setTab(t as Tab)}
-        items={TABS.map((label) => ({ label, ...(label === "Connected" ? { count: data.linked.length } : {}) }))} />
-      <div className="company-wa-body">
-        {tab === "Connected" && <ConnectedTab linked={data.linked} />}
-        {tab === "Deliveries" && <DeliveriesTab log={data.log} onRefresh={load} />}
-        {tab === "Daily brief" && <BriefTab settings={data.settings} timeZone={data.timeZone} save={save} />}
-        {tab === "Reply words" && <WordsTab settings={data.settings} save={save} />}
-        {tab === "Messages" && <MessagesTab settings={data.settings} save={save} />}
-      </div>
-    </div>
-  );
+  return { data, failed, reload, save };
 }
 
-function ConnectedTab({ linked }: { linked: Linked[] }) {
+export function ConnectedTab({ linked }: { linked: Linked[] }) {
   const { db } = useMe();
   const team = db.people.filter((p) => p.active && p.panel);
   const byId = new Map(linked.map((l) => [l.personId, l]));
@@ -123,7 +105,7 @@ function ConnectedTab({ linked }: { linked: Linked[] }) {
   );
 }
 
-function DeliveriesTab({ log, onRefresh }: { log: Delivery[]; onRefresh: () => void }) {
+export function DeliveriesTab({ log, onRefresh }: { log: Delivery[]; onRefresh: () => void }) {
   const { personById } = useMe();
   const [only, setOnly] = useState<"all" | "problems">("all");
   const shown = only === "all" ? log : log.filter((d) => d.status === "failed" || d.status === "waiting");
@@ -159,9 +141,9 @@ function DeliveriesTab({ log, onRefresh }: { log: Delivery[]; onRefresh: () => v
   );
 }
 
-type Save = (settings: Partial<WhatsAppSettings>, success: string) => Promise<boolean>;
+export type Save = (settings: Partial<WhatsAppSettings>, success: string) => Promise<boolean>;
 
-function BriefTab({ settings, timeZone, save }: { settings: WhatsAppSettings; timeZone: string; save: Save }) {
+export function BriefTab({ settings, timeZone, save }: { settings: WhatsAppSettings; timeZone: string; save: Save }) {
   const [on, setOn] = useState(settings.briefOn);
   const [at, setAt] = useState(settings.briefAt);
   const [days, setDays] = useState(settings.briefDays);
@@ -202,7 +184,7 @@ function BriefTab({ settings, timeZone, save }: { settings: WhatsAppSettings; ti
   );
 }
 
-function WordsTab({ settings, save }: { settings: WhatsAppSettings; save: Save }) {
+export function WordsTab({ settings, save }: { settings: WhatsAppSettings; save: Save }) {
   const [words, setWords] = useState(settings.words);
   const [typed, setTyped] = useState("");
   const add = () => {
@@ -239,7 +221,7 @@ function WordsTab({ settings, save }: { settings: WhatsAppSettings; save: Save }
   );
 }
 
-function MessagesTab({ settings, save }: { settings: WhatsAppSettings; save: Save }) {
+export function MessagesTab({ settings, save }: { settings: WhatsAppSettings; save: Save }) {
   const { db } = useMe();
   const [texts, setTexts] = useState(settings.templates);
   const [open, setOpen] = useState<TemplateKey>("urgent");

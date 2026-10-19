@@ -365,30 +365,7 @@
 .ticket-archived-banner .btn svg { width: 16px; height: 16px; }
 @media (max-width: 767px) { .archived-row { flex-wrap: wrap; } .archived-meta { order: 3; width: 100%; } }
 
-/* ---------- Integrations: Claude and WhatsApp for you; the company's WhatsApp for admins ---------- */
-.integration-section { margin-top: 28px; }
-.integration-heading { margin: 0 0 12px; font: 600 13px/1 var(--font-family); letter-spacing: 0.04em; text-transform: uppercase; color: var(--secondary-text-color); }
-.integration-lead { margin: -4px 0 14px; }
-.integration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
-.integration-card {
-  display: grid; grid-template-columns: auto 1fr; grid-template-rows: 1fr auto; gap: 14px 16px; padding: 18px;
-  border: 1px solid var(--layout-border-color); border-radius: 14px; background: var(--primary-background-color);
-  transition: box-shadow var(--motion-productive-medium), border-color var(--motion-productive-short);
-}
-.integration-card:hover { border-color: var(--ui-border-color); box-shadow: 0 10px 24px rgb(15 23 42 / 0.06); }
-.integration-card > .btn { grid-column: 2; justify-self: start; }
-.integration-tile { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; color: #fff; }
-.integration-tile svg { width: 22px; height: 22px; }
-.integration-tile.is-claude { background: linear-gradient(135deg, #e08a62, #c15f3c); }
-.integration-tile.is-whatsapp { background: linear-gradient(135deg, #34d399, #128c4b); }
-.integration-text h3 { margin: 2px 0 4px; font-size: 16px; }
-.integration-text p { margin: 0; font-size: 14px; color: var(--secondary-text-color); line-height: 1.5; }
-.integration-text .integration-status { margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--secondary-text-color); }
-.integration-status.is-on { color: #128c4b; }
-
-.company-wa { border: 1px solid var(--layout-border-color); border-radius: 14px; background: var(--primary-background-color); overflow: hidden; }
-.company-wa > .tabs { padding: 0 12px; border-bottom: 1px solid var(--layout-border-color); }
-.company-wa-body { padding: 18px; }
+/* ---------- WhatsApp bot (Integrations → WhatsApp bot): its tabs ---------- */
 .company-wa-lead { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; font-size: 14px; color: var(--secondary-text-color); line-height: 1.5; }
 .company-wa-lead > svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
 .company-wa-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }

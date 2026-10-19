@@ -1,7 +1,7 @@
 "use client";
 
-import { Integrations } from "@/features/integrations/Integrations";
+import { IntegrationsCenter } from "@/features/integrations/IntegrationsCenter";
 
 export default function IntegrationsPage() {
-  return <Integrations />;
+  return <IntegrationsCenter />;
 }

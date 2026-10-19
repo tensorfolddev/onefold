@@ -12,11 +12,11 @@ import { IconButton } from "@/ui/primitives";
 type BotState = "off" | "pairing" | "connecting" | "connected" | "logged_out";
 interface MyWhatsApp { available: boolean; linked: { phone: string; briefs: boolean; linkedAt: string } | null }
 interface BotStatus { state: BotState; qr: string | null; phone: string | null; request: string | null; updatedAt: string }
-interface Status { me: MyWhatsApp; bot: BotStatus | null }
+interface Status { me: MyWhatsApp; botInfo: Pick<BotStatus, "state" | "phone">; bot: BotStatus | null }
 interface LinkCode { code: string; url: string; botPhone: string; expiresAt: string }
 
 const problemOf = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong — please try again");
-const shownPhone = (digits: string | null) => (digits ? `+${digits}` : "your WhatsApp");
+export const shownPhone = (digits: string | null) => (digits ? `+${digits}` : "your WhatsApp");
 
 /** The WhatsApp status from the server, checked again every `everyMs`. */
 export function useWhatsApp(everyMs: number) {
@@ -148,7 +148,7 @@ function PairingQr({ text }: { text: string }) {
     : <div className="wa-qr is-loading" aria-busy="true" />;
 }
 
-const BOT_STATE: Record<BotState, string> = {
+export const BOT_STATE: Record<BotState, string> = {
   off: "Not connected",
   pairing: "Waiting for the scan",
   connecting: "Connecting…",
@@ -157,7 +157,8 @@ const BOT_STATE: Record<BotState, string> = {
 };
 
 /** Settings → WhatsApp: the environment's bot. Only platform admins (PLATFORM_ADMIN_EMAILS) see it. */
-export function WhatsAppBotSettings() {
+/** Pairing the bot (platform admins). `bare`: just the controls, inside another page's section. */
+export function WhatsAppBotSettings({ bare = false }: { bare?: boolean }) {
   const { toast } = useMe();
   const [fast, setFast] = useState(false);
   const { status, reload } = useWhatsApp(fast ? 2000 : 30_000);
@@ -176,15 +177,20 @@ export function WhatsAppBotSettings() {
     }
   };
 
+  const Wrap = bare ? "div" : "section";
   return (
-    <section className="admin-teams" aria-labelledby="wa-bot-title">
-      <header className="team-header">
-        <h2 id="wa-bot-title" className="team-title">WhatsApp</h2>
-        <span className="chip sm wa-state" data-state={bot.state}>{BOT_STATE[bot.state]}</span>
-      </header>
-      <p className="muted wa-intro">
-        The number 1Fold sends daily briefs from — use a dedicated SIM, not a personal number. This environment has its own.
-      </p>
+    <Wrap className={bare ? "wa-bot-bare" : "admin-teams"} aria-labelledby={bare ? undefined : "wa-bot-title"}>
+      {!bare && (
+        <>
+          <header className="team-header">
+            <h2 id="wa-bot-title" className="team-title">WhatsApp</h2>
+            <span className="chip sm wa-state" data-state={bot.state}>{BOT_STATE[bot.state]}</span>
+          </header>
+          <p className="muted wa-intro">
+            The number 1Fold sends daily briefs from — use a dedicated SIM, not a personal number. This environment has its own.
+          </p>
+        </>
+      )}
       {bot.request ? (
         <p className="auth-loading"><span className="auth-spinner" aria-hidden /> Waiting for the worker to {bot.request === "pair" ? "start pairing" : "log out"}…</p>
       ) : bot.state === "pairing" && bot.qr ? (
@@ -206,6 +212,6 @@ export function WhatsAppBotSettings() {
           <button type="button" className="btn btn-primary" onClick={() => void ask("pair")}><ExternalLink aria-hidden /> Connect the bot</button>
         </div>
       )}
-    </section>
+    </Wrap>
   );
 }
