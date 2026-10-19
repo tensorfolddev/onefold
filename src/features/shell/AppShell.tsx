@@ -7,7 +7,8 @@ import {
   Bell, BookOpen, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon, Plug,
   Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
-import { isSoundOn, playSound, setSoundOn } from "@/features/tickets/sounds";
+import { isSoundOn } from "@/features/tickets/sounds";
+import { SoundSettings } from "./SoundSettings";
 import { AppStateProvider, useAppState, type Theme } from "@/features/shell/state";
 import { useAuth, useMe } from "@/data/StoreProvider";
 import type { Panel } from "@/domain/types";
@@ -143,11 +144,12 @@ const THEMES: { id: Theme; label: string; icon: React.ReactNode }[] = [
 function UserMenu() {
   const { theme, setTheme } = useAppState();
   const { db, me, panel, signOut } = useMe();
-  const [sound, setSound] = useState(isSoundOn);
+  const [sounds, setSounds] = useState(false);
   const [whatsApp, setWhatsApp] = useState(false);
   const [mcp, setMcp] = useState(false);
   return (
     <>
+    {sounds && <SoundSettings onClose={() => setSounds(false)} />}
     {whatsApp && <WhatsAppDialog onClose={() => setWhatsApp(false)} />}
     {mcp && <McpDialog onClose={() => setMcp(false)} />}
     <Popover
@@ -186,12 +188,8 @@ function UserMenu() {
             </button>
           ))}
           <div className="menu-divider" />
-          <button
-            type="button" className="menu-item" role="menuitemcheckbox" aria-checked={sound}
-            onClick={() => { setSoundOn(!sound); setSound(!sound); if (!sound) playSound("drop"); }}
-          >
-            {sound ? <Volume2 /> : <VolumeX />} Sounds
-            <span className="menu-item-end">{sound ? "On" : "Off"}</span>
+          <button type="button" className="menu-item" onClick={() => { close(); setSounds(true); }}>
+            {isSoundOn() ? <Volume2 /> : <VolumeX />} Notifications &amp; sounds
           </button>
           <button type="button" className="menu-item" onClick={() => { close(); setWhatsApp(true); }}>
             <MessageCircle /> WhatsApp

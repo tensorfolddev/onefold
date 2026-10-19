@@ -1,7 +1,7 @@
 // Tiny UI sounds made with the Web Audio API — no audio files, no dependency.
 // ponytail: one shared AudioContext, created on the first sound (browsers only allow audio after a user gesture).
 
-export type Sound = "pickup" | "move" | "tick" | "drop" | "cancel" | "refuse" | "notify" | "urgent";
+export type Sound = "pickup" | "move" | "tick" | "drop" | "cancel" | "refuse"; // notifications: shell/noticeSounds.ts
 
 const KEY = "onefold.sound";
 let ctx: AudioContext | null = null;
@@ -13,7 +13,8 @@ export function setSoundOn(on: boolean) {
   try { localStorage.setItem(KEY, on ? "on" : "off"); } catch { /* private mode: stays on for this visit */ }
 }
 
-function audio() {
+/** The one shared audio engine (made on first use; browsers only allow audio after a click or key press). */
+export function audioContext() {
   ctx ??= new AudioContext();
   if (ctx.state === "suspended") void ctx.resume();
   return ctx;
@@ -26,7 +27,7 @@ function audio() {
  */
 function warmUp() {
   if (ctx || !isSoundOn()) return;
-  const run = () => { try { noiseBuffer(audio()); } catch { /* no audio: sounds just stay off */ } };
+  const run = () => { try { noiseBuffer(audioContext()); } catch { /* no audio: sounds just stay off */ } };
   if ("requestIdleCallback" in window) window.requestIdleCallback(run, { timeout: 2000 }); else setTimeout(run, 200);
 }
 if (typeof window !== "undefined") {
@@ -103,19 +104,6 @@ const SOUNDS: Record<Sound, (c: AudioContext, t: number) => void> = {
   },
   // cancelled / nothing changed: muted, short
   cancel: (c, t) => tap(c, t, { freq: 700, q: 0.9, ms: 60, volume: 0.12, type: "lowpass" }),
-  // a notice for you: a soft two-note chime, up a fifth
-  notify: (c, t) => {
-    tone(c, t, { from: 784, to: 784, ms: 260, volume: 0.09, wave: "sine" });
-    tone(c, t + 0.13, { from: 1175, to: 1175, ms: 420, volume: 0.08, wave: "sine" });
-  },
-  // an urgent (@@) one: brighter, three notes, twice — hard to miss from another tab
-  urgent: (c, t) => {
-    for (const k of [0, 0.62]) {
-      tone(c, t + k, { from: 988, to: 988, ms: 180, volume: 0.12, wave: "triangle" });
-      tone(c, t + k + 0.15, { from: 1319, to: 1319, ms: 180, volume: 0.12, wave: "triangle" });
-      tone(c, t + k + 0.3, { from: 1760, to: 1760, ms: 300, volume: 0.1, wave: "triangle" });
-    }
-  },
   // not allowed: two quick low buzzes ("uh-uh")
   refuse: (c, t) => {
     tone(c, t, { from: 150, to: 130, ms: 70, volume: 0.07, wave: "square" });
@@ -134,7 +122,7 @@ export function playSound(sound: Sound) {
     lastTick = now;
   }
   try {
-    const c = audio();
+    const c = audioContext();
     SOUNDS[sound](c, c.currentTime);
   } catch {
     // audio unavailable: silently skip, sound is decoration only

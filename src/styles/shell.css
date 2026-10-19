@@ -280,3 +280,32 @@
 html:has(body .app), body:has(.app) { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .app { height: 100dvh; overflow: hidden; }
 .work-area { overscroll-behavior: contain; }
+
+/* ---------- Account menu → Notifications & sounds ---------- */
+.snd-dialog { width: min(620px, calc(100vw - 32px)); }
+.snd-body { display: grid; gap: 18px; padding: 4px 24px 8px; max-height: min(68vh, 640px); overflow-y: auto; }
+.snd-card { border: 1px solid var(--layout-border-color); border-radius: 12px; }
+.snd-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; }
+.snd-row + .snd-row { border-top: 1px solid var(--layout-border-color); }
+.snd-row > div:first-child, .snd-section-head { display: grid; gap: 2px; }
+.snd-row > div:first-child strong, .snd-section-head strong { font-size: 15px; font-weight: 600; }
+.snd-row > div:first-child span, .snd-section-head span { font-size: 13px; color: var(--secondary-text-color); }
+.snd-row.is-off .snd-volume, .snd-section.is-off .snd-grid { opacity: 0.45; }
+.snd-volume { display: flex; align-items: center; gap: 8px; color: var(--secondary-text-color); }
+.snd-volume svg { width: 16px; height: 16px; flex: none; }
+.snd-volume input { width: 180px; accent-color: var(--primary-color); }
+.snd-section { display: grid; gap: 10px; }
+.snd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.snd-option {
+  display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border: 1px solid var(--ui-border-color); border-radius: 8px;
+  background: var(--primary-background-color); color: var(--primary-text-color); font-size: 14px; text-align: left;
+  transition: border-color var(--motion-productive-short), background var(--motion-productive-short);
+}
+.snd-option:hover:not(:disabled) { border-color: var(--primary-color); }
+.snd-option[aria-checked="true"] { border-color: var(--primary-color); background: var(--primary-selected-color); font-weight: 600; }
+.snd-option:disabled { cursor: not-allowed; }
+.snd-option.is-upload { border-style: dashed; color: var(--secondary-text-color); }
+.snd-play { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--allgrey-background-color); color: var(--secondary-text-color); }
+.snd-play svg { width: 13px; height: 13px; }
+.snd-option[aria-checked="true"] .snd-play { background: var(--primary-color); color: #fff; }
+.snd-foot { padding: 12px 24px 20px; justify-content: flex-end; }

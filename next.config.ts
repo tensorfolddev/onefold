@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
   // onefold/ lives inside the clockify repo, which has its own lockfile — pin the root here.
   turbopack: { root: path.join(__dirname) },
   poweredByHeader: false,
+  // Development only: a phone on the same Wi-Fi opens the bot's WhatsApp links (this machine's network address — see
+  // server/whatsapp/appLink.ts). Private network addresses only.
+  allowedDevOrigins: ["10.*.*.*", "192.168.*.*", "172.*.*.*"],
   async headers() {
     return [{ source: "/((?!api/(?:files|share)/).*)", headers: SECURITY_HEADERS }];
   },

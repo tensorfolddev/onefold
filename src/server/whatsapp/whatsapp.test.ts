@@ -369,3 +369,11 @@ test("every reply to a linked teammate is in Deliveries — asking for their tas
   assert.equal((await companyWhatsApp(admin)).log.find((d) => d.personId === samId)?.status, "sent");
   assert.equal(whatsapp.sent.at(-1)?.jid, SAM4);
 });
+
+test("WhatsApp links: a localhost APP_URL becomes this machine's network address (a phone can't open localhost, WhatsApp won't link it); a real domain is kept", async () => {
+  const { whatsappLinkBase } = await import("./appLink.ts");
+  assert.equal(whatsappLinkBase("http://localhost:3000/", () => "10.0.0.5"), "http://10.0.0.5:3000");
+  assert.equal(whatsappLinkBase("http://127.0.0.1:3000", () => "192.168.1.20"), "http://192.168.1.20:3000");
+  assert.equal(whatsappLinkBase("https://app.1fold.example", () => "10.0.0.5"), "https://app.1fold.example");
+  assert.equal(whatsappLinkBase("http://localhost:3000", () => null), "http://localhost:3000"); // no network: as it is
+});
