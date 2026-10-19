@@ -45,12 +45,15 @@ function TicketMenu({ ticketKey, x, y, onClose }: { ticketKey: string; x: number
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", key);
-    addEventListener("scroll", onClose, true);
+    // Closes when you scroll (wheel or touch), not on scrolls the page makes itself — e.g. bringing the row into view.
+    addEventListener("wheel", onClose, { passive: true });
+    addEventListener("touchmove", onClose, { passive: true });
     addEventListener("resize", onClose);
     return () => {
       document.removeEventListener("mousedown", away);
       document.removeEventListener("keydown", key);
-      removeEventListener("scroll", onClose, true);
+      removeEventListener("wheel", onClose);
+      removeEventListener("touchmove", onClose);
       removeEventListener("resize", onClose);
     };
   }, [onClose]);
