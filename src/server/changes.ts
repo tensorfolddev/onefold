@@ -4,7 +4,7 @@
 // links and emails them) and Undo (refused if anyone changed anything since).
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../data/db.ts";
-import { AccessError, commands, INVITE_DAYS, inviteMembers, ValidationError, type CommandName, type InviteInput } from "../domain/commands/index.ts";
+import { AccessError, commands, INVITE_DAYS, inviteMembers, setMember, ValidationError, type CommandName, type InviteInput } from "../domain/commands/index.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
 import type { Panel, Person } from "../domain/types.ts";
 import { emailInACompany, emailVerified, ONE_COMPANY, personFor, type SessionRow } from "./accounts.ts";
@@ -114,6 +114,21 @@ export async function applyComposed<K>(who: SessionRow, source: Source, run: (db
   });
   if (done.saved) await sendUrgent(who.orgId, done.saved.before, done.saved.after, done.saved.me);
   return { version: done.version, key: done.key };
+}
+
+/**
+ * Adds a teammate to a product by their email — for a personal product's owner, who doesn't see others' emails. Only
+ * people already in the company: who joins it is the admins' call (they invite).
+ */
+export async function addMemberByEmail(who: SessionRow, productKey: string, emailInput: string): Promise<{ version: number; name: string }> {
+  const email = emailInput.trim().toLowerCase();
+  if (!email.includes("@")) throw new ValidationError("Type their email address");
+  const { version, key } = await applyComposed(who, "web", (db, me) => {
+    const person = db.people.find((p) => p.email.toLowerCase() === email && p.active && p.panel);
+    if (!person) throw new ValidationError(`Nobody at ${db.org.name} uses ${email} — ask an admin to invite them first`);
+    return { db: setMember(db, me, productKey, person.id, true), key: person.name, steps: [{ name: "setMember", args: [productKey, person.id, true] }] };
+  });
+  return { version, name: key! };
 }
 
 /** Puts back the company as it was before your last undoable change — only if nobody changed anything since. */

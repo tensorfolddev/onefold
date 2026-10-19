@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { TriangleAlert, Users } from "lucide-react";
 import { useMe } from "@/data/StoreProvider";
 import { loadColor, teamLoad } from "@/domain/selectors/dashboard";
-import { isOnProduct, visibleProducts } from "@/domain/permissions";
+import { isOnProduct, companyProducts } from "@/domain/permissions";
 import { Avatar, EmptyState } from "@/ui/primitives";
 import { TeamPeople } from "@/features/home/TeamPeople";
 import Link from "next/link";
@@ -14,7 +14,7 @@ export default function TeamsPage() {
   if (panel === "developer") notFound();
   const isAdmin = can("teams.manage");
   const led = db.teams.filter((t) => t.leadId === me.id);
-  const mine = visibleProducts(me, db.products);
+  const mine = companyProducts(me, db.products);
   // Managers see the teams they lead; a manager who leads none sees the teams of people on their products.
   const teams = isAdmin ? db.teams : led.length ? led : db.teams.filter((t) =>
     db.people.some((p) => p.team === t.id && mine.some((pr) => isOnProduct(p.id, pr))));

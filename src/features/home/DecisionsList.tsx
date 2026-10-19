@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { CalendarClock, OctagonAlert } from "lucide-react";
-import { visibleProducts } from "@/domain/permissions";
+import { companyProducts } from "@/domain/permissions";
 import { useMe } from "@/data/StoreProvider";
 import { isBlocked, lateMilestones } from "@/domain/selectors/dashboard";
 
 /** "Needs a decision" widget body: slipping milestones, blocked work. */
 export function DecisionsList() {
   const { me, db, href, productByKey } = useMe();
-  const products = visibleProducts(me, db.products);
+  const products = companyProducts(me, db.products);
   const blocked = products
     .map((p) => ({ p, n: db.tickets.filter((t) => t.productKey === p.key && isBlocked(db, t)).length }))
     .filter((x) => x.n > 0);

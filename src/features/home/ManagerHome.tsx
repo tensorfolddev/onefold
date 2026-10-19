@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CalendarClock, ClipboardCheck, Hourglass, OctagonAlert } from "lucide-react";
 import { today } from "@/domain/clock";
 import { longDate } from "@/domain/status";
-import { visibleProducts } from "@/domain/permissions";
+import { companyProducts } from "@/domain/permissions";
 import { useMe } from "@/data/StoreProvider";
 import { isBlocked, isOpen, lateMilestones } from "@/domain/selectors/dashboard";
 import { EmptyState } from "@/ui/primitives";
@@ -14,7 +14,7 @@ import { ProductsTable } from "@/features/home/ProductsTable";
 /** Manager landing page: their products plus everything waiting on them. */
 export function ManagerHome() {
   const { me, db } = useMe();
-  const products = visibleProducts(me, db.products);
+  const products = companyProducts(me, db.products);
   const keys = new Set(products.map((p) => p.key));
   const atRisk = products.filter((p) => p.health === "risk").length;
   const mine = db.tickets.filter((t) => keys.has(t.productKey) && t.type !== "epic");
@@ -50,7 +50,7 @@ export function ManagerHome() {
 
 function WaitingOnMe() {
   const { me, db, href, productByKey } = useMe();
-  const products = visibleProducts(me, db.products);
+  const products = companyProducts(me, db.products);
   const requests = db.stageRequests.filter((r) => r.requestedBy === me.id);
   const late = lateMilestones(db, products.map((p) => p.key));
   const blocked = products

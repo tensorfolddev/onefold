@@ -80,6 +80,8 @@ export interface Product {
   // Archived: read-only, out of every list and everyone's work, invisible to developers — until it's restored.
   archivedAt?: string; // ISO time
   archivedBy?: string; // person id
+  /** Set = a personal product, in this person's own workspace: they run it; only they and the people they add see it. */
+  ownerId?: string;
 }
 
 export type StatusCategory = "backlog" | "todo" | "in_progress" | "done" | "cancelled";

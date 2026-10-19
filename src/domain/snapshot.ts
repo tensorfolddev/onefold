@@ -36,8 +36,10 @@ export function snapshotFor(db: Db, me: Person): Db {
   const admin = me.panel === "admin";
   // Their products, and the archived ones they may still open (never a developer: for them, archived is gone).
   const mine = new Set([...visibleProducts(me, db.products), ...archivedProducts(me, db.products)].map((p) => p.key));
-  // A developer never sees an archived ticket (or its updates); admins and managers find them in product Settings.
-  const scoped = onlyProducts(db, (p) => mine.has(p.key), (t) => me.panel !== "developer" || !t.archivedAt);
+  // A developer never sees an archived ticket (or its updates) — but in a personal product of their own, they're its
+  // owner, and find them in its Settings like admins and managers do.
+  const owned = new Set(db.products.filter((p) => p.ownerId === me.id).map((p) => p.key));
+  const scoped = onlyProducts(db, (p) => mine.has(p.key), (t) => me.panel !== "developer" || !t.archivedAt || owned.has(t.productKey));
   return {
     ...scoped,
     // Invite links are secrets: only admins see pending invites, and nobody gets the token's hash.

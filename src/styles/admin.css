@@ -221,6 +221,16 @@
 .pf-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 22px 24px 4px; }
 .pf-dialog-title { font-family: var(--title-font-family); font-size: 20px; font-weight: 500; }
 .pf-dialog-head .muted { font-size: 13px; margin-top: 2px; }
+.pf-where { display: inline-flex; align-self: flex-start; gap: 4px; margin: 12px 24px 0; padding: 4px; border-radius: 10px; background: var(--allgrey-background-color); }
+.pf-where-option {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 0; border-radius: 7px;
+  font: inherit; font-size: 14px; color: var(--secondary-text-color); background: transparent; cursor: pointer;
+  transition: background var(--motion-productive-short) var(--motion-timing-transition), color var(--motion-productive-short) var(--motion-timing-transition);
+}
+.pf-where-option svg { width: 16px; height: 16px; }
+.pf-where-option:hover { color: var(--primary-text-color); }
+.pf-where-option.is-on { color: var(--primary-text-color); background: var(--primary-background-color); box-shadow: var(--box-shadow-xs, 0 1px 2px rgb(0 0 0 / 0.08)); font-weight: 500; }
+.pf-where-option:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
 .pf.is-dialog { flex: 1; min-height: 0; }
 .pf.is-dialog .pf-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 24px 24px; }
 .pf.is-dialog .pf-foot { padding: 14px 24px; border-top: 1px solid var(--layout-border-color); background: var(--primary-background-color); }

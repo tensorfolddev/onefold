@@ -4,12 +4,13 @@
 //   POST /api/org/password  { personId, password }                    — your password, or (admins) a teammate's
 //   POST /api/org/invites   { invites: [{ email, panel, role? }] }    — make invite links (emailed, and shown once)
 //   POST /api/org/verify-email                                        — email me a new "confirm your email" link
+//   POST /api/org/member-by-email { productKey, email }               — add a teammate to a product by their email
 //   GET  /api/org/events                                              — live updates (server-sent events): versions, doc saves, doc presence
 import type { NextRequest } from "next/server";
 import type { InviteInput } from "@/domain/commands";
 import { sendVerification, setPassword } from "@/server/accounts";
 import { limit, MINUTE } from "@/server/auth/rateLimit";
-import { applySteps, createInvites, undoLast, viewFor, type Step } from "@/server/changes";
+import { addMemberByEmail, applySteps, createInvites, undoLast, viewFor, type Step } from "@/server/changes";
 import { subscribe } from "@/server/events";
 import { appUrl, handle, ok, readBody, refuse, requireSession, str } from "@/server/http";
 
@@ -30,6 +31,11 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/org/[action
     if (action === "invites") {
       const b = await readBody(req, 64 * 1024);
       return ok(await createInvites(who, b.invites as InviteInput[], appUrl(req)));
+    }
+    if (action === "member-by-email") {
+      limit(`member-by-email:${who.userId}`, 30, 15 * MINUTE); // it says whether an email is in the company
+      const b = await readBody(req, 4 * 1024);
+      return ok(await addMemberByEmail(who, str(b.productKey, 10), str(b.email, 200)));
     }
     if (action === "verify-email") {
       limit(`verify-email:${who.userId}`, 3, 15 * MINUTE);

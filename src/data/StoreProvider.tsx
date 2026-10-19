@@ -51,6 +51,8 @@ export interface Store extends Lookups {
   uploadImage: (ticketKey: string, file: Blob, name: string) => Promise<string | null>;
   /** Makes a doc (and its first body) after any changes still on their way. Resolves to its id, or null (said in a toast). */
   createDoc: (input: NewDocInput) => Promise<string | null>;
+  /** Adds someone already in the company to a product by their email. Resolves to their name, or null (said in a toast). */
+  addMemberByEmail: (productKey: string, email: string) => Promise<string | null>;
 }
 
 export interface NewDocInput { title: string; productKey?: string; parentId?: string; groupId?: string; template?: string; icon?: string; body?: string; personal?: boolean }
@@ -181,6 +183,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [refreshOrSay, toast]);
 
   const undo = useCallback(() => send("/api/org/undo", {}), [send]);
+
+  // In the queue too: a product made a moment ago is on the server before someone's added to it.
+  const addMemberByEmail = useCallback((productKey: string, email: string) => {
+    const done = queue.current.then(async () => {
+      try {
+        const { name } = await api<{ name: string }>("/api/org/member-by-email", { productKey, email });
+        await refreshOrSay();
+        return name;
+      } catch (e) {
+        toast(message(e), undefined, "error");
+        return null;
+      }
+    });
+    queue.current = done.then(() => undefined);
+    return done;
+  }, [refreshOrSay, toast]);
 
   // In the same queue as changes, so an image added to a ticket made a moment ago arrives after that ticket.
   const createDoc = useCallback((input: NewDocInput) => {
@@ -331,8 +349,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       href: (path: string) => `/${PANEL_SLUG[view.panel]}${path}`,
       can: (action, ctx = {}) => canFor(me, action, ctx),
       run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification, uploadImage, createDoc,
+      addMemberByEmail,
     };
-  }, [view, live, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage, createDoc]);
+  }, [view, live, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage, createDoc, addMemberByEmail]);
 
   return (
     <StoreCtx.Provider value={{ store, auth }}>

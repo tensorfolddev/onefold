@@ -79,6 +79,9 @@
   font-size: 14px; text-align: left;
 }
 .sidebar-switcher:hover { background: var(--primary-background-hover-color); }
+.sidebar-personal { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--layout-border-color); }
+.sidebar-personal .sidebar-switcher { margin-bottom: 8px; }
+.sidebar-personal .sidebar-add-group { text-decoration: none; }
 .sidebar-section { margin-top: 16px; padding: 0 8px 4px; font-size: 14px; font-weight: 500; }
 .sidebar-item {
   display: flex; align-items: center; gap: 10px;

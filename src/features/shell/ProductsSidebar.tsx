@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { Archive, ArchiveRestore, Check, ChevronDown, FolderInput, FolderMinus, LayoutGrid, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
-import { archivedProducts, visibleProducts } from "@/domain/permissions";
+import { archivedProducts, companyProducts, personalProducts } from "@/domain/permissions";
 import { addGroup, deleteGroup, moveProduct, renameGroup } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Product, ProductGroup } from "@/domain/types";
 import { DeleteProductDialog, useArchive } from "@/features/products/ArchiveControls";
 import { Popover } from "@/ui/Popover";
-import { ProductTile } from "@/ui/primitives";
+import { Avatar, ProductTile } from "@/ui/primitives";
 
 /** Small inline name box used for "new group / rename": Enter saves, Escape cancels. */
 export function InlineName({ initial = "", label, onSave, onCancel }: {
@@ -189,13 +189,32 @@ function ArchivedRow({ product, active, onNavigate }: { product: Product; active
 
 const ARCHIVED = "archived";
 
+/** Your own workspace, under the company's: you, then the personal products you're on. */
+function PersonalWorkspace({ products, item, onNavigate }: { products: Product[]; item: (p: Product) => React.ReactNode; onNavigate: () => void }) {
+  const { me, href } = useMe();
+  return (
+    <section className="sidebar-personal" aria-label="Personal">
+      <div className="sidebar-header"><span>Personal</span></div>
+      <div className="sidebar-switcher">
+        <Avatar personId={me.id} size="sm" />
+        <span className="workspace-name">My workspace</span>
+      </div>
+      {products.map(item)}
+      <Link href={href("/products?new=personal")} scroll={false} onClick={onNavigate} className="sidebar-add-group">
+        <Plus aria-hidden /> New personal product
+      </Link>
+    </section>
+  );
+}
+
 /**
- * Company → groups → products, then the permanent Archived group (closed until opened; never shown to developers).
- * Groups are whatever the team wants (client/internal, by team, by quarter…).
+ * Company → groups → products; then your Personal workspace; then the permanent Archived group (closed until opened;
+ * a developer sees it only for personal products of their own). Groups are whatever the team wants.
  */
 export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: () => void }) {
   const { me, db, href, can, act } = useMe();
-  const products = visibleProducts(me, db.products);
+  const products = companyProducts(me, db.products);
+  const personal = personalProducts(me, db.products);
   const archived = archivedProducts(me, db.products);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set([ARCHIVED]));
   const [adding, setAdding] = useState(false);
@@ -242,7 +261,8 @@ export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: 
       ) : (
         <button type="button" className="sidebar-add-group" onClick={() => setAdding(true)}><Plus aria-hidden /> New group</button>
       ))}
-      {me.panel !== "developer" && (
+      <PersonalWorkspace products={personal} item={item} onNavigate={onNavigate} />
+      {(me.panel !== "developer" || archived.length > 0) && (
         <GroupSection group={null} label="Archived" empty="Nothing archived" className="sidebar-archived" products={archived}
           collapsed={collapsed.has(ARCHIVED)} onToggle={() => toggle(ARCHIVED)}
           item={(p) => <ArchivedRow key={p.key} product={p} active={isActive(p)} onNavigate={onNavigate} />} />
