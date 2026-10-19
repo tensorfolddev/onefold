@@ -2,12 +2,13 @@
 
 // The integrations 1Fold has — what each is, who it's for, what it does (as monday-style recipes) — and whether each
 // is connected right now, for the person looking.
-import { Bot, MessageCircle, Sparkles, type LucideIcon } from "lucide-react";
+import { Bot, Mail, MessageCircle, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/data/api";
+import { useMe } from "@/data/StoreProvider";
 import { useWhatsApp } from "@/features/whatsapp/WhatsApp";
 
-export type AppId = "claude" | "whatsapp" | "team-bot";
+export type AppId = "claude" | "whatsapp" | "team-bot" | "email";
 export type Category = "AI" | "Communication" | "For your company";
 
 /** A recipe: a sentence with its moving parts in bold — what the integration does, said the way a person would. */
@@ -65,6 +66,23 @@ export const APPS: App[] = [
     steps: ["Set up the bot: scan its code with your company's phone.", "Teammates link their own WhatsApp from Integrations → WhatsApp.", "Set the brief, the reply words and the templates — here."],
     worksWith: "WhatsApp (linked device)",
   },
+  {
+    id: "email", name: "Email", category: "Communication", icon: Mail, tile: "is-email", adminOnly: true,
+    tagline: "Invites, password resets and the brief by email — sent through Resend.",
+    about: "1Fold sends email through Resend: invite links, password resets, email confirmations, the daily brief when WhatsApp is down, and an alert to platform admins when the bot is logged out. Its API key is set on the server, never in a page.",
+    recipes: [
+      ["When someone's ", { b: "invited" }, ", email them ", { b: "their invite link" }],
+      ["When someone ", { b: "forgets their password" }, ", email ", { b: "a reset link" }],
+      ["When WhatsApp is down, send the daily brief ", { b: "by email" }],
+      ["When the bot is ", { b: "logged out" }, ", email ", { b: "the platform admins" }],
+    ],
+    steps: [
+      "Create an API key at resend.com, and verify the domain you'll send from.",
+      "On the server, set RESEND_API_KEY — and EMAIL_FROM, like \"1Fold <hello@yourcompany.com>\" — then restart 1Fold.",
+      "Send yourself a test email from here.",
+    ],
+    worksWith: "Resend",
+  },
 ];
 
 export const CATEGORIES: Category[] = ["AI", "Communication", "For your company"];
@@ -74,8 +92,26 @@ export interface AppStatus { connected: boolean; label: string }
 
 /** Whether each integration is connected for the person looking: Claude (a token of theirs), their WhatsApp (linked),
  * the bot (connected). Statuses not known yet read "Checking…". */
+export interface EmailStatus { mode: "resend" | "outbox" | "off"; from: string }
+
+/** How email is set up here (admins only), or null while it's being asked. */
+export function useEmailStatus(): EmailStatus | null {
+  const { panel } = useMe();
+  const [status, setStatus] = useState<EmailStatus | null>(null);
+  useEffect(() => {
+    if (panel !== "admin") return;
+    let live = true;
+    api<EmailStatus>("/api/email/status").then((s) => { if (live) setStatus(s); }).catch(() => { if (live) setStatus({ mode: "off", from: "" }); });
+    return () => { live = false; };
+  }, [panel]);
+  return status;
+}
+
+export const emailLabel = (e: EmailStatus) => (e.mode === "resend" ? `Sending as ${e.from}` : e.mode === "outbox" ? "Test inbox (development)" : "Not set up");
+
 export function useAppStatuses(): Record<AppId, AppStatus> {
   const { status } = useWhatsApp(30_000);
+  const email = useEmailStatus();
   const [tokens, setTokens] = useState<number | null>(null);
   useEffect(() => {
     let live = true;
@@ -89,6 +125,7 @@ export function useAppStatuses(): Record<AppId, AppStatus> {
     whatsapp: !status ? checking : status.me.linked ? { connected: true, label: `Linked · +${status.me.linked.phone}` } : { connected: false, label: "Not linked" },
     // Connected once the company's own number is: until then it's 1FOLD's bot, and there's something to set up.
     "team-bot": bot?.own && bot.state === "connected" ? { connected: true, label: `Connected · +${bot.phone ?? ""}` } : { connected: false, label: "" },
+    email: !email ? checking : { connected: email.mode === "resend", label: emailLabel(email) },
   };
 }
 
