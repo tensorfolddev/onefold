@@ -4,7 +4,7 @@
 // job title, access, and what they carry here (open and done). Search them; add someone (searchable); remove a
 // member (Undo in the toast). Leads change in Settings → General.
 import { notFound } from "next/navigation";
-import { Search, UserMinus, UserPlus, Users } from "lucide-react";
+import { Mail, Search, UserMinus, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { isOnProduct } from "@/domain/permissions";
 import { projectOverview } from "@/domain/selectors/overview";
@@ -16,6 +16,7 @@ import { Popover } from "@/ui/Popover";
 import { PANEL_LABEL } from "@/features/shell/AppShell";
 
 const FULL_LOAD = 8; // open tickets for a full bar: plenty on their plate
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const has = (p: Person, q: string) => `${p.name} ${p.role} ${p.email}`.toLowerCase().includes(q);
 
 function PersonCard({ person, lead, load, onRemove }: { person: Person; lead?: string; load?: { open: number; done: number }; onRemove?: () => void }) {
@@ -42,10 +43,14 @@ function PersonCard({ person, lead, load, onRemove }: { person: Person; lead?: s
   );
 }
 
-function AddMember({ candidates, projectName, onAdd }: { candidates: Person[]; projectName: string; onAdd: (p: Person) => void }) {
+/** Add someone: search the company by name — or type a teammate's email (`onAddEmail`), since not everyone sees emails. */
+function AddMember({ candidates, projectName, onAdd, onAddEmail }: {
+  candidates: Person[]; projectName: string; onAdd: (p: Person) => void; onAddEmail: (email: string) => void;
+}) {
   const [q, setQ] = useState("");
   const needle = q.trim().toLowerCase();
   const shown = candidates.filter((p) => !needle || has(p, needle));
+  const email = EMAIL_RE.test(needle) && !shown.some((p) => p.email.toLowerCase() === needle) ? needle : null;
   return (
     <Popover align="right" width={300} className="admin-picker member-picker" trigger={({ open, toggle }) => (
       <button type="button" className="btn btn-primary" aria-haspopup="menu" aria-expanded={open} onClick={() => { setQ(""); toggle(); }}>
@@ -54,7 +59,7 @@ function AddMember({ candidates, projectName, onAdd }: { candidates: Person[]; p
     )}>
       {(close) => (
         <>
-          <label className="input member-picker-search"><input autoFocus placeholder="Search people" aria-label="Search people to add" value={q} onChange={(e) => setQ(e.target.value)} /></label>
+          <label className="input member-picker-search"><input autoFocus placeholder="Name or email" aria-label="Search people to add" value={q} onChange={(e) => setQ(e.target.value)} /></label>
           <div className="menu-section-label">Add to {projectName}</div>
           <div className="member-picker-list">
             {shown.map((p) => (
@@ -64,7 +69,12 @@ function AddMember({ candidates, projectName, onAdd }: { candidates: Person[]; p
                 <span className="menu-item-end">{p.role}</span>
               </button>
             ))}
-            {!shown.length && <p className="member-picker-empty">Nobody matches “{q}”</p>}
+            {email && (
+              <button type="button" role="menuitem" className="menu-item" onClick={() => { onAddEmail(email); close(); }}>
+                <Mail aria-hidden /><span className="member-picker-name">Add {email}</span>
+              </button>
+            )}
+            {!shown.length && !email && <p className="member-picker-empty">Nobody matches “{q}” — or type their email</p>}
           </div>
         </>
       )}
@@ -73,7 +83,7 @@ function AddMember({ candidates, projectName, onAdd }: { candidates: Person[]; p
 }
 
 export function MembersList({ productKey }: { productKey: string }) {
-  const { db, can, act, productByKey, personById } = useMe();
+  const { db, can, act, productByKey, personById, addMemberByEmail, toast } = useMe();
   const [q, setQ] = useState("");
   const product = productByKey(productKey);
   if (!product) notFound(); // ProductSpace already 404s; this narrows the type
@@ -98,7 +108,9 @@ export function MembersList({ productKey }: { productKey: string }) {
       <header className="members-head">
         <div>
           <h2 id="members-title" className="members-title">Members <span className="muted">{total}</span></h2>
-          <p className="members-sub">Everyone who can open {product.name}. Admins see every project.</p>
+          <p className="members-sub">{product.ownerId
+            ? <>Everyone who can open {product.name} — it&apos;s personal: nobody else sees it, not even admins.</>
+            : <>Everyone who can open {product.name}. Admins see every project.</>}</p>
         </div>
         <div className="members-actions">
           {members.length > 3 && (
@@ -107,7 +119,10 @@ export function MembersList({ productKey }: { productKey: string }) {
               <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members" aria-label="Search members" />
             </label>
           )}
-          {candidates.length > 0 && <AddMember candidates={candidates} projectName={product.name} onAdd={(p) => toggle(p, true)} />}
+          {can("members.edit", { product }) && (
+            <AddMember candidates={candidates} projectName={product.name} onAdd={(p) => toggle(p, true)}
+              onAddEmail={(email) => void addMemberByEmail(product.key, email).then((name) => name && toast(`Added ${name}`, undefined, "success"))} />
+          )}
         </div>
       </header>
 

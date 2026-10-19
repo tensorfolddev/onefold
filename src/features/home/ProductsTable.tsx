@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { visibleProducts } from "@/domain/permissions";
+import { companyProducts } from "@/domain/permissions";
 import { useMe } from "@/data/StoreProvider";
 import { donePct, nextMilestone } from "@/domain/selectors/dashboard";
 import { shortDate } from "@/domain/status";
@@ -33,7 +33,7 @@ export function ProductsTable() {
         </tr>
       </thead>
       <tbody>
-        {visibleProducts(me, db.products).map((p) => {
+        {companyProducts(me, db.products).map((p) => {
           const m = nextMilestone(db, p.key);
           return (
             <tr key={p.key} className="dash-row">

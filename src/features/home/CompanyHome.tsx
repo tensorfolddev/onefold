@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
-import { visibleProducts } from "@/domain/permissions";
+import { companyProducts } from "@/domain/permissions";
 import { useMe } from "@/data/StoreProvider";
 import { today } from "@/domain/clock";
 import { isBlocked, isOpen, lateMilestones } from "@/domain/selectors/dashboard";
@@ -16,7 +16,7 @@ import { DonutChart } from "@/features/home/DonutChart";
 
 export function CompanyHome() {
   const { me, db, panel } = useMe();
-  const products = visibleProducts(me, db.products);
+  const products = companyProducts(me, db.products);
   const keys = products.map((p) => p.key);
   const clients = products.filter((p) => p.type === "client").length;
   const atRisk = products.filter((p) => p.health === "risk").length;
@@ -61,7 +61,7 @@ export function CompanyHome() {
 function GetStarted() {
   const { db, me, href } = useMe();
   const [inviting, setInviting] = useState(false);
-  const live = visibleProducts(me, db.products); // archived ones don't count
+  const live = companyProducts(me, db.products); // archived ones don't count
   const first = live[0];
   const steps = [
     { title: "Create your company", text: `${db.org.name} is set up, with you as its admin.`, done: true },

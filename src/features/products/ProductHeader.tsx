@@ -3,7 +3,7 @@
 import { notFound, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Building2, House, Pencil, Settings as SettingsIcon } from "lucide-react";
+import { Building2, House, Lock, Pencil, Settings as SettingsIcon } from "lucide-react";
 import { Popover } from "@/ui/Popover";
 import { useMe } from "@/data/StoreProvider";
 import { ArchivedBanner } from "./ArchiveControls";
@@ -34,7 +34,7 @@ const ProductIconPicker = dynamic(() => import("./ProductIconPicker"), {
 });
 
 export function ProductHeader({ product }: { product: Product }) {
-  const { personById, can, href } = useMe();
+  const { me, personById, can, href } = useMe();
   const pathname = usePathname();
   const settings = href(`/products/${product.key}/settings`);
   const onSettings = pathname.startsWith(settings);
@@ -66,6 +66,11 @@ export function ProductHeader({ product }: { product: Product }) {
             {product.type === "client" ? <Building2 aria-hidden /> : <House aria-hidden />}
             {product.type === "client" ? product.client : "Internal"}
           </span>
+          {product.ownerId && (
+            <span className="chip sm" title="Only the people on it can open it">
+              <Lock aria-hidden /> Personal{product.ownerId !== me.id && ` · ${personById(product.ownerId)?.name ?? ""}`}
+            </span>
+          )}
         </div>
         <p className="product-description">{product.description}</p>
         <div className="product-people">
@@ -74,9 +79,11 @@ export function ProductHeader({ product }: { product: Product }) {
             {team.length > SHOWN_PEOPLE && <span className="product-team-more" data-tip={team.slice(SHOWN_PEOPLE).map((p) => p.name).join(", ")}>+{team.length - SHOWN_PEOPLE}</span>}
           </Link>
           <span className="muted">
+            {product.ownerId ? <>Run by <strong className="product-lead">{personById(product.ownerId)?.name}</strong></> : <>
             {projectManager && <>Project manager <strong className="product-lead">{projectManager.name}</strong></>}
             {pm && pm.id !== projectManager?.id && <> · PM <strong className="product-lead">{pm.name}</strong></>}
             {pm && pm.id === projectManager?.id && <> · also PM</>}
+            </>}
             {" · "}{team.length} {team.length === 1 ? "person" : "people"}
           </span>
         </div>

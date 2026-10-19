@@ -891,6 +891,52 @@ test("members: leads up top, the team as cards with what they carry; add someone
   await expect(page.getByText("Only the leads so far")).toBeVisible();
 });
 
+test("personal workspace: a developer makes their own product and adds a teammate by email; nobody else sees it", async ({ page, browser }) => {
+  await signUp(page, "Phi", email("phi"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("phidev"));
+  await confirmEmail(page, email("phi"));
+  await page.getByRole("button", { name: "Create invite links" }).click();
+  const link = (await page.locator(".inv-link-url").first().textContent())!;
+  await page.getByRole("button", { name: "Go to Phi" }).click();
+  const dev = await freshPage(browser);
+  await dev.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
+  await dev.goto(link);
+  await dev.getByLabel("Full name").fill("Pia Dev");
+  await dev.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await dev.getByRole("button", { name: "Join Phi" }).click();
+  await expect(dev).toHaveURL(/\/dev$/, { timeout: 20_000 });
+
+  await dev.goto("/dev/products");
+  await dev.locator(".page-header").getByRole("link", { name: "New personal product" }).click();
+  const form = dev.getByRole("dialog", { name: "New personal product" });
+  await form.getByPlaceholder("Product name").fill("Side Quest");
+  await form.getByText("Our own product").click();
+  await expect(form.getByText("Product manager")).toHaveCount(0); // its owner runs it
+  await form.getByRole("button", { name: "Create product" }).click();
+  await expect(dev).toHaveURL(/\/dev\/products\/SQ$/);
+  await expect(dev.locator(".product-header")).toContainText("Personal");
+  await expect(dev.locator(".sidebar-personal")).toContainText("Side Quest");
+  await expect(dev.getByRole("link", { name: "Settings" })).toBeVisible(); // a developer, running their own
+
+  await page.goto("/admin/products/SQ"); // the admin doesn't see it
+  await expect(page.getByText(/could not be found/i)).toBeVisible();
+
+  await dev.goto("/dev/products/SQ/members");
+  await dev.getByRole("button", { name: "Add member" }).click();
+  await dev.getByLabel("Search people to add").fill("someone@elsewhere.example");
+  await dev.getByRole("menuitem", { name: "Add someone@elsewhere.example" }).click();
+  await expect(dev.locator(".toast-message", { hasText: /ask an admin to invite them first/ })).toBeVisible();
+  await dev.getByRole("button", { name: "Add member" }).click();
+  await dev.getByLabel("Search people to add").fill(email("phi")); // she can't see emails: the server finds who it is
+  await dev.getByRole("menuitem", { name: `Add ${email("phi")}` }).click();
+  await expect(dev.locator(".toast-message", { hasText: "Added Ayla Khan" })).toBeVisible();
+
+  await page.goto("/admin/products/SQ");
+  await expect(page.getByRole("heading", { name: "Side Quest", level: 1 })).toBeVisible();
+  await expect(page.locator(".sidebar-personal")).toContainText("Side Quest");
+  await expect(page.locator(".product-header").getByRole("link", { name: "Settings" })).toHaveCount(0); // added, not running it
+});
+
 test("notifications: an @mention in an update reaches them live; @@ is urgent; being assigned tells them; read stays read", async ({ page, browser }) => {
   await signUp(page, "Kappa", email("kappa"));
   await page.getByLabel("Email 1", { exact: true }).fill(email("kadev"));

@@ -118,6 +118,7 @@ export const products = pgTable("products", {
   createdAt: day("created_at").notNull(),
   archivedAt: ts("archived_at"), // set = archived: read-only, hidden from developers
   archivedBy: text("archived_by"),
+  ownerId: text("owner_id"), // set = a personal product, in this member's own workspace
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 
