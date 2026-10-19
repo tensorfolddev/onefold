@@ -174,3 +174,17 @@ test("decisions: a body you write freely (Markdown); its first words become the 
   const { plainSummary } = await import("./docs.ts");
   assert.equal(plainSummary("Ship **now**, _not_ later; keep `snake_case` and ~~old~~ words."), "Ship now, not later; keep snake_case and old words.");
 });
+
+test("@@ mentions are urgent: in a decision's text (told again, urgently, even if mentioned before) and in a doc", async () => {
+  const { addDecision, updateDecision, notifyDocMentions } = await import("./docs.ts");
+  let db = addDecision(db0, lead, "AP", { title: "Pick a host", body: `Ask [@${sara.name}](mention:${sara.id})` }, "dec-u");
+  const notices = (d: typeof db) => d.notifications.filter((n) => n.personId === sara.id && !db0.notifications.some((o) => o.id === n.id));
+  assert.deepEqual(notices(db).map((n) => !!n.urgent), [false]);
+  db = updateDecision(db, lead, "dec-u", { body: `Ask [@@${sara.name}](mention:${sara.id}) today` });
+  assert.deepEqual(notices(db).map((n) => !!n.urgent), [true, false]); // newest first
+  db = updateDecision(db, lead, "dec-u", { body: `Ask [@@${sara.name}](mention:${sara.id}) today!` });
+  assert.equal(notices(db).length, 2); // still urgent: not told again
+  const docId = db0.docs.find((d) => d.productKey === "AP" && !d.archivedAt)!.id;
+  const told = notifyDocMentions(db0, lead, docId, [], [sara.id]).notifications[0];
+  assert.deepEqual([told.personId, told.urgent], [sara.id, true]);
+});

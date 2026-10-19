@@ -84,7 +84,14 @@ test("mentions, ticket and doc chips, and link cards keep their Markdown; ordina
   assert.match(types, /"type":"ref"/);
   assert.match(types, /"type":"linkCard"/);
   assert.deepEqual(refsIn("[@A](mention:u-a) [@A](mention:u-a) [X-1](ticket:X-1) [D](doc:d1)\n\n```\n[@B](mention:u-b)\n```\n`[@C](mention:u-c)`"),
-    { people: ["u-a"], tickets: ["X-1"], docs: ["d1"] });
+    { people: ["u-a"], tickets: ["X-1"], docs: ["d1"], urgent: [] });
+});
+
+test("an urgent @@mention keeps its Markdown, and the link index knows who's urgently mentioned", async () => {
+  const { refsIn } = await import("./links.ts");
+  assert.equal(roundTrip("Please [@@Hina Raza](mention:u-hina), today"), "Please [@@Hina Raza](mention:u-hina), today");
+  assert.match(JSON.stringify(toDocJson("[@@Hina](mention:u-hina)")), /"urgent":true/);
+  assert.deepEqual(refsIn("[@A](mention:u-a) [@@B](mention:u-b)"), { people: ["u-a", "u-b"], tickets: [], docs: [], urgent: ["u-b"] });
 });
 
 test("images (with their width), file cards and coloured tables keep their Markdown", () => {

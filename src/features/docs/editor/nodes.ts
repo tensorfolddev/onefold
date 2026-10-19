@@ -1,12 +1,12 @@
 // The connected bits of a doc, each with a Markdown form that reads well anywhere:
-//   mention   [@Hina Raza](mention:<personId>)      — notifies the person (phase 2)
+//   mention   [@Hina Raza](mention:<personId>)      — notifies the person; [@@Hina Raza](…) is urgent (also WhatsApp)
 //   ref       [EN-12](ticket:EN-12) · [Spec](doc:<id>) — a live chip for a ticket or a doc
 //   linkCard  <https://example.com>  (alone on a line) — a preview card for a web page
 // The browser draws them with React node views (Chips.tsx); here they're plain, so Markdown works without a DOM.
 import { mergeAttributes, Node, type JSONContent } from "@tiptap/core";
 import { lineStart, safeHref } from "./links.ts";
 
-const MENTION = /^\[@([^\]\n]*)\]\(mention:([^)\s]+)\)/;
+const MENTION = /^\[@(@?)([^\]\n]*)\]\(mention:([^)\s]+)\)/;
 const REF = /^\[([^\]\n]+)\]\((ticket|doc):([^)\s]+)\)/;
 const CARD = /^<(https?:\/\/[^>\s]+)>[ \t]*(?:\n|$)/;
 const label = (s: unknown) => String(s ?? "").replace(/[[\]\n]/g, "").trim();
@@ -18,24 +18,30 @@ export const Mention = Node.create({
   atom: true,
   selectable: true,
   addAttributes() {
-    return { id: { default: "" }, label: { default: "" } };
+    return { id: { default: "" }, label: { default: "" }, urgent: { default: false } };
   },
-  parseHTML() { return [{ tag: "span[data-mention]", getAttrs: (el) => ({ id: (el as HTMLElement).dataset.mention, label: (el as HTMLElement).textContent?.replace(/^@/, "") }) }]; },
+  parseHTML() {
+    return [{ tag: "span[data-mention]", getAttrs: (el) => ({
+      id: (el as HTMLElement).dataset.mention, label: (el as HTMLElement).textContent?.replace(/^@@?/, ""), urgent: (el as HTMLElement).dataset.urgent === "true",
+    }) }];
+  },
   renderHTML({ node, HTMLAttributes }) {
-    return ["span", mergeAttributes(HTMLAttributes, { "data-mention": node.attrs.id, class: "doc-mention" }), `@${node.attrs.label}`];
+    const urgent = !!node.attrs.urgent;
+    return ["span", mergeAttributes(HTMLAttributes, { "data-mention": node.attrs.id, "data-urgent": String(urgent), class: `doc-mention${urgent ? " is-urgent" : ""}` }),
+      `${urgent ? "@@" : "@"}${node.attrs.label}`];
   },
-  renderText: ({ node }) => `@${node.attrs.label}`,
+  renderText: ({ node }) => `${node.attrs.urgent ? "@@" : "@"}${node.attrs.label}`,
   markdownTokenizer: {
     name: "mention",
     level: "inline",
     start: (src: string) => src.search(/\[@[^\]\n]*\]\(mention:/),
     tokenize(src) {
       const m = MENTION.exec(src);
-      return m ? { type: "mention", raw: m[0], label: m[1], id: m[2] } : undefined;
+      return m ? { type: "mention", raw: m[0], urgent: m[1] === "@", label: m[2], id: m[3] } : undefined;
     },
   },
-  parseMarkdown: (token, h) => h.createNode("mention", { id: token.id, label: token.label }),
-  renderMarkdown: (node: JSONContent) => `[@${label(node.attrs?.label)}](mention:${node.attrs?.id})`,
+  parseMarkdown: (token, h) => h.createNode("mention", { id: token.id, label: token.label, urgent: !!token.urgent }),
+  renderMarkdown: (node: JSONContent) => `[@${node.attrs?.urgent ? "@" : ""}${label(node.attrs?.label)}](mention:${node.attrs?.id})`,
 });
 
 export const Ref = Node.create({

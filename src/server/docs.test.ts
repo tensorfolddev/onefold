@@ -173,17 +173,20 @@ test("history: every save is a version with who and when; restoring keeps what i
   await assert.rejects(listVersions(lee, made.id), /not found/);
 });
 
-test("a mention also goes to the person's linked WhatsApp, once", async () => {
+test("only an urgent @@mention in a doc goes to the person's linked WhatsApp — once; a normal one stays in the app", async () => {
   const { sendOutbox } = await import("./whatsapp/outbox.ts");
   const view = await viewFor(admin);
   const aylaId = view.meId;
   await pg.asOwner("insert into whatsapp_links (org_id, member_id, user_id, jid, phone) values ($1, $2, $3, $4, $5)", [admin.orgId, aylaId, admin.userId, "923001234567@s.whatsapp.net", "923001234567"]);
   const made = await createDoc(sam, { productKey: "DC", title: "Launch plan" });
-  await saveBody(sam, made.id, { body: `Over to [@Ayla Khan](mention:${aylaId})`, baseRev: 1 });
   const sent: { jid: string; text: string }[] = [];
-  const run = await sendOutbox({ send: async (jid, text) => { sent.push({ jid, text }); } });
-  assert.deepEqual(run, { sent: 1, failed: 0 });
+  const send = { send: async (jid: string, text: string) => { sent.push({ jid, text }); } };
+  const r1 = await saveBody(sam, made.id, { body: `Over to [@Ayla Khan](mention:${aylaId})`, baseRev: 1 });
+  assert.equal(await sendOutbox(send), undefined, "a normal mention: nothing on WhatsApp");
+  const r2 = await saveBody(sam, made.id, { body: `Over to [@@Ayla Khan](mention:${aylaId}) — today please`, baseRev: r1.rev });
+  assert.deepEqual(await sendOutbox(send), { sent: 1, failed: 0 });
   assert.equal(sent[0].jid, "923001234567@s.whatsapp.net");
-  assert.match(sent[0].text, /Sam Dev\* mentioned you in \*Launch plan\* \(Docs\)/);
-  assert.equal(await sendOutbox({ send: async () => {} }), undefined, "nothing left to send");
+  assert.match(sent[0].text, /🚨 \*Sam Dev\* needs you\nThey mentioned you in \*Launch plan\*/);
+  await saveBody(sam, made.id, { body: `Over to [@@Ayla Khan](mention:${aylaId}) — today please!`, baseRev: r2.rev });
+  assert.equal(await sendOutbox(send), undefined, "still urgent: not sent again");
 });

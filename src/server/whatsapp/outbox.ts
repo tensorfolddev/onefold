@@ -1,7 +1,7 @@
-// Alerts the bot sends on someone's linked WhatsApp — e.g. "Ayla mentioned you in Design spec" — within seconds:
-// the app queues them (here), the worker sends them (sendOutbox, every few seconds). People without a linked number
-// get nothing here (they still have the in-app notification).
-import { and, asc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+// Alerts the bot sends on someone's linked WhatsApp — e.g. "Ayla needs you: mentioned you in CH-1" — within seconds:
+// the app queues them (urgent.ts), the worker sends them (sendOutbox, every few seconds). People without a linked
+// number get nothing here (they still have the in-app notification).
+import { and, asc, eq, isNull, lt, sql } from "drizzle-orm";
 import { database } from "../db/client.ts";
 import * as s from "../db/schema.ts";
 
@@ -9,21 +9,6 @@ const MAX_ATTEMPTS = 5;
 const BATCH = 20;
 
 export interface Sender { send: (jid: string, text: string) => Promise<void> }
-
-/** Queues "<actor> mentioned you in <doc>" for each person who has linked WhatsApp. */
-export async function queueMentionAlerts(input: {
-  orgId: string; memberIds: string[]; actor: string; docId: string; docTitle: string; space: string; appUrl?: string;
-}): Promise<number> {
-  if (!input.memberIds.length) return 0;
-  const db = database();
-  const links = await db.select({ jid: s.whatsappLinks.jid }).from(s.whatsappLinks)
-    .where(and(eq(s.whatsappLinks.orgId, input.orgId), inArray(s.whatsappLinks.memberId, input.memberIds)));
-  if (!links.length) return 0;
-  const url = `${(input.appUrl ?? process.env.APP_URL ?? "").replace(/\/$/, "")}/d/${input.docId}`;
-  const text = `🔔 *${input.actor}* mentioned you in *${input.docTitle}* (${input.space})\n${url}`;
-  await db.insert(s.whatsappOutbox).values(links.map((l) => ({ jid: l.jid, text })));
-  return links.length;
-}
 
 /** Sends what's waiting, oldest first; a failure is retried on the next run, up to 5 times. */
 export async function sendOutbox(whatsapp: Sender): Promise<{ sent: number; failed: number } | undefined> {

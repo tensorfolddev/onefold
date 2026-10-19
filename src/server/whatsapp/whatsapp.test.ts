@@ -175,6 +175,22 @@ test("the brief is the team's template: Sam's pending tickets by project, soones
   ].join("\n"));
 });
 
+test("an urgent @@mention goes to their WhatsApp with the message and a link; a normal @mention stays in the app", async () => {
+  process.env.APP_URL = APP; // links in messages are absolute
+  const queued = () => pg.asOwner<{ jid: string; text: string; member_id: string; kind: string }>("select jid, text, member_id, kind from whatsapp_outbox order by id");
+  const before = (await queued()).length;
+  await applySteps(admin, [{ name: "addComment", args: ["CH-1", "@Sam Dev have a look when you can"] }]);
+  assert.equal((await queued()).length, before); // a normal mention: in the app only
+  await applySteps(admin, [{ name: "addComment", args: ["CH-1", "@@Sam Dev the checkout is down — please look now"] }]);
+  const rows = (await queued()).slice(before);
+  assert.equal(rows.length, 1);
+  assert.deepEqual([rows[0].jid, rows[0].member_id, rows[0].kind], [SAM, samId, "urgent"]);
+  assert.match(rows[0].text, /🚨 \*Ayla Khan\* needs you/);
+  assert.match(rows[0].text, /mentioned you in \*CH-1 /);
+  assert.match(rows[0].text, /“@@Sam Dev the checkout is down — please look now”/);
+  assert.match(rows[0].text, new RegExp(`${APP}/dev/t/CH-1`)); // Sam's own panel
+});
+
 test("one brief a day, only on working days from 9:00 to 18:00; by email when WhatsApp is down", async () => {
   const sent = whatsapp.sent.length;
   assert.deepEqual(await briefsAt("2026-10-16T09:00:00Z"), NONE); // already had Friday's

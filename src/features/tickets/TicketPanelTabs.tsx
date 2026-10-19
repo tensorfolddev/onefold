@@ -179,7 +179,7 @@ function Composer({ onPost, people }: { onPost: (body: string) => void; people: 
       />
       {matches.length > 0 && (
         <div className="composer-mentions" role="listbox" aria-label={mention?.urgent ? "Mention urgently" : "Mention someone"}>
-          {mention?.urgent && <p className="composer-mentions-hint">🚨 Urgent — a louder alert for them</p>}
+          {mention?.urgent && <p className="composer-mentions-hint">🚨 Urgent — a louder alert, and on their WhatsApp too</p>}
           {matches.map((p, i) => (
             <button key={p.id} type="button" role="option" aria-selected={i === pick} className="menu-item" onMouseDown={(e) => e.preventDefault()} onClick={() => insertPerson(p)}>
               <Avatar personId={p.id} size="sm" /> <span className="composer-mentions-name">{p.name}</span><span className="menu-item-end">{p.role}</span>
