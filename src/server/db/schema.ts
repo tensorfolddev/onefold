@@ -220,6 +220,17 @@ function companyRows() {
   });
 }
 
+/** A company's own Resend (Integrations → Email): the emails 1Fold sends for it go through its account, from its
+ * address. The API key is encrypted (auth/secrets.ts seal) and never sent back to a browser — only its last 4. */
+export const companyEmail = pgTable("company_email", {
+  orgId: text("org_id").notNull(),
+  apiKey: text("api_key").notNull(), // sealed
+  keyHint: text("key_hint").notNull(), // its last 4 characters, to tell keys apart
+  fromAddress: text("from_address").notNull(), // "Acme <hello@acme.com>"
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+}, (t) => [primaryKey({ columns: [t.orgId] }), companyRows()]);
+
 /** A doc's text (Markdown), one row per doc, loaded only when someone opens it. `rev` guards against overwrites. */
 export const docBodies = pgTable("doc_bodies", {
   orgId: text("org_id").notNull(),

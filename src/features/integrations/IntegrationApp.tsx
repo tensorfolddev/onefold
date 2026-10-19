@@ -17,7 +17,7 @@ import {
 import { PairingQr, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { Tabs } from "@/ui/primitives";
-import { appOf, emailLabel, RecipeText, useAppStatuses, useEmailStatus, type App, type AppStatus } from "./catalog";
+import { appOf, emailLabel, RecipeText, useAppStatuses, useEmailStatus, type App, type AppStatus, type EmailStatus } from "./catalog";
 
 const TEAM_TABS = ["Members", "Daily brief", "Templates", "Deliveries"] as const;
 const POLL_MS = 2000; // while the bot is being set up: the QR changes every ~20 s
@@ -102,32 +102,85 @@ function Overview({ app }: { app: App }) {
   );
 }
 
-/** Email, for admins: whether it's set up (and from which address), a test to yourself, and how to set it up. */
+/** Email, for admins: the company's own Resend — set, tested before saving, replaced or removed — and how it works. */
 function EmailApp({ app }: { app: App }) {
-  const { toast } = useMe();
-  const status = useEmailStatus();
-  const [sending, setSending] = useState(false);
-  const test = async () => {
-    setSending(true);
-    try {
-      const { to } = await api<{ to: string }>("/api/email/test", {});
-      toast(`Test email sent to ${to}`, undefined, "success");
-    } catch (e) {
-      toast(problemOf(e), undefined, "error");
-    } finally {
-      setSending(false);
-    }
-  };
+  const [status, setStatus] = useEmailStatus();
   return (
     <div className="page int-app">
-      <Banner app={app} action={status && (
-        <>
-          {status.mode === "resend" ? <Connected label={emailLabel(status)} /> : <span className="int-status" role="status"><span className="int-dot" aria-hidden />{emailLabel(status)}</span>}
-          <button type="button" className="btn btn-lg btn-primary" disabled={sending || status.mode === "off"} onClick={() => void test()}><Mail aria-hidden /> Send a test email</button>
-        </>
-      )} />
+      <Banner app={app} action={status && (status.mode === "own"
+        ? <Connected label={emailLabel(status)} />
+        : <span className="int-status" role="status"><span className="int-dot" aria-hidden />{emailLabel(status)}</span>)} />
+      {status && <ResendSetup key={`${status.mode}:${status.from}:${status.hint}`} status={status} onSaved={setStatus} />}
       <Overview app={app} />
     </div>
+  );
+}
+
+/** The company's Resend: API key (never shown — only its last 4) and From address. A blank key keeps the saved one. */
+function ResendSetup({ status, onSaved }: { status: EmailStatus; onSaved: (s: EmailStatus) => void }) {
+  const { toast } = useMe();
+  const own = status.mode === "own";
+  const [key, setKey] = useState("");
+  const [from, setFrom] = useState(own ? status.from : "");
+  const [busy, setBusy] = useState<"test" | "save" | "remove" | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const changed = !!key || from.trim() !== (own ? status.from : "");
+
+  const run = async (what: "test" | "save" | "remove", fn: () => Promise<void>) => {
+    setBusy(what);
+    try { await fn(); } catch (e) { toast(problemOf(e), undefined, "error"); } finally { setBusy(null); }
+  };
+  const test = () => run("test", async () => {
+    const { to } = await api<{ to: string }>("/api/email/test", { key: key.trim(), from: from.trim() });
+    toast(`Test email sent to ${to} — check your inbox`, undefined, "success");
+  });
+  const save = () => run("save", async () => {
+    onSaved(await api<EmailStatus>("/api/email/save", { key: key.trim(), from: from.trim() }));
+    toast("Saved — your company's email now goes through your Resend", undefined, "success");
+  });
+  const remove = () => run("remove", async () => {
+    onSaved(await api<EmailStatus>("/api/email/remove", {}));
+    toast("Removed your Resend", undefined, "success");
+  });
+
+  return (
+    <section className="int-setup" aria-labelledby="int-resend">
+      <header className="int-setup-head">
+        <div>
+          <h2 id="int-resend" className="int-h2">Your Resend</h2>
+          <p className="muted">{own
+            ? <>Key ending <strong>{status.hint}</strong>. Paste a new one to replace it.</>
+            : <>Send from your own address. Get an API key at <a href="https://resend.com/api-keys" target="_blank" rel="noreferrer noopener">resend.com</a> and verify your domain there.</>}
+          </p>
+        </div>
+        {own && <button type="button" className="btn btn-tertiary is-danger" disabled={!!busy} onClick={() => setRemoving(true)}><Unlink aria-hidden /> Remove</button>}
+      </header>
+      <form className="admin-form" onSubmit={(e) => { e.preventDefault(); void save(); }} noValidate>
+        <label className="admin-field">
+          <span className="admin-field-label">API key</span>
+          <input className="admin-input" type="password" autoComplete="off" spellCheck={false} value={key} maxLength={200}
+            placeholder={own ? `re_••••••••${status.hint}` : "re_…"} onChange={(e) => setKey(e.target.value)} />
+        </label>
+        <label className="admin-field">
+          <span className="admin-field-label">From</span>
+          <input className="admin-input" type="text" autoComplete="off" value={from} maxLength={200}
+            placeholder="Acme <hello@acme.com>" onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <div className="admin-form-actions">
+          <button type="button" className="btn btn-secondary" disabled={!!busy || (!key && status.mode === "off")} onClick={() => void test()}>
+            <Mail aria-hidden /> {busy === "test" ? "Sending…" : "Send a test email"}
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={!!busy || !changed || !from.trim() || (!own && !key)}>
+            {busy === "save" ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </form>
+      {removing && (
+        <ConfirmDialog title="Remove your Resend?" confirmLabel="Remove"
+          body={<p>Invites, password resets and email briefs go back to 1FOLD&apos;s email — or, where this server has none, aren&apos;t sent.</p>}
+          onCancel={() => setRemoving(false)} onConfirm={() => { setRemoving(false); void remove(); }} />
+      )}
+    </section>
   );
 }
 

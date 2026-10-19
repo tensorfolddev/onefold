@@ -105,17 +105,63 @@ test("how email is set up here, for Integrations → Email: Resend (from which a
   try {
     process.env.RESEND_API_KEY = "re_secret";
     process.env.EMAIL_FROM = "Acme <hello@acme.example>";
-    assert.deepEqual(emailStatus(), { mode: "resend", from: "Acme <hello@acme.example>" });
-    assert.equal(JSON.stringify(emailStatus()).includes("re_secret"), false);
+    assert.deepEqual(await emailStatus(), { mode: "server", from: "Acme <hello@acme.example>", hint: null });
+    assert.equal(JSON.stringify(await emailStatus()).includes("re_secret"), false);
     delete process.env.RESEND_API_KEY;
     process.env.EMAIL_OUTBOX_DIR = "/tmp/outbox";
-    assert.equal(emailStatus().mode, "outbox");
+    assert.equal((await emailStatus()).mode, "outbox");
     delete process.env.EMAIL_OUTBOX_DIR;
     delete process.env.EMAIL_FROM;
-    assert.deepEqual(emailStatus(), { mode: "off", from: "1Fold <onboarding@resend.dev>" });
+    assert.deepEqual(await emailStatus(), { mode: "off", from: "1Fold <onboarding@resend.dev>", hint: null });
   } finally {
-    for (const [k, v] of [["RESEND_API_KEY", saved.key], ["EMAIL_OUTBOX_DIR", saved.outbox], ["EMAIL_FROM", saved.from]] as const) {
-      if (v === undefined) delete process.env[k]; else process.env[k] = v;
-    }
+    restore(saved);
   }
 });
+
+test("a company's own Resend (Integrations → Email): kept encrypted, used before the server's, shown only as its last 4", async () => {
+  process.env.SESSION_SECRET ??= "a-test-session-secret-of-32-chars-or-more";
+  const { emailStatus, removeCompanyResend, saveCompanyResend, sendEmail } = await import("./email.ts");
+  const { seal, unseal } = await import("./auth/secrets.ts");
+  const saved = { key: process.env.RESEND_API_KEY, outbox: process.env.EMAIL_OUTBOX_DIR, from: process.env.EMAIL_FROM };
+  const realFetch = globalThis.fetch;
+  const sentWith: string[] = [];
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    sentWith.push(`${(init.headers as Record<string, string>).Authorization} ${JSON.parse(String(init.body)).from}`);
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const sealed = seal("re_company_key_1234");
+    assert.equal(sealed.includes("re_company"), false);
+    assert.equal(unseal(sealed), "re_company_key_1234");
+    assert.throws(() => unseal(sealed.slice(0, -2) + (sealed.endsWith("A") ? "BB" : "AA")));
+
+    process.env.RESEND_API_KEY = "re_server_key";
+    delete process.env.EMAIL_FROM;
+    const orgId = admin.orgId;
+    await assert.rejects(saveCompanyResend(orgId, "m", { key: "sk_nope", from: "Acme <hi@acme.example>" }), /start with re_/);
+    await assert.rejects(saveCompanyResend(orgId, "m", { key: "re_company_key_1234", from: "not an address" }), /From address/);
+    await assert.rejects(saveCompanyResend(orgId, "m", { from: "Acme <hi@acme.example>" }), /API key/); // nothing saved to keep yet
+
+    await saveCompanyResend(orgId, "m", { key: "re_company_key_1234", from: "Acme <hi@acme.example>" });
+    assert.deepEqual(await emailStatus(orgId), { mode: "own", from: "Acme <hi@acme.example>", hint: "1234" });
+    const [row] = await pg.asOwner(`select api_key from company_email where org_id = '${orgId}'`) as { api_key: string }[];
+    assert.equal(row.api_key.includes("re_company"), false); // encrypted at rest
+
+    await saveCompanyResend(orgId, "m", { from: "Acme Ops <ops@acme.example>" }); // a blank key keeps the saved one
+    await sendEmail({ to: "x@acme.example", subject: "s", text: "t", html: "h" }, { orgId });
+    await sendEmail({ to: "x@other.example", subject: "s", text: "t", html: "h" }); // no company: the server's
+    assert.deepEqual(sentWith, ["Bearer re_company_key_1234 Acme Ops <ops@acme.example>", "Bearer re_server_key 1Fold <onboarding@resend.dev>"]);
+
+    await removeCompanyResend(orgId);
+    assert.equal((await emailStatus(orgId)).mode, "server");
+  } finally {
+    globalThis.fetch = realFetch;
+    restore(saved);
+  }
+});
+
+function restore(saved: { key?: string; outbox?: string; from?: string }) {
+  for (const [k, v] of [["RESEND_API_KEY", saved.key], ["EMAIL_OUTBOX_DIR", saved.outbox], ["EMAIL_FROM", saved.from]] as const) {
+    if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+}

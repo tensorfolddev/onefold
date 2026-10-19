@@ -68,18 +68,17 @@ export const APPS: App[] = [
   },
   {
     id: "email", name: "Email", category: "Communication", icon: Mail, tile: "is-email", adminOnly: true,
-    tagline: "Invites, password resets and the brief by email — sent through Resend.",
-    about: "1Fold sends email through Resend: invite links, password resets, email confirmations, the daily brief when WhatsApp is down, and an alert to platform admins when the bot is logged out. Its API key is set on the server, never in a page.",
+    tagline: "Invites, password resets and the brief by email — from your own address, through Resend.",
+    about: "1Fold sends your company's email through your own Resend account: invite links, password resets, email confirmations and the daily brief when WhatsApp is down. The API key is kept encrypted and never shown again — only its last 4 characters. Until you add one, 1FOLD's own email is used, if this server has it.",
     recipes: [
       ["When someone's ", { b: "invited" }, ", email them ", { b: "their invite link" }],
       ["When someone ", { b: "forgets their password" }, ", email ", { b: "a reset link" }],
       ["When WhatsApp is down, send the daily brief ", { b: "by email" }],
-      ["When the bot is ", { b: "logged out" }, ", email ", { b: "the platform admins" }],
     ],
     steps: [
       "Create an API key at resend.com, and verify the domain you'll send from.",
-      "On the server, set RESEND_API_KEY — and EMAIL_FROM, like \"1Fold <hello@yourcompany.com>\" — then restart 1Fold.",
-      "Send yourself a test email from here.",
+      "Paste the key and your From address above, like \"Acme <hello@acme.com>\".",
+      "Send yourself a test email, then save.",
     ],
     worksWith: "Resend",
   },
@@ -92,26 +91,28 @@ export interface AppStatus { connected: boolean; label: string }
 
 /** Whether each integration is connected for the person looking: Claude (a token of theirs), their WhatsApp (linked),
  * the bot (connected). Statuses not known yet read "Checking…". */
-export interface EmailStatus { mode: "resend" | "outbox" | "off"; from: string }
+/** How email is set up for the company: its own Resend (`hint`: the key's last 4), the server's, a test inbox, or none. */
+export interface EmailStatus { mode: "own" | "server" | "outbox" | "off"; from: string; hint: string | null }
 
-/** How email is set up here (admins only), or null while it's being asked. */
-export function useEmailStatus(): EmailStatus | null {
+/** How email is set up here (admins only) — null while it's being asked — and a way to show a newer answer. */
+export function useEmailStatus(): [EmailStatus | null, (s: EmailStatus) => void] {
   const { panel } = useMe();
   const [status, setStatus] = useState<EmailStatus | null>(null);
   useEffect(() => {
     if (panel !== "admin") return;
     let live = true;
-    api<EmailStatus>("/api/email/status").then((s) => { if (live) setStatus(s); }).catch(() => { if (live) setStatus({ mode: "off", from: "" }); });
+    api<EmailStatus>("/api/email/status").then((s) => { if (live) setStatus(s); }).catch(() => { if (live) setStatus({ mode: "off", from: "", hint: null }); });
     return () => { live = false; };
   }, [panel]);
-  return status;
+  return [status, setStatus];
 }
 
-export const emailLabel = (e: EmailStatus) => (e.mode === "resend" ? `Sending as ${e.from}` : e.mode === "outbox" ? "Test inbox (development)" : "Not set up");
+export const emailLabel = (e: EmailStatus) =>
+  e.mode === "own" ? `Sending as ${e.from}` : e.mode === "server" ? "Using 1FOLD's email" : e.mode === "outbox" ? "Test inbox (development)" : "Not set up";
 
 export function useAppStatuses(): Record<AppId, AppStatus> {
   const { status } = useWhatsApp(30_000);
-  const email = useEmailStatus();
+  const [email] = useEmailStatus();
   const [tokens, setTokens] = useState<number | null>(null);
   useEffect(() => {
     let live = true;
@@ -125,7 +126,7 @@ export function useAppStatuses(): Record<AppId, AppStatus> {
     whatsapp: !status ? checking : status.me.linked ? { connected: true, label: `Linked · +${status.me.linked.phone}` } : { connected: false, label: "Not linked" },
     // Connected once the company's own number is: until then it's 1FOLD's bot, and there's something to set up.
     "team-bot": bot?.own && bot.state === "connected" ? { connected: true, label: `Connected · +${bot.phone ?? ""}` } : { connected: false, label: "" },
-    email: !email ? checking : { connected: email.mode === "resend", label: emailLabel(email) },
+    email: !email ? checking : { connected: email.mode === "own", label: emailLabel(email) },
   };
 }
 

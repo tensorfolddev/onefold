@@ -12,7 +12,7 @@ import { newToken, sha256 } from "./auth/secrets.ts";
 import { loadCompany, saveCompany, type Loaded } from "./company/store.ts";
 import { inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
-import { emailEnabled, inviteEmail, sendEmail } from "./email.ts";
+import { emailOn, inviteEmail, sendEmail } from "./email.ts";
 import { journal, type Source } from "./journal.ts";
 import { sendUrgent } from "./whatsapp/urgent.ts";
 
@@ -45,7 +45,7 @@ export async function viewFor(who: SessionRow): Promise<View> {
     const me = personFor(loaded, who.userId);
     return { db: snapshotFor(loaded.db, me), version: loaded.version, meId: me.id, panel: me.panel!, orgSlug: loaded.db.org.slug };
   });
-  return { ...view, emailUnverified: emailEnabled() && !(await emailVerified(who.userId)) };
+  return { ...view, emailUnverified: (await emailOn(who.orgId)) && !(await emailVerified(who.userId)) };
 }
 
 export interface Applied { version: number; key?: unknown }
@@ -141,7 +141,7 @@ export interface CreatedInvite { id: string; email: string; panel: Panel; role: 
  */
 export async function createInvites(who: SessionRow, invites: InviteInput[], appUrl: string): Promise<{ version: number; invites: CreatedInvite[] }> {
   if (!Array.isArray(invites)) throw new ValidationError("Add at least one email");
-  if (emailEnabled() && !(await emailVerified(who.userId))) throw new ValidationError("Confirm your email first — open the link we emailed you");
+  if ((await emailOn(who.orgId)) && !(await emailVerified(who.userId))) throw new ValidationError("Confirm your email first — open the link we emailed you");
   for (const inv of invites) {
     const email = String(inv?.email ?? "").trim().toLowerCase();
     if (email && await emailInACompany(email)) throw new ValidationError(`${email} ${ONE_COMPANY}`);
@@ -163,7 +163,7 @@ export async function createInvites(who: SessionRow, invites: InviteInput[], app
   // One at a time — Resend limits requests per second, and a batch sent at once would bounce the extras.
   const invitesOut: CreatedInvite[] = [];
   for (const inv of made.created) {
-    const emailed = await sendEmail(inviteEmail({ to: inv.email, orgName: made.orgName, inviterName: made.inviterName, link: inv.link, days: INVITE_DAYS }));
+    const emailed = await sendEmail(inviteEmail({ to: inv.email, orgName: made.orgName, inviterName: made.inviterName, link: inv.link, days: INVITE_DAYS }), { orgId: who.orgId });
     invitesOut.push({ ...inv, emailed });
   }
   return { version: made.version, invites: invitesOut };
