@@ -1,6 +1,6 @@
 "use client";
 
-import { notFound, redirect, usePathname } from "next/navigation";
+import { notFound, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Building2, House, Pencil, Settings as SettingsIcon } from "lucide-react";
@@ -13,18 +13,14 @@ import type { Product } from "@/domain/types";
 
 /** Product layout + gate: unknown products and products you're not on are a 404 (never "forbidden"). */
 export function ProductSpace({ productKey, children }: { productKey: string; children: React.ReactNode }) {
-  const { can, panel, href, productByKey } = useMe();
-  const pathname = usePathname();
+  const { can, productByKey } = useMe();
   const product = productByKey(productKey);
   if (!product || !can("product.view", { product })) notFound();
-  // Developers only work in a product's tickets: every other product page sends them there.
-  const ticketsPath = href(`/products/${productKey}/tickets`);
-  if (panel === "developer" && pathname !== ticketsPath) redirect(ticketsPath);
   return (
     <div className="page product-space">
       <ProductHeader product={product} />
       {product.archivedAt && <ArchivedBanner product={product} />}
-      {panel !== "developer" && <ProductTabs product={product} />}
+      <ProductTabs product={product} />
       <div className="product-body">{children}</div>
     </div>
   );
