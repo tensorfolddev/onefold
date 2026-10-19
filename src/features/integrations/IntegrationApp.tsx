@@ -6,15 +6,16 @@
 // and messages.
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, Zap } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Check, ChevronRight, QrCode, Unlink, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api, message as problemOf } from "@/data/api";
 import { useMe } from "@/data/StoreProvider";
 import { daysText } from "@/domain/whatsapp";
 import { McpDialog } from "@/features/mcp/McpDialog";
 import {
   BriefTab, ConnectedTab, DeliveriesTab, MessagesTab, useCompanyWhatsApp, WordsTab, type Company,
 } from "@/features/whatsapp/CompanyWhatsApp";
-import { useWhatsApp, WhatsAppBotSettings, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
+import { PairingQr, useWhatsApp, WhatsAppBotSettings, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 import { Tabs } from "@/ui/primitives";
 import { appOf, RecipeText, useAppStatuses, type App, type AppStatus, type Recipe } from "./catalog";
 
@@ -117,11 +118,12 @@ function PersonalApp({ app, status }: { app: App; status: AppStatus }) {
 /** The WhatsApp bot, for admins: which number everything comes from, and connecting it. */
 function BotApp({ app, status }: { app: App; status: AppStatus }) {
   const [tab, setTab] = useTab(BOT_TABS);
+  const company = useCompanyWhatsApp();
   return (
     <div className="page int-app">
       <Banner app={app} status={status} action={tab === "Number" ? null : <button type="button" className="btn btn-primary int-cta" onClick={() => setTab("Number")}>Connect the bot</button>} />
       <Tabs ariaLabel={app.name} active={tab} onSelect={(t) => setTab(t as (typeof BOT_TABS)[number])} items={BOT_TABS.map((label) => ({ label }))} />
-      <div className="int-tab-body">{tab === "Overview" ? <Overview app={app} /> : <BotTab />}</div>
+      <div className="int-tab-body">{tab === "Overview" ? <Overview app={app} /> : <BotTab company={company} />}</div>
     </div>
   );
 }
@@ -163,18 +165,80 @@ function CompanyTab({ tab, data, company }: { tab: string; data: Company; compan
   );
 }
 
-/** Which number everything comes from: 1FOLD's bot (a platform admin connects it). */
-function BotTab() {
+const POLL_MS = 2000; // while a number is pairing: the QR changes every ~20 s
+
+/** Which number everything comes from: 1FOLD's bot (shared; a platform admin connects it), or the company's own —
+ * connected here by scanning a code with that phone, like WhatsApp Web. */
+function BotTab({ company }: { company: ReturnType<typeof useCompanyWhatsApp> }) {
+  const { toast } = useMe();
   const { status: wa } = useWhatsApp(30_000);
-  const mayPair = !!wa?.bot;
+  const [asking, setAsking] = useState(false);
+  const own = company.data?.companyBot ?? null;
+  // Keep up until it's connected (or WhatsApp logged it out): the worker takes the request, then shows a QR, then connects.
+  const busy = !!own && own.state !== "connected" && own.state !== "logged_out";
+  const { reload } = company;
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(reload, POLL_MS);
+    return () => clearInterval(t);
+  }, [busy, reload]);
+  const ask = async (request: "pair" | "logout") => {
+    setAsking(true);
+    try {
+      await api("/api/whatsapp/company-bot", { request });
+      reload();
+    } catch (e) {
+      toast(problemOf(e), undefined, "error");
+    } finally {
+      setAsking(false);
+    }
+  };
+  if (!company.data) return company.failed ? <p className="muted">Couldn&apos;t load your company&apos;s WhatsApp.</p> : <div className="doc-skeleton" aria-busy="true" />;
+
   return (
-    <div className="int-panel int-bot">
-      <section className="int-bot-option is-current" aria-labelledby="int-bot-main">
-        <span className="int-bot-check" aria-hidden><Check /></span>
-        <div>
+    <div className="int-panel int-bot" aria-label="Which number">
+      <section className={`int-bot-option${own ? "" : " is-current"}`} aria-labelledby="int-bot-main">
+        <span className="int-bot-check" aria-hidden>{!own && <Check />}</span>
+        <div className="int-bot-text">
           <h3 id="int-bot-main">1FOLD&apos;s bot</h3>
-          <p className="muted">The number your teammates link to and the brief comes from — shared across 1FOLD, run by the 1FOLD team.</p>
-          {mayPair && <WhatsAppBotSettings bare />}
+          <p className="muted">Shared, with nothing to set up — run by the 1FOLD team.</p>
+          {!own && wa?.bot && <WhatsAppBotSettings bare />}
+          {own && <button type="button" className="btn btn-secondary" disabled={asking} onClick={() => void ask("logout")}>Use 1FOLD&apos;s bot</button>}
+        </div>
+      </section>
+      <section className={`int-bot-option${own ? " is-current" : ""}`} aria-labelledby="int-bot-own">
+        <span className="int-bot-check" aria-hidden>{own && <Check />}</span>
+        <div className="int-bot-text">
+          <h3 id="int-bot-own">Your own number</h3>
+          <p className="muted">Briefs, alerts and replies come from your company&apos;s number. Use a dedicated SIM — not someone&apos;s personal phone.</p>
+          {!own ? (
+            <button type="button" className="btn btn-primary" disabled={asking} onClick={() => void ask("pair")}><QrCode aria-hidden /> Connect your number</button>
+          ) : own.request ? (
+            <p className="auth-loading"><span className="auth-spinner" aria-hidden /> {own.request === "pair" ? "Getting the code ready…" : "Disconnecting…"}</p>
+          ) : own.state === "pairing" && own.qr ? (
+            <div className="wa-pairing">
+              <PairingQr text={own.qr} />
+              <div>
+                <ol className="wa-steps">
+                  <li>On your company&apos;s phone, open WhatsApp → <strong>Settings → Linked devices → Link a device</strong>.</li>
+                  <li>Scan this code. It changes about every 20 seconds — this page keeps up.</li>
+                </ol>
+                <button type="button" className="btn btn-tertiary" disabled={asking} onClick={() => void ask("logout")}>Cancel</button>
+              </div>
+            </div>
+          ) : own.state === "connected" ? (
+            <div className="int-bot-connected">
+              <span className="wa-linked"><Check aria-hidden /> Sending from <strong>+{own.phone}</strong></span>
+              <button type="button" className="btn btn-tertiary is-danger" disabled={asking} onClick={() => void ask("logout")}><Unlink aria-hidden /> Disconnect</button>
+            </div>
+          ) : own.state === "connecting" || own.state === "pairing" ? (
+            <p className="auth-loading"><span className="auth-spinner" aria-hidden /> Connecting…</p>
+          ) : (
+            <div className="int-bot-connected">
+              {own.state === "logged_out" && <span className="auth-error">WhatsApp logged this number out — scan it again. Until then, the brief goes by email.</span>}
+              <button type="button" className="btn btn-primary" disabled={asking} onClick={() => void ask("pair")}><QrCode aria-hidden /> Show the code</button>
+            </div>
+          )}
         </div>
       </section>
     </div>

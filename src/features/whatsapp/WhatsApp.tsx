@@ -132,7 +132,7 @@ export function WhatsAppDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-function PairingQr({ text }: { text: string }) {
+export function PairingQr({ text }: { text: string }) {
   const [src, setSrc] = useState<{ text: string; url: string } | null>(null);
   useEffect(() => {
     let live = true;

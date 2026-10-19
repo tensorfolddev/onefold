@@ -1232,6 +1232,14 @@ test("Integrations center: Claude and WhatsApp for you; for admins the WhatsApp 
   await expect(page).toHaveURL(/\/admin\/integrations\/whatsapp-bot$/);
   await page.getByRole("button", { name: "Connect the bot" }).click();
   await expect(page.getByRole("heading", { name: "1FOLD's bot" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your own number" })).toBeVisible(); // or the company's own number
+  const asked = page.waitForResponse((r) => r.ok() && r.url().endsWith("/api/whatsapp/company-bot") && !!r.request().postData()?.includes("pair"));
+  await page.getByRole("button", { name: "Connect your number" }).click();
+  await asked;
+  await expect(page.getByText("Getting the code ready…")).toBeVisible(); // the worker shows the QR next (none runs in tests)
+  const back = page.waitForResponse((r) => r.ok() && r.url().endsWith("/api/whatsapp/company-bot") && !!r.request().postData()?.includes("logout"));
+  await page.getByRole("button", { name: "Use 1FOLD's bot" }).click(); // and back: nothing left waiting for a worker
+  await back;
   await page.getByRole("link", { name: "Integrations", exact: true }).first().click();
 
   await page.getByRole("navigation", { name: "Categories" }).getByRole("button", { name: /For your company/ }).click();

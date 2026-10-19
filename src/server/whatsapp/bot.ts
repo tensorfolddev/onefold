@@ -14,6 +14,7 @@ import * as s from "../db/schema.ts";
 import { botDownEmail, emailEnabled, sendEmail } from "../email.ts";
 import { message, normalWord, scheduleText } from "../../domain/whatsapp.ts";
 import { briefFor } from "./brief.ts";
+import { botFor } from "./companyBot.ts";
 import { settingsFor } from "./settings.ts";
 
 export type BotState = "off" | "pairing" | "connecting" | "connected" | "logged_out";
@@ -90,17 +91,17 @@ export async function myWhatsApp(who: SessionRow): Promise<MyWhatsApp> {
   const memberId = await memberOf(who);
   const [link] = await database().select().from(s.whatsappLinks)
     .where(and(eq(s.whatsappLinks.orgId, who.orgId), eq(s.whatsappLinks.memberId, memberId)));
-  const bot = await botStatus();
+  const bot = await botFor(who.orgId); // the company's own number, or 1FOLD's
   return {
     available: bot.state === "connected" && !!bot.phone,
     linked: link ? { phone: link.phone, briefs: link.briefs, linkedAt: link.linkedAt } : null,
   };
 }
 
-/** A one-time code to send the bot, and a wa.me link that opens WhatsApp with it already typed. */
+/** A one-time code to send the bot — the company's own number, or 1FOLD's — and a wa.me link with it already typed. */
 export async function createLinkCode(who: SessionRow): Promise<{ code: string; url: string; botPhone: string; expiresAt: string }> {
   const memberId = await memberOf(who);
-  const bot = await botStatus();
+  const bot = await botFor(who.orgId);
   if (bot.state !== "connected" || !bot.phone) throw new ValidationError("1Fold's WhatsApp isn't connected right now — ask your admin");
   const code = newLinkCode();
   const expiresAt = new Date(Date.now() + CODE_MINUTES * 60_000).toISOString();
@@ -153,17 +154,19 @@ const CODE_FAILED = ["⚠️ *That code didn't work*", "", "It may have expired 
 /**
  * One message someone sent the bot. Replies through `reply` — to a person who just sent a code, or to a linked number;
  * anyone else gets nothing at all. Replies are capped per number, so the bot can't get stuck talking to a bot.
+ * `onlyOrg`: a company's own number, which answers only for that company.
  */
-export async function handleMessage(msg: Inbound, whatsapp: Replier, appUrl: string): Promise<void> {
+export async function handleMessage(msg: Inbound, whatsapp: Replier, appUrl: string, onlyOrg?: string): Promise<void> {
   const reply: Replier = { send: async (jid, text) => { if (allowReply(jid)) await whatsapp.send(jid, text); } };
   const code = msg.text.match(CODE_RE);
   if (code) {
     if (!allowTry(msg.jid)) return;
-    return linkNumber(msg, `1FOLD-${code[1].toUpperCase()}`, reply);
+    return linkNumber(msg, `1FOLD-${code[1].toUpperCase()}`, reply, onlyOrg);
   }
-  const links = await database().select().from(s.whatsappLinks).where(sameChat(msg));
+  const links = await database().select().from(s.whatsappLinks)
+    .where(onlyOrg ? and(sameChat(msg), eq(s.whatsappLinks.orgId, onlyOrg)) : sameChat(msg));
   if (!links.length) return; // deny by default
-  if (links.some((l) => l.jid !== msg.jid)) { // the same person, now writing from the other form of their id
+  if (!onlyOrg && links.some((l) => l.jid !== msg.jid)) { // the same person, now writing from the other form of their id
     await database().update(s.whatsappLinks).set({ jid: msg.jid }).where(sameChat(msg));
   }
   // Each company has its own words that ask for the brief ("1FOLD", "TODAY" unless its admins changed them): one
@@ -179,9 +182,10 @@ export async function handleMessage(msg: Inbound, whatsapp: Replier, appUrl: str
   await reply.send(msg.jid, message(settings[0], "help"));
 }
 
-async function linkNumber(msg: Inbound, code: string, reply: Replier) {
+async function linkNumber(msg: Inbound, code: string, reply: Replier, onlyOrg?: string) {
   const [used] = await database().update(s.whatsappLinkCodes).set({ usedAt: sql`now()` })
-    .where(and(eq(s.whatsappLinkCodes.id, sha256(code)), isNull(s.whatsappLinkCodes.usedAt), gt(s.whatsappLinkCodes.expiresAt, sql`now()`)))
+    .where(and(eq(s.whatsappLinkCodes.id, sha256(code)), isNull(s.whatsappLinkCodes.usedAt), gt(s.whatsappLinkCodes.expiresAt, sql`now()`),
+      ...(onlyOrg ? [eq(s.whatsappLinkCodes.orgId, onlyOrg)] : []))) // a company's own number links only its own people
     .returning();
   if (!used) {
     await reply.send(msg.jid, CODE_FAILED);

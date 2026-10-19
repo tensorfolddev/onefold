@@ -4,7 +4,7 @@
 // when the daily brief goes and on which days, the words that ask the bot for it, and every message the bot sends —
 // each previewed exactly as a teammate will see it, and each back to 1FOLD's own in one click.
 import { Check, Clock3, MailCheck, MessageSquareText, RefreshCw, RotateCcw, Send, Users, X, CircleSlash, TriangleAlert } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, message as problemOf } from "@/data/api";
 import { useMe } from "@/data/StoreProvider";
 import { relativeTime } from "@/domain/status";
@@ -16,7 +16,8 @@ import { Avatar } from "@/ui/primitives";
 
 interface Linked { personId: string; phone: string; briefs: boolean; linkedAt: string }
 interface Delivery { at: string; personId: string | null; kind: string; status: "sent" | "email" | "waiting" | "failed" | "none"; preview: string }
-export interface Company { settings: WhatsAppSettings; timeZone: string; linked: Linked[]; log: Delivery[] }
+export interface CompanyBot { state: "off" | "pairing" | "connecting" | "connected" | "logged_out"; qr: string | null; phone: string | null; request: string | null }
+export interface Company { settings: WhatsAppSettings; timeZone: string; linked: Linked[]; log: Delivery[]; companyBot: CompanyBot | null }
 
 const STATUS: Record<Delivery["status"], { label: string; icon: React.ReactNode; tone: string }> = {
   sent: { label: "Delivered", icon: <Check />, tone: "is-good" },
@@ -51,7 +52,7 @@ export function useCompanyWhatsApp() {
   const [data, setData] = useState<Company | null>(null);
   const [failed, setFailed] = useState(false);
   const [loads, setLoads] = useState(0);
-  const reload = () => setLoads((n) => n + 1);
+  const reload = useCallback(() => setLoads((n) => n + 1), []);
   useEffect(() => {
     let live = true;
     api<Company>("/api/whatsapp/company")

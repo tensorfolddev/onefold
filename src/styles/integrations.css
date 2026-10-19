@@ -137,15 +137,22 @@
 .int-about dt { color: var(--secondary-text-color); }
 .int-about dd { margin: 0; font-weight: 500; }
 
-.int-bot { display: grid; gap: 16px; }
-.int-bot-option { display: flex; gap: 14px; padding: 18px; border: 2px solid var(--layout-border-color); border-radius: 16px; background: var(--primary-background-color); }
-.int-bot-option.is-current { border-color: color-mix(in srgb, var(--primary-color) 55%, transparent); background: color-mix(in srgb, var(--primary-color) 4%, var(--primary-background-color)); }
-.int-bot-option h3 { margin: 0 0 4px; font-size: 16px; }
-.int-bot-option p { margin: 0 0 8px; font-size: 14px; }
-.int-bot-check { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--primary-color); color: #fff; }
-.int-bot-check svg { width: 15px; height: 15px; }
-.int-bot-pair { padding: 18px; border: 1px solid var(--layout-border-color); border-radius: 16px; }
-.int-bot-pair h3 { margin: 0 0 12px; font-size: 15px; }
+.int-bot { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.int-bot-option {
+  display: flex; gap: 14px; padding: 20px; border: 2px solid var(--layout-border-color); border-radius: 16px; background: var(--primary-background-color);
+  transition: border-color var(--motion-productive-short), box-shadow var(--motion-productive-short);
+}
+.int-bot-option.is-current { border-color: color-mix(in srgb, var(--primary-color) 60%, transparent); background: color-mix(in srgb, var(--primary-color) 4%, var(--primary-background-color)); box-shadow: 0 10px 26px rgb(15 23 42 / 0.06); }
+.int-bot-text { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.int-bot-text > .btn { justify-self: start; }
+.int-bot-text .btn svg { width: 16px; height: 16px; }
+.int-bot-option h3 { margin: 0; font-size: 16px; }
+.int-bot-option p { margin: 0; font-size: 14px; line-height: 1.5; }
+.int-bot-check { display: inline-grid; place-items: center; flex: none; width: 24px; height: 24px; margin-top: 1px; border-radius: 50%; border: 2px solid var(--ui-border-color); color: #fff; }
+.is-current > .int-bot-check { border-color: var(--primary-color); background: var(--primary-color); }
+.int-bot-check svg { width: 14px; height: 14px; }
+.int-bot-connected { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.int-bot .wa-pairing { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 
 @media (max-width: 1000px) {
   .int-hero { grid-template-columns: 1fr; padding: 28px 24px; }

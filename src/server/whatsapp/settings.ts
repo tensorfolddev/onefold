@@ -9,6 +9,7 @@ import { personFor, type SessionRow } from "../accounts.ts";
 import { mustLoad } from "../changes.ts";
 import { database, inScope } from "../db/client.ts";
 import * as s from "../db/schema.ts";
+import { companyBot, type CompanyBot } from "./companyBot.ts";
 
 const LOG_DAYS = 14;
 const LOG_ROWS = 100;
@@ -27,7 +28,7 @@ export async function settingsFor(orgId: string): Promise<WhatsAppSettings> {
 }
 
 /** Refuses anyone but one of the company's admins. */
-async function asAdmin(who: SessionRow): Promise<string> {
+export async function asAdmin(who: SessionRow): Promise<string> {
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
@@ -49,7 +50,7 @@ export async function saveSettings(who: SessionRow, input: unknown): Promise<Wha
 
 export interface LinkedMember { personId: string; phone: string; briefs: boolean; linkedAt: string }
 export interface Delivery { at: string; personId: string | null; kind: string; status: "sent" | "email" | "waiting" | "failed" | "none"; preview: string }
-export interface CompanyWhatsApp { settings: WhatsAppSettings; timeZone: string; linked: LinkedMember[]; log: Delivery[] }
+export interface CompanyWhatsApp { settings: WhatsAppSettings; timeZone: string; linked: LinkedMember[]; log: Delivery[]; companyBot: CompanyBot | null }
 
 /** "923001112222" → "+92 30•••2222": enough to tell numbers apart, not to copy one. */
 export const maskPhone = (phone: string) => (phone.length > 6 ? `+${phone.slice(0, 2)} ${phone.slice(2, 4)}•••${phone.slice(-4)}` : "Private number");
@@ -62,13 +63,14 @@ export async function companyWhatsApp(who: SessionRow): Promise<CompanyWhatsApp>
   const db = database();
   const [org] = await inScope({ orgId: who.orgId }, (tx) => tx.select({ timezone: s.orgs.timezone }).from(s.orgs).where(eq(s.orgs.id, who.orgId)));
   const since = new Date(Date.now() - LOG_DAYS * 24 * 60 * 60_000);
-  const [settings, links, sent, briefs] = await Promise.all([
+  const [settings, links, sent, briefs, own] = await Promise.all([
     settingsFor(who.orgId),
     db.select().from(s.whatsappLinks).where(eq(s.whatsappLinks.orgId, who.orgId)),
     db.select().from(s.whatsappOutbox).where(and(eq(s.whatsappOutbox.orgId, who.orgId), gte(s.whatsappOutbox.createdAt, since.toISOString())))
       .orderBy(desc(s.whatsappOutbox.id)).limit(LOG_ROWS),
     db.select().from(s.briefDeliveries).where(and(eq(s.briefDeliveries.orgId, who.orgId), gte(s.briefDeliveries.at, since.toISOString())))
       .orderBy(desc(s.briefDeliveries.at)).limit(LOG_ROWS),
+    companyBot(who.orgId), // its own number (with the QR while pairing — this company's admins only)
   ]);
   const log: Delivery[] = [
     ...sent.map((m) => ({
@@ -81,6 +83,7 @@ export async function companyWhatsApp(who: SessionRow): Promise<CompanyWhatsApp>
   return {
     settings,
     timeZone: org?.timezone ?? "Asia/Karachi",
+    companyBot: own,
     linked: links.map((l) => ({ personId: l.memberId, phone: maskPhone(l.phone), briefs: l.briefs, linkedAt: l.linkedAt })),
     log,
   };
