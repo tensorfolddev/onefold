@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell, BookOpen, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon,
+  Bell, BookOpen, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon, Plug,
   Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { isSoundOn, playSound, setSoundOn } from "@/features/tickets/sounds";
@@ -94,6 +94,7 @@ export function BrandMark() {
 
 function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const { notificationsOpen, setNotificationsOpen } = useAppState();
+  const pathname = usePathname();
   const { db, me, href } = useMe();
   const unread = db.notifications.filter((n) => n.personId === me.id && !n.read).length;
   return (
@@ -110,6 +111,11 @@ function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         <GlobalSearch />
       </div>
       <div className="topbar-actions">
+        <Tooltip label="Integrations">
+          <Link href={href("/integrations")} className={`topbar-icon${panelPath(pathname) === "/integrations" ? " is-open" : ""}`} aria-label="Integrations">
+            <Plug />
+          </Link>
+        </Tooltip>
         <Tooltip label="Notifications">
           <button
             type="button"

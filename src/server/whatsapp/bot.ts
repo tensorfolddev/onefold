@@ -12,7 +12,9 @@ import { sha256 } from "../auth/secrets.ts";
 import { database, inScope } from "../db/client.ts";
 import * as s from "../db/schema.ts";
 import { botDownEmail, emailEnabled, sendEmail } from "../email.ts";
+import { message, normalWord, scheduleText } from "../../domain/whatsapp.ts";
 import { briefFor } from "./brief.ts";
+import { settingsFor } from "./settings.ts";
 
 export type BotState = "off" | "pairing" | "connecting" | "connected" | "logged_out";
 export interface Inbound { jid: string; phone: string; text: string }
@@ -145,12 +147,8 @@ const sameChat = (msg: Inbound) => msg.phone
   ? or(eq(s.whatsappLinks.jid, msg.jid), eq(s.whatsappLinks.phone, msg.phone))!
   : eq(s.whatsappLinks.jid, msg.jid);
 
-const SIGN_OFF = "🤍 *1FOLD By TensorFold* 🤍";
-const HELP = ["👋 *This is 1FOLD*", "", "Reply *1FOLD* anytime for your pending tasks.", "", SIGN_OFF].join("\n");
 const CODE_FAILED = ["⚠️ *That code didn't work*", "", "It may have expired — codes last 15 minutes.",
   "Get a new one in 1FOLD: your name → *WhatsApp* → *Connect WhatsApp*."].join("\n");
-const connected = (company: string) => ["✅ *You're connected to 1FOLD*", `_${company}_`, "",
-  "Every working day at *9:00* you'll get your pending tasks here.", "", "Reply *1FOLD* anytime for updates.", "", SIGN_OFF].join("\n");
 
 /**
  * One message someone sent the bot. Replies through `reply` — to a person who just sent a code, or to a linked number;
@@ -168,13 +166,17 @@ export async function handleMessage(msg: Inbound, whatsapp: Replier, appUrl: str
   if (links.some((l) => l.jid !== msg.jid)) { // the same person, now writing from the other form of their id
     await database().update(s.whatsappLinks).set({ jid: msg.jid }).where(sameChat(msg));
   }
-  const word = msg.text.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (word === "1fold" || word === "today") { // one brief per company they're linked in
-    const briefs = await Promise.all(links.map((l) => briefFor(l.orgId, l.memberId, appUrl)));
+  // Each company has its own words that ask for the brief ("1FOLD", "TODAY" unless its admins changed them): one
+  // brief per company they're linked in whose words these are.
+  const word = normalWord(msg.text);
+  const settings = await Promise.all(links.map((l) => settingsFor(l.orgId)));
+  const asked = links.filter((_, i) => settings[i].words.includes(word));
+  if (asked.length) {
+    const briefs = await Promise.all(asked.map((l) => briefFor(l.orgId, l.memberId, appUrl)));
     for (const text of briefs.filter((t): t is string => !!t)) await reply.send(msg.jid, text);
     return;
   }
-  await reply.send(msg.jid, HELP);
+  await reply.send(msg.jid, message(settings[0], "help"));
 }
 
 async function linkNumber(msg: Inbound, code: string, reply: Replier) {
@@ -197,5 +199,6 @@ async function linkNumber(msg: Inbound, code: string, reply: Replier) {
       });
   });
   const [org] = await inScope({ orgId: used.orgId }, (tx) => tx.select({ name: s.orgs.name }).from(s.orgs).where(eq(s.orgs.id, used.orgId)));
-  await reply.send(msg.jid, connected(org?.name ?? "your company"));
+  const settings = await settingsFor(used.orgId);
+  await reply.send(msg.jid, message(settings, "connected", { company: org?.name ?? "your company", schedule: scheduleText(settings) }));
 }

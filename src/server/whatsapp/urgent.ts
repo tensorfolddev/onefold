@@ -5,11 +5,12 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../../data/db.ts";
 import { PANEL_SLUG } from "../../data/session.ts";
 import type { Notification, Person } from "../../domain/types.ts";
+import { DEFAULT_SETTINGS, fill } from "../../domain/whatsapp.ts";
 import { database } from "../db/client.ts";
 import * as s from "../db/schema.ts";
+import { settingsFor } from "./settings.ts";
 
 const EXCERPT = 280;
-export const URGENT_TEMPLATE = "🚨 *{actor}* needs you\nThey mentioned you in *{place}*{message}\n\nPlease check it: {link}";
 
 export interface Alert { memberId: string; text: string }
 
@@ -17,10 +18,10 @@ const excerpt = (text: string) => {
   const one = text.replace(/\s+/g, " ").trim();
   return one.length > EXCERPT ? `${one.slice(0, EXCERPT - 1).trimEnd()}…` : one;
 };
-const fill = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m);
 
-/** The WhatsApp messages for the urgent notices a change made (in `after`, not in `before`). Pure: no I/O. */
-export function urgentAlerts(before: Db, after: Db, me: Person, appUrl = process.env.APP_URL ?? ""): Alert[] {
+/** The WhatsApp messages for the urgent notices a change made (in `after`, not in `before`), in the company's own words
+ * (`template`). Pure: no I/O. */
+export function urgentAlerts(before: Db, after: Db, me: Person, appUrl = process.env.APP_URL ?? "", template = DEFAULT_SETTINGS.templates.urgent): Alert[] {
   const old = new Set(before.notifications.map((n) => n.id));
   const base = appUrl.replace(/\/$/, "");
   const oldComments = new Set(before.comments.map((c) => c.id));
@@ -28,7 +29,7 @@ export function urgentAlerts(before: Db, after: Db, me: Person, appUrl = process
     const person = after.people.find((p) => p.id === n.personId);
     if (!person?.panel) return [];
     const slug = PANEL_SLUG[person.panel];
-    return [{ memberId: person.id, text: fill(URGENT_TEMPLATE, {
+    return [{ memberId: person.id, text: fill(template, {
       actor: me.name,
       place: n.text.replace(/^mentioned you in (the decision )?/, ""),
       message: message(after, n, me, oldComments),
@@ -64,6 +65,7 @@ export async function queueAlerts(orgId: string, alerts: Alert[], kind = "urgent
 
 /** After a change is saved: send its urgent notices on WhatsApp. Never fails the change (the in-app notice stands). */
 export async function sendUrgent(orgId: string, before: Db, after: Db, me: Person): Promise<void> {
-  const alerts = urgentAlerts(before, after, me);
-  if (alerts.length) await queueAlerts(orgId, alerts).catch((e: unknown) => console.error("[whatsapp] couldn't queue urgent alerts", e));
+  if (!urgentAlerts(before, after, me).length) return; // most changes: nothing to send, so nothing to look up
+  const send = async () => queueAlerts(orgId, urgentAlerts(before, after, me, undefined, (await settingsFor(orgId)).templates.urgent));
+  await send().catch((e: unknown) => console.error("[whatsapp] couldn't queue urgent alerts", e));
 }

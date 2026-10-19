@@ -459,6 +459,19 @@ export const whatsappLinkCodes = pgTable("whatsapp_link_codes", {
   usedAt: ts("used_at"),
 });
 
+/** What a company's admins set for WhatsApp (domain/whatsapp.ts): the brief's time and days, the words that ask the bot
+ * for it, and the bot's messages (only the ones reworded). No row: 1FOLD's defaults. */
+export const whatsappSettings = pgTable("whatsapp_settings", {
+  orgId: text("org_id").primaryKey(),
+  briefOn: boolean("brief_on").notNull().default(true),
+  briefAt: text("brief_at").notNull().default("09:00"), // the company's local time
+  briefDays: jsonb("brief_days").notNull(), // [1, 2, 3, 4, 5] — 0 = Sunday
+  words: jsonb("words").notNull(), // ["1fold", "today"]
+  templates: jsonb("templates").notNull(), // { urgent?: "…", … } — reworded ones only
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+});
+
 /** One daily brief per person per day, however it went — so a restart never sends it twice. */
 export const briefDeliveries = pgTable("brief_deliveries", {
   orgId: text("org_id").notNull(),
