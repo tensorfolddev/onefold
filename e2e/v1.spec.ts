@@ -968,7 +968,7 @@ test("docs: centred text, a right-aligned table column, an emoji from \":\", and
   await expect(page).toHaveURL(/\/d(ocs)?\/.+/);
   const prose = page.locator('.doc-prose[contenteditable="true"]');
   const saved = page.waitForResponse((r) => {
-    const body = r.url().includes("/api/docs/") && r.request().method() === "POST" ? r.request().postData() ?? "" : "";
+    const body = r.ok() && r.url().includes("/api/docs/") && r.request().method() === "POST" ? r.request().postData() ?? "" : "";
     return body.includes("<!-- align: center -->") && body.includes("🚀") && body.includes("brief.pdf") && /-+:\s*\|/.test(body);
   });
 
@@ -988,12 +988,13 @@ test("docs: centred text, a right-aligned table column, an emoji from \":\", and
   // Centred text, from the toolbar over a selection.
   await prose.locator("p").last().click();
   await page.keyboard.type("Centre me");
-  await prose.locator("p", { hasText: "Centre me" }).click({ clickCount: 3 });
+  for (let i = 0; i < "Centre me".length; i += 1) await page.keyboard.press("Shift+ArrowLeft"); // the same selection on every OS
   await page.getByRole("button", { name: "Align centre" }).click();
   await expect(prose.locator("p", { hasText: "Centre me" })).toHaveCSS("text-align", "center");
 
   // ":" + a name inserts an emoji.
-  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight"); // to the end of "Centre me"
+  await expect(page.getByRole("button", { name: "Align centre" })).toBeHidden(); // the editor has the caret, not the selection
   await page.keyboard.press("Enter");
   await page.keyboard.type("Lift-off :rocke");
   await page.getByRole("listbox", { name: "Emoji" }).getByRole("option", { name: /^rocket/ }).click();
