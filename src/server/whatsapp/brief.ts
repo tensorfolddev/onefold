@@ -7,7 +7,7 @@ import { PANEL_SLUG } from "../../data/session.ts";
 import { statusOf } from "../../domain/selectors/product.ts";
 import { snapshotFor, withoutArchived } from "../../domain/snapshot.ts";
 import type { Person, Ticket } from "../../domain/types.ts";
-import { DEFAULT_SETTINGS, minutesOf, wordsText, type WhatsAppSettings } from "../../domain/whatsapp.ts";
+import { DEFAULT_SETTINGS, message, minutesOf, type WhatsAppSettings } from "../../domain/whatsapp.ts";
 import { loadCompany } from "../company/store.ts";
 import { database, inScope } from "../db/client.ts";
 import * as s from "../db/schema.ts";
@@ -80,9 +80,9 @@ export function briefText(company: Db, person: Person, clock: { day: string; hou
   if ((!total && !opts.whenEmpty) || !person.panel) return null;
   const lines = [
     LINE, `        *${db.org.name}*`, `  ${fullDate(clock.day)} | ${part(clock.day, { weekday: "long" })}`, LINE, "", "",
-    `*${greeting(clock.hour)}, ${person.name.split(" ")[0]},*`, "",
+    message(settings, "briefGreeting", { greeting: greeting(clock.hour), name: person.name.split(" ")[0] }), "",
   ];
-  if (!total) lines.push("You have no pending tasks 🎉");
+  if (!total) lines.push(message(settings, "briefEmpty"));
   else {
     lines.push(`You have total *${plural(total, "task")}* pending`, "");
     for (const p of projects) lines.push(`🧩🧩  *${p.name}* : ${plural(p.tickets.length, "Task")} pending`);
@@ -97,7 +97,7 @@ export function briefText(company: Db, person: Person, clock: { day: string; hou
       if (p.tickets.length > MAX_PER_PROJECT) lines.push("", `_…and ${p.tickets.length - MAX_PER_PROJECT} more — see All your work_`);
     });
   }
-  lines.push(LINE, `📋 All your work: ${appUrl}/my-work`, "", `Reply ${wordsText(settings.words)} anytime for updates.`, "", settings.templates.signOff);
+  lines.push(LINE, message(settings, "briefClosing", { link: `${appUrl}/my-work` }));
   return lines.join("\n");
 }
 
@@ -127,7 +127,10 @@ export interface BriefRun { whatsapp: number; email: number; none: number; faile
  * people who linked WhatsApp and want briefs and haven't had today's. Runs every minute in the worker; safe to run
  * any number of times.
  */
-export async function sendDueBriefs(opts: { whatsapp: Sender | null; appUrl: string; at?: Date; gapMs?: number }): Promise<BriefRun> {
+export async function sendDueBriefs(opts: {
+  whatsapp: Sender | null; appUrl: string; at?: Date; gapMs?: number;
+  whatsappFor?: (orgId: string) => Sender | null; // a company's own number, where it has one (else `whatsapp`)
+}): Promise<BriefRun> {
   const at = opts.at ?? new Date();
   const run: BriefRun = { whatsapp: 0, email: 0, none: 0, failed: 0 };
   const links = await database().select().from(s.whatsappLinks).where(eq(s.whatsappLinks.briefs, true));
@@ -139,7 +142,8 @@ export async function sendDueBriefs(opts: { whatsapp: Sender | null; appUrl: str
     const clock = localClock(company.timeZone, at);
     const since = clock.hour * 60 + clock.minute - minutesOf(settings.briefAt); // minutes since the brief's time today
     if (!settings.briefDays.includes(clock.weekday) || since < 0 || since >= SEND_WINDOW_MINUTES) continue;
-    if (opts.whatsapp?.waiting?.() && since < WAIT_FOR_WHATSAPP_MINUTES) continue; // (re)connecting: try next minute
+    const whatsapp = opts.whatsappFor?.(orgId) ?? opts.whatsapp;
+    if (whatsapp?.waiting?.() && since < WAIT_FOR_WHATSAPP_MINUTES) continue; // (re)connecting: try next minute
     for (const link of links.filter((l) => l.orgId === orgId)) {
       const person = company.db.people.find((p) => p.id === link.memberId);
       if (!person?.active || !person.panel) continue;
@@ -155,7 +159,7 @@ export async function sendDueBriefs(opts: { whatsapp: Sender | null; appUrl: str
         .returning();
       if (!claimed.length) continue;
       const text = briefText(company.db, person, clock, opts.appUrl, { settings });
-      const channel = text === null ? "none" : await deliver(opts, link.jid, person, company.db.org.name, text);
+      const channel = text === null ? "none" : await deliver({ ...opts, whatsapp }, link.jid, person, company.db.org.name, text);
       run[channel] += 1;
       await database().update(s.briefDeliveries).set({ channel })
         .where(and(eq(s.briefDeliveries.orgId, orgId), eq(s.briefDeliveries.memberId, link.memberId), eq(s.briefDeliveries.day, clock.day)));

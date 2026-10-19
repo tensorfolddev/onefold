@@ -2,12 +2,12 @@
 
 // The integrations 1Fold has — what each is, who it's for, what it does (as monday-style recipes) — and whether each
 // is connected right now, for the person looking.
-import { Bot, MessageCircle, MessagesSquare, Sparkles, type LucideIcon } from "lucide-react";
+import { Bot, MessageCircle, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/data/api";
 import { useWhatsApp } from "@/features/whatsapp/WhatsApp";
 
-export type AppId = "claude" | "whatsapp" | "whatsapp-bot" | "team-whatsapp";
+export type AppId = "claude" | "whatsapp" | "team-bot";
 export type Category = "AI" | "Communication" | "For your company";
 
 /** A recipe: a sentence with its moving parts in bold — what the integration does, said the way a person would. */
@@ -54,28 +54,16 @@ export const APPS: App[] = [
     worksWith: "WhatsApp on any phone",
   },
   {
-    id: "whatsapp-bot", name: "WhatsApp bot", category: "For your company", icon: Bot, tile: "is-bot", adminOnly: true,
-    tagline: "The number your team's WhatsApp messages come from.",
-    about: "Every brief, alert and reply comes from one WhatsApp number: 1FOLD's own bot, or your company's own number — a dedicated SIM you connect by scanning a code, like WhatsApp Web.",
-    recipes: [
-      ["Send everything from ", { b: "1FOLD's bot" }, " — nothing to set up"],
-      ["Or send from ", { b: "your own number" }, ", connected with ", { b: "a QR code" }],
-      ["When the bot is down, send the brief ", { b: "by email" }, " instead"],
-    ],
-    steps: ["Pick the number: 1FOLD's bot, or your own.", "For your own: on that phone, open WhatsApp → Linked devices, and scan the code here.", "Teammates link to it from Integrations → WhatsApp."],
-    worksWith: "WhatsApp (linked device)",
-  },
-  {
-    id: "team-whatsapp", name: "Team WhatsApp", category: "For your company", icon: MessagesSquare, tile: "is-team", adminOnly: true,
-    tagline: "How the bot talks to your team: the brief, the replies, the alerts.",
-    about: "See who's linked and whether every message arrived. Set when the daily brief goes and on which days, choose the words that ask for it, and reword everything the bot says.",
+    id: "team-bot", name: "Team Bot", category: "For your company", icon: Bot, tile: "is-bot", adminOnly: true,
+    tagline: "Your company's own WhatsApp bot: the brief, the replies, the alerts.",
+    about: "Set up the bot on your company's own number — scan a code, like WhatsApp Web — then see who's linked and whether every message arrived, set when the daily brief goes, and reword everything the bot sends.",
     recipes: [
       ["Every ", { b: "working day at 09:00" }, ", send each teammate ", { b: "their pending tasks" }],
       ["When someone ", { b: "@@mentions" }, " a teammate, ", { b: "alert them" }, " on WhatsApp"],
       ["When a teammate replies ", { b: "a word you choose" }, ", send them ", { b: "their tasks" }],
     ],
-    steps: ["Teammates link their own WhatsApp from Integrations → WhatsApp.", "See who's linked, and whether each message arrived.", "Set the brief's time and days, the reply words and the messages — here."],
-    worksWith: "WhatsApp, through your WhatsApp bot",
+    steps: ["Set up the bot: scan its code with your company's phone.", "Teammates link their own WhatsApp from Integrations → WhatsApp.", "Set the brief, the reply words and the templates — here."],
+    worksWith: "WhatsApp (linked device)",
   },
 ];
 
@@ -83,7 +71,6 @@ export const CATEGORIES: Category[] = ["AI", "Communication", "For your company"
 export const appOf = (id: string) => APPS.find((a) => a.id === id);
 
 export interface AppStatus { connected: boolean; label: string }
-const NO_STATUS: AppStatus = { connected: false, label: "" }; // settings, not a connection
 
 /** Whether each integration is connected for the person looking: Claude (a token of theirs), their WhatsApp (linked),
  * the bot (connected). Statuses not known yet read "Checking…". */
@@ -100,9 +87,8 @@ export function useAppStatuses(): Record<AppId, AppStatus> {
   return {
     claude: tokens === null ? checking : tokens ? { connected: true, label: `Connected · ${tokens} token${tokens > 1 ? "s" : ""}` } : { connected: false, label: "Not connected" },
     whatsapp: !status ? checking : status.me.linked ? { connected: true, label: `Linked · +${status.me.linked.phone}` } : { connected: false, label: "Not linked" },
-    "whatsapp-bot": !bot ? checking : bot.state === "connected" ? { connected: true, label: `Connected · +${bot.phone ?? ""}` }
-      : { connected: false, label: bot.state === "logged_out" ? "Logged out — briefs go by email" : bot.state === "pairing" ? "Pairing…" : "Not connected" },
-    "team-whatsapp": NO_STATUS,
+    // Connected once the company's own number is: until then it's 1FOLD's bot, and there's something to set up.
+    "team-bot": bot?.own && bot.state === "connected" ? { connected: true, label: `Connected · +${bot.phone ?? ""}` } : { connected: false, label: "" },
   };
 }
 

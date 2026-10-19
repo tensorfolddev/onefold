@@ -425,6 +425,17 @@ export const whatsappBot = pgTable("whatsapp_bot", {
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
+/** A company's own WhatsApp number (Integrations → WhatsApp bot), instead of 1FOLD's: its own linked device, run by the
+ * worker beside 1FOLD's. A row means the company chose its own number; none, 1FOLD's bot (whatsapp_bot). */
+export const companyBots = pgTable("company_bots", {
+  orgId: text("org_id").primaryKey(),
+  state: text("state").notNull().default("off"), // off | pairing | connecting | connected | logged_out
+  qr: text("qr"), // while pairing: what the QR code shows (only that company's admins see it)
+  phone: text("phone"), // its number, once connected
+  request: text("request"), // pair | logout — set by an admin, taken by the worker
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
 /** A teammate's WhatsApp chat, per company they're in. Only ever made by them messaging the bot first. */
 export const whatsappLinks = pgTable("whatsapp_links", {
   orgId: text("org_id").notNull(),

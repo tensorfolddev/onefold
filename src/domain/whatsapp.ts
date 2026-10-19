@@ -3,7 +3,7 @@
 // screen previews exactly what the bot will send.
 import { ValidationError } from "./commands/shared.ts";
 
-export type TemplateKey = "urgent" | "connected" | "help" | "signOff";
+export type TemplateKey = "briefGreeting" | "briefEmpty" | "briefClosing" | "urgent" | "connected" | "help" | "signOff";
 export interface WhatsAppSettings {
   briefOn: boolean;
   briefAt: string; // "09:00", the company's local time
@@ -13,20 +13,32 @@ export interface WhatsAppSettings {
 }
 
 /** Each message the bot sends that a company can reword: what it's for, the {fields} it fills in, and 1FOLD's own text. */
-export const TEMPLATES: Record<TemplateKey, { label: string; hint: string; fields: string[]; text: string }> = {
+export const TEMPLATES: Record<TemplateKey, { label: string; hint: string; fields: string[]; text: string; group: "Daily brief" | "Messages" }> = {
+  briefGreeting: {
+    label: "Greeting", hint: "Opens each person's daily brief, above their tasks", fields: ["greeting", "name"], group: "Daily brief",
+    text: "*{greeting}, {name},*",
+  },
+  briefEmpty: {
+    label: "Nothing pending", hint: "When someone has no pending tasks", fields: [], group: "Daily brief",
+    text: "You have no pending tasks 🎉",
+  },
+  briefClosing: {
+    label: "Closing", hint: "Ends the daily brief, below the tasks", fields: ["link", "words", "signOff"], group: "Daily brief",
+    text: "📋 All your work: {link}\n\nReply {words} anytime for updates.\n\n{signOff}",
+  },
   urgent: {
-    label: "Urgent alert", hint: "Sent the moment someone @@mentions a teammate", fields: ["actor", "place", "message", "link"],
+    label: "Urgent alert", hint: "Sent the moment someone @@mentions a teammate", fields: ["actor", "place", "message", "link"], group: "Messages",
     text: "🚨 *{actor}* needs you\nThey mentioned you in *{place}*{message}\n\nPlease check it: {link}",
   },
   connected: {
-    label: "Number linked", hint: "The bot's reply when a teammate links their WhatsApp", fields: ["company", "schedule", "words", "signOff"],
+    label: "Number linked", hint: "The bot's reply when a teammate links their WhatsApp", fields: ["company", "schedule", "words", "signOff"], group: "Messages",
     text: "✅ *You're connected to 1FOLD*\n_{company}_\n\n{schedule}\n\nReply {words} anytime for updates.\n\n{signOff}",
   },
   help: {
-    label: "Help reply", hint: "When a teammate sends the bot anything else", fields: ["words", "signOff"],
+    label: "Help reply", hint: "When a teammate sends the bot anything else", fields: ["words", "signOff"], group: "Messages",
     text: "👋 *This is 1FOLD*\n\nReply {words} anytime for your pending tasks.\n\n{signOff}",
   },
-  signOff: { label: "Sign-off", hint: "Ends the daily brief and the bot's replies", fields: [], text: "🤍 *1FOLD By TensorFold* 🤍" },
+  signOff: { label: "Sign-off", hint: "Ends the daily brief and the bot's replies", fields: [], text: "🤍 *1FOLD By TensorFold* 🤍", group: "Messages" },
 };
 export const TEMPLATE_KEYS = Object.keys(TEMPLATES) as TemplateKey[];
 
