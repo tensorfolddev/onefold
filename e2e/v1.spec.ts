@@ -959,6 +959,61 @@ test("docs: @@ makes an urgent mention, kept as one after a reload", async ({ pa
   await expect(page.locator(".ProseMirror .doc-chip.is-urgent").first()).toHaveText(/@@Ayla Khan/);
 });
 
+test("docs: centred text, a right-aligned table column, an emoji from \":\", and a PDF that opens in a new tab", async ({ page }) => {
+  await signUp(page, "Upsilon", email("upsilon"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/docs");
+  await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
+  await expect(page).toHaveURL(/\/d(ocs)?\/.+/);
+  const prose = page.locator('.doc-prose[contenteditable="true"]');
+  const saved = page.waitForResponse((r) => {
+    const body = r.url().includes("/api/docs/") && r.request().method() === "POST" ? r.request().postData() ?? "" : "";
+    return body.includes("<!-- align: center -->") && body.includes("🚀") && body.includes("brief.pdf") && /-+:\s*\|/.test(body);
+  });
+
+  // A PDF: opens in the browser's viewer in a new tab, never downloaded.
+  await prose.click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.keyboard.type("/file");
+  await page.keyboard.press("Enter");
+  await (await chooser).setFiles({ name: "brief.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF\n") });
+  const card = prose.locator("a.file-card", { hasText: "brief.pdf" });
+  await expect(card).toHaveAttribute("target", "_blank");
+  await expect(card).toHaveAttribute("href", /^\/api\/files\/[\w-]+$/);
+  const pdf = await page.request.get((await card.getAttribute("href"))!);
+  expect(pdf.headers()["content-type"]).toBe("application/pdf");
+  expect(pdf.headers()["content-disposition"]).toMatch(/^inline/);
+
+  // Centred text, from the toolbar over a selection.
+  await prose.locator("p").last().click();
+  await page.keyboard.type("Centre me");
+  await prose.locator("p", { hasText: "Centre me" }).click({ clickCount: 3 });
+  await page.getByRole("button", { name: "Align centre" }).click();
+  await expect(prose.locator("p", { hasText: "Centre me" })).toHaveCSS("text-align", "center");
+
+  // ":" + a name inserts an emoji.
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Lift-off :rocke");
+  await page.getByRole("listbox", { name: "Emoji" }).getByRole("option", { name: /^rocket/ }).click();
+  await expect(prose).toContainText("Lift-off 🚀");
+
+  // A table column, right-aligned from the table's toolbar.
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/table");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Align column right" }).click();
+  await expect(prose.locator("th").first()).toHaveCSS("text-align", "right");
+
+  await saved;
+  await page.reload();
+  await expect(prose.locator("p", { hasText: "Centre me" })).toHaveCSS("text-align", "center");
+  await expect(prose.locator("th").first()).toHaveCSS("text-align", "right");
+  await expect(prose).toContainText("Lift-off 🚀");
+  await expect(prose.locator("a.file-card", { hasText: "brief.pdf" })).toHaveAttribute("target", "_blank");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

@@ -117,13 +117,22 @@ function FileCardView({ node, editor, deleteNode, selected }: NodeViewProps) {
   const href = safeHref(String(node.attrs.href)) ?? "";
   const name = String(node.attrs.name || "file");
   const ext = name.includes(".") ? name.split(".").pop()!.toUpperCase() : "FILE";
+  const pdf = ext === "PDF";
   return (
     <NodeViewWrapper className={`doc-file-card${selected ? " is-selected" : ""}`} data-drag-handle>
-      <a href={`${href}?download=1`} download={name} className="file-card" contentEditable={false}>
-        <span className="file-card-icon" aria-hidden><FileTypeIcon name={name} /></span>
-        <span className="file-card-text"><span className="file-card-name">{name}</span><span className="file-card-meta">{ext} · Download</span></span>
-        <Download aria-hidden className="file-card-dl" />
-      </a>
+      {pdf ? ( // opens in a new tab, in the browser's own viewer
+        <a href={href} target="_blank" rel="noopener noreferrer" className="file-card" contentEditable={false}>
+          <span className="file-card-icon" aria-hidden><FileTypeIcon name={name} /></span>
+          <span className="file-card-text"><span className="file-card-name">{name}</span><span className="file-card-meta">PDF · Open in a new tab</span></span>
+          <ExternalLink aria-hidden className="file-card-dl" />
+        </a>
+      ) : (
+        <a href={`${href}?download=1`} download={name} className="file-card" contentEditable={false}>
+          <span className="file-card-icon" aria-hidden><FileTypeIcon name={name} /></span>
+          <span className="file-card-text"><span className="file-card-name">{name}</span><span className="file-card-meta">{ext} · Download</span></span>
+          <Download aria-hidden className="file-card-dl" />
+        </a>
+      )}
       {editor.isEditable && (
         <span className="link-card-tools" contentEditable={false}>
           <button type="button" aria-label={`Remove ${name}`} onClick={deleteNode}><Trash2 aria-hidden /></button>

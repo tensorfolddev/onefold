@@ -1,15 +1,15 @@
 "use client";
 
 // The toolbar over a table while the caret is in it: rows and columns on any side (one or several at a time), delete
-// rows / columns / the table, the header row on or off, and the header's colour.
+// rows / columns / the table, the header row on or off, the header's colour, and each column's alignment.
 import type { Editor } from "@tiptap/core";
-import { CellSelection } from "@tiptap/pm/tables";
+import { CellSelection, isInTable, selectedRect } from "@tiptap/pm/tables";
 import {
-  ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Heading, PaintBucket, Rows3, Columns3, Trash2,
+  AlignCenter, AlignLeft, AlignRight, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Heading, PaintBucket, Rows3, Columns3, Trash2,
 } from "lucide-react";
 import { useEffect, useReducer, useState } from "react";
 import { Popover } from "@/ui/Popover";
-import { HEADER_COLORS } from "./extensions";
+import { HEADER_COLORS, type Align } from "./extensions";
 
 const MAX_AT_ONCE = 50;
 
@@ -26,9 +26,33 @@ function tableAt(editor: Editor): { pos: number; dom: HTMLElement; color: string
   return null;
 }
 
-function Btn({ label, onClick, children, danger }: { label: string; onClick: () => void; children: React.ReactNode; danger?: boolean }) {
+/** Aligns every cell of the selected column(s) — saved as Markdown's own `:--:` (left is the default: no setting). */
+function alignColumns(editor: Editor, align: Align) {
+  const { state } = editor;
+  if (!isInTable(state)) return;
+  const { map, table, tableStart, left, right } = selectedRect(state);
+  const tr = state.tr;
+  const done = new Set<number>();
+  for (let col = left; col < right; col += 1) {
+    for (let row = 0; row < map.height; row += 1) {
+      const pos = map.map[row * map.width + col];
+      if (done.has(pos)) continue; // a merged cell spans several
+      done.add(pos);
+      const cell = table.nodeAt(pos);
+      if (cell) tr.setNodeMarkup(tableStart + pos, null, { ...cell.attrs, align: align === "left" ? null : align });
+    }
+  }
+  editor.view.dispatch(tr);
+  editor.commands.focus();
+}
+
+const columnAlign = (editor: Editor): Align =>
+  ((editor.getAttributes("tableCell").align ?? editor.getAttributes("tableHeader").align) as Align | null) ?? "left";
+
+function Btn({ label, onClick, children, danger, on }: { label: string; onClick: () => void; children: React.ReactNode; danger?: boolean; on?: boolean }) {
   return (
-    <button type="button" className={`table-menu-btn${danger ? " is-danger" : ""}`} aria-label={label} data-tip={label} data-tip-pos="top"
+    <button type="button" className={`table-menu-btn${danger ? " is-danger" : ""}${on ? " is-on" : ""}`} aria-label={label} data-tip={label} data-tip-pos="top"
+      aria-pressed={on}
       onMouseDown={(e) => e.preventDefault()} onClick={onClick}>
       {children}
     </button>
@@ -80,6 +104,10 @@ export function TableMenu({ editor }: { editor: Editor }) {
       </Popover>
       <Btn label="Delete row" danger onClick={() => c().deleteRow().run()}><Rows3 /><Trash2 className="table-menu-mini" /></Btn>
       <Btn label="Delete column" danger onClick={() => c().deleteColumn().run()}><Columns3 /><Trash2 className="table-menu-mini" /></Btn>
+      <span className="table-menu-sep" aria-hidden />
+      <Btn label="Align column left" on={columnAlign(editor) === "left"} onClick={() => alignColumns(editor, "left")}><AlignLeft /></Btn>
+      <Btn label="Align column centre" on={columnAlign(editor) === "center"} onClick={() => alignColumns(editor, "center")}><AlignCenter /></Btn>
+      <Btn label="Align column right" on={columnAlign(editor) === "right"} onClick={() => alignColumns(editor, "right")}><AlignRight /></Btn>
       <span className="table-menu-sep" aria-hidden />
       <Btn label="Header row on or off" onClick={() => c().toggleHeaderRow().run()}><Heading /></Btn>
       <Popover width={220} floating trigger={({ toggle }) => <Btn label="Header colour" onClick={toggle}><PaintBucket /></Btn>}>

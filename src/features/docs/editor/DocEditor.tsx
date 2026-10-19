@@ -12,7 +12,7 @@ import { chipExtensions, CHIP_NODES } from "./Chips";
 import { connectExtensions, type DocLinks } from "./Connect";
 import { docExtensions } from "./extensions";
 import { toDocJson, toMarkdown } from "./markdown";
-import { SlashCommand } from "./SlashMenu";
+import { EmojiCommand, SlashCommand } from "./SlashMenu";
 import { TableMenu } from "./TableMenu";
 
 export interface Heading { level: number; text: string; pos: number }
@@ -53,7 +53,7 @@ export default function DocEditor({ body, editable, onChange, onHeadings, placeh
   const editor = useEditor({
     extensions: [
       ...docExtensions({ editable, placeholder }).filter((e) => !CHIP_NODES.has(e.name)), ...chipExtensions,
-      SlashCommand, ...connect.extensions,
+      SlashCommand, EmojiCommand, ...connect.extensions,
     ],
     content,
     editable,

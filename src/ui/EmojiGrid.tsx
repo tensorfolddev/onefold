@@ -1,9 +1,18 @@
 "use client";
 
-// Every Unicode emoji, by group or searched by name — the product icon picker and doc page icons use it.
+// Every Unicode emoji, by group or searched by name — the product icon picker and doc page icons use it (and ":" in a doc).
 import { useEffect, useMemo, useRef, useState } from "react";
 
-interface Emoji { unicode: string; label: string; tags?: string[]; group?: number }
+export interface Emoji { unicode: string; label: string; tags?: string[]; group?: number }
+
+let loading: Promise<Emoji[]> | null = null;
+/** Every emoji, minus skin-tone swatches: ~570 KB of names + keywords, fetched once, the first time anyone needs them. */
+export function loadEmoji(): Promise<Emoji[]> {
+  loading ??= import("emojibase-data/en/compact.json")
+    .then((m) => (m.default as Emoji[]).filter((e) => e.group !== undefined && e.group !== 2))
+    .catch((e: unknown) => { loading = null; throw e; }); // offline: the next try fetches again
+  return loading;
+}
 
 // Unicode groups, minus "components" (skin-tone swatches) — same order monday's picker uses.
 const GROUPS: { id: number; label: string; icon: string }[] = [
@@ -19,10 +28,7 @@ export function EmojiGrid({ query, current, onPick }: { query: string; current?:
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // ~570 KB of emoji names + keywords: fetched only when someone opens the picker.
-    import("emojibase-data/en/compact.json")
-      .then((m) => setAll((m.default as Emoji[]).filter((e) => e.group !== undefined && e.group !== 2)))
-      .catch(() => setFailed(true));
+    loadEmoji().then(setAll).catch(() => setFailed(true));
   }, []);
 
   const q = query.trim().toLowerCase();

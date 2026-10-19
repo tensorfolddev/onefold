@@ -108,3 +108,14 @@ test("images (with their width), file cards and coloured tables keep their Markd
   assert.equal(toDocJson("![x](javascript:alert(1))").content?.[0]?.attrs?.src ?? "", "");
   assert.equal(JSON.stringify(toDocJson("<!-- table: header=evil -->\n| A |\n| - |\n| 1 |")).includes('"headerColor":"evil"'), false); // unknown colours never become an attribute
 });
+
+test("alignment survives a save: centred and right-aligned paragraphs and headings, and table columns", () => {
+  for (const md of [
+    "<!-- align: center -->\nA centred line with **bold** and a [link](https://example.com)",
+    "<!-- align: right -->\n## Signed off",
+    "Before\n\n<!-- align: center -->\nMiddle\n\nAfter",
+  ]) assert.equal(roundTrip(md), md);
+  assert.match(roundTrip("| Name | Role |\n| :--: | ---: |\n| Ayla | Admin |"), /\| :-+: \| -+: \|/); // a table column: Markdown's own :--:
+  assert.match(JSON.stringify(toDocJson("<!-- align: center -->\nHi")), /"textAlign":"center"/);
+  assert.equal(roundTrip("<!-- align: left -->\nPlain"), "Plain"); // left is the default: nothing to keep
+});

@@ -1,5 +1,5 @@
 // GET /api/files/<id>[?download=1] — an image on a ticket, or a file in a doc, that you can see. Ids never change;
-// browsers keep each for an hour. Anything that isn't an image is only ever downloaded, never shown.
+// browsers keep each for an hour. Images and PDFs open in the browser; anything else is only ever downloaded.
 import type { NextRequest } from "next/server";
 import { readImage } from "@/server/files";
 import { handle, refuse, requireSession } from "@/server/http";
@@ -18,7 +18,8 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/files/[id]">
         "Cache-Control": "private, max-age=3600", // short enough that losing access to a product soon means losing its images
         Vary: "Cookie",
         "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'; sandbox",
+        // A PDF (known from its bytes) stays out of the sandbox so every browser's built-in viewer can show it; it still may load nothing.
+        "Content-Security-Policy": file.type === "application/pdf" ? "default-src 'none'" : "default-src 'none'; sandbox",
       },
     });
   });

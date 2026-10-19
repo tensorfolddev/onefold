@@ -1,11 +1,12 @@
 "use client";
 
-// Select text → a small toolbar: bold, italic, strike, code, highlight, link.
+// Select text → a small toolbar: bold, italic, strike, code, highlight, link, and left / centre / right alignment.
 import type { Editor } from "@tiptap/core";
 import { CellSelection } from "@tiptap/pm/tables";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { Bold, Code, Highlighter, Italic, Link2, Strikethrough, Unlink } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Bold, Code, Highlighter, Italic, Link2, Strikethrough, Unlink } from "lucide-react";
 import { useEffect, useState } from "react";
+import { alignText, canAlign, textAlignAt, type Align } from "./extensions";
 import { safeHref } from "./links";
 
 const MARKS = [
@@ -14,6 +15,12 @@ const MARKS = [
   { mark: "strike", label: "Strikethrough", icon: Strikethrough, keys: "⌘⇧S", run: (e: Editor) => e.chain().focus().toggleStrike().run() },
   { mark: "code", label: "Inline code", icon: Code, keys: "⌘E", run: (e: Editor) => e.chain().focus().toggleCode().run() },
   { mark: "highlight", label: "Highlight", icon: Highlighter, keys: "⌘⇧H", run: (e: Editor) => e.chain().focus().toggleHighlight().run() },
+];
+
+const ALIGN_BUTTONS: { align: Align; label: string; icon: typeof AlignLeft; keys: string }[] = [
+  { align: "left", label: "Align left", icon: AlignLeft, keys: "⌘⇧L" },
+  { align: "center", label: "Align centre", icon: AlignCenter, keys: "⌘⇧E" },
+  { align: "right", label: "Align right", icon: AlignRight, keys: "⌘⇧R" },
 ];
 
 export function BubbleToolbar({ editor }: { editor: Editor }) {
@@ -62,6 +69,16 @@ export function BubbleToolbar({ editor }: { editor: Editor }) {
             </button>
           ))}
           <span className="doc-bubble-sep" aria-hidden />
+          {canAlign(editor) && ALIGN_BUTTONS.map((a) => (
+            <button
+              key={a.align} type="button" className={`doc-bubble-btn${textAlignAt(editor) === a.align ? " is-on" : ""}`}
+              aria-label={a.label} aria-pressed={textAlignAt(editor) === a.align} data-tip={`${a.label}  ${a.keys}`} data-tip-pos="top"
+              onMouseDown={(ev) => ev.preventDefault()} onClick={() => alignText(editor, a.align)}
+            >
+              <a.icon aria-hidden />
+            </button>
+          ))}
+          {canAlign(editor) && <span className="doc-bubble-sep" aria-hidden />}
           {editor.isActive("link") ? (
             <button type="button" className="doc-bubble-btn is-on" aria-label="Remove link" data-tip="Remove link" data-tip-pos="top"
               onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()}>

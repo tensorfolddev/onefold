@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Check, Lock, MoreHorizontal, Pencil, Plus, Trash
 import { addStatus, createTicket, deleteStatus, moveStatus, updateStatus } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import { CATEGORY_LABEL, TONE_NAME, TONES, toneVar } from "@/domain/status";
-import type { Status, StatusCategory, Tone } from "@/domain/types";
+import type { Status, StatusCategory } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { IconButton, Tooltip } from "@/ui/primitives";
