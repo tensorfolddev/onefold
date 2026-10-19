@@ -14,6 +14,7 @@ import { freshDatabase } from "../testing/db.ts";
 import { botStatus, createLinkCode, handleMessage, isPlatformAdmin, myWhatsApp, requestBot, setBotState, takeBotRequest } from "./bot.ts";
 import { localClock, sendDueBriefs } from "./brief.ts";
 import { textOf } from "./bridge.ts";
+import { companyWhatsApp, saveSettings } from "./settings.ts";
 
 const outbox = await mkdtemp(join(tmpdir(), "onefold-wa-outbox-"));
 process.env.EMAIL_OUTBOX_DIR = outbox;
@@ -64,8 +65,8 @@ test("a message's text is found inside WhatsApp's envelopes (disappearing, view 
 });
 
 test("the time of day is the company's: 04:00 UTC is 9:00 on a Friday in Pakistan", () => {
-  assert.deepEqual(localClock("Asia/Karachi", new Date("2026-10-16T04:00:00Z")), { day: "2026-10-16", weekday: 5, hour: 9 });
-  assert.deepEqual(localClock("Not/A_Zone", new Date("2026-10-16T04:00:00Z")), { day: "2026-10-16", weekday: 5, hour: 9 });
+  assert.deepEqual(localClock("Asia/Karachi", new Date("2026-10-16T04:00:00Z")), { day: "2026-10-16", weekday: 5, hour: 9, minute: 0 });
+  assert.deepEqual(localClock("Not/A_Zone", new Date("2026-10-16T04:35:00Z")), { day: "2026-10-16", weekday: 5, hour: 9, minute: 35 });
 });
 
 test("only platform admins can pair the bot, and the worker takes each request once", async () => {
@@ -268,4 +269,43 @@ test("when WhatsApp logs the bot out, platform admins get one email about it", a
   assert.equal(alerts[0].subject, "1Fold's WhatsApp bot was disconnected");
   assert.ok(alerts[0].text.includes(`${APP}/admin/settings`));
   await assert.rejects(createLinkCode(dev), /isn't connected/);
+});
+
+test("admins set their company's WhatsApp — the brief's time and days (or off), the reply words, the messages — and see who's linked and what went out", async () => {
+  const SAM2 = "923007778888@s.whatsapp.net"; // Sam's newest number (its own reply allowance)
+  const fromSam2 = (text: string) => handleMessage({ jid: SAM2, phone: "923007778888", text }, whatsapp, APP);
+  await setBotState("connected", { phone: "923000000001" }, APP); // back after the last test's logout
+  await fromSam2((await createLinkCode(dev)).code);
+  assert.match(lastSent(), /Every working day at \*09:00\* you'll get your pending tasks here/);
+
+  await assert.rejects(saveSettings(dev, { briefAt: "07:30" }), AccessError); // only admins
+  await assert.rejects(saveSettings(admin, { briefAt: "25:00" }), /time like 09:00/);
+  await assert.rejects(saveSettings(admin, { briefDays: [] }), /at least one day/);
+  await saveSettings(admin, { briefAt: "07:30", briefDays: [6], words: ["Status", "1 Fold"], templates: { help: "Hi! Reply {words}. {signOff}", signOff: "— Acme" } });
+
+  await applySteps(admin, [{ name: "setMember", args: ["CH", samId, true] }]); // back on Checkout
+  const { key } = await applySteps(admin, [{ name: "createTicket", args: ["CH", "Weekend check"] }]);
+  await applySteps(admin, [{ name: "updateTicket", args: [key, { assigneeId: samId }] }]); // something to tell Sam
+  assert.deepEqual(await briefsAt("2026-10-24T02:20:00Z"), NONE); // Saturday 7:20 in Pakistan: not yet
+  assert.ok((await briefsAt("2026-10-24T02:35:00Z")).whatsapp >= 1); // 7:35 on a Saturday, a brief day now (Ayla's linked too)
+  const toSam = whatsapp.sent.filter((m) => m.jid === SAM2).at(-1)?.text ?? "";
+  assert.match(toSam, /Weekend check/);
+  assert.match(toSam, /Reply \*STATUS\* anytime for updates\.\n\n— Acme$/); // the company's own words
+  assert.deepEqual(await briefsAt("2026-10-26T04:10:00Z"), NONE); // Monday isn't a brief day any more
+
+  await fromSam2("1 fold!"); // still one of the words (as the bot hears it: "1fold")
+  assert.match(lastSent(), /\*Acme\*/);
+  await fromSam2("today"); // not any more
+  assert.equal(lastSent(), "Hi! Reply *STATUS*. — Acme");
+
+  await saveSettings(admin, { briefOn: false, briefDays: [0, 1, 2, 3, 4, 5, 6] });
+  assert.deepEqual(await briefsAt("2026-10-27T04:10:00Z"), NONE); // off: no brief, any day
+
+  const page = await companyWhatsApp(admin);
+  assert.equal(page.linked.find((l) => l.personId === samId)?.phone, "+92 30•••8888"); // enough to tell numbers apart
+  assert.ok(page.log.some((d) => d.kind === "brief" && d.status === "sent" && d.personId === samId));
+  assert.deepEqual([page.settings.briefOn, page.settings.words], [false, ["status", "1fold"]]);
+  await assert.rejects(companyWhatsApp(dev), AccessError);
+  await saveSettings(admin, { templates: { help: "", signOff: "" } }); // emptied: back to 1FOLD's own
+  assert.equal((await companyWhatsApp(admin)).settings.templates.signOff, "🤍 *1FOLD By TensorFold* 🤍");
 });

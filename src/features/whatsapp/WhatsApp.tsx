@@ -19,7 +19,7 @@ const problemOf = (e: unknown) => (e instanceof ApiError ? e.message : "Somethin
 const shownPhone = (digits: string | null) => (digits ? `+${digits}` : "your WhatsApp");
 
 /** The WhatsApp status from the server, checked again every `everyMs`. */
-function useWhatsApp(everyMs: number) {
+export function useWhatsApp(everyMs: number) {
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {

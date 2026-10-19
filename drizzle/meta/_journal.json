@@ -169,6 +169,13 @@
       "when": 1792416095489,
       "tag": "0023_public_links",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792419337751,
+      "tag": "0024_whatsapp_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -1,20 +1,21 @@
-// The daily brief: at 9:00 in each company's time zone, on working days (Monday–Friday), every teammate who linked
-// WhatsApp gets their pending tickets, project by project, with due dates and links (the template the team chose).
-// When WhatsApp is down it goes by email instead. Each person gets at most one a day, whatever happens.
+// The daily brief: at the company's time (9:00 unless its admins changed it) in its time zone, on its days (Monday–
+// Friday unless changed), every teammate who linked WhatsApp gets their pending tickets, project by project, with due
+// dates and links. When WhatsApp is down it goes by email instead. Each person gets at most one a day, whatever happens.
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "../../data/db.ts";
 import { PANEL_SLUG } from "../../data/session.ts";
 import { statusOf } from "../../domain/selectors/product.ts";
 import { snapshotFor, withoutArchived } from "../../domain/snapshot.ts";
 import type { Person, Ticket } from "../../domain/types.ts";
+import { DEFAULT_SETTINGS, minutesOf, wordsText, type WhatsAppSettings } from "../../domain/whatsapp.ts";
 import { loadCompany } from "../company/store.ts";
 import { database, inScope } from "../db/client.ts";
 import * as s from "../db/schema.ts";
 import { briefEmail, sendEmail } from "../email.ts";
+import { settingsFor } from "./settings.ts";
 
-export const BRIEF_HOUR = 9;
-const LAST_HOUR = 18; // a brief that couldn't go out by then waits for the next working day
-const WAIT_FOR_WHATSAPP_UNTIL = 11; // while WhatsApp is reconnecting, hold briefs until then — after that, email
+const SEND_WINDOW_MINUTES = 9 * 60; // a brief that couldn't go out within 9 hours of its time waits for the next day
+const WAIT_FOR_WHATSAPP_MINUTES = 2 * 60; // while WhatsApp is reconnecting, hold briefs this long — after that, email
 const RETRY_AFTER = "10 minutes"; // a brief stuck "pending" (the worker died mid-send) or "failed" is tried again
 const DEFAULT_TIME_ZONE = "Asia/Karachi";
 const SEND_GAP_MS = 4000; // a few seconds between messages, like a person would
@@ -28,20 +29,19 @@ export interface Sender {
   send: (jid: string, text: string) => Promise<void>;
 }
 
-/** The date, weekday (0 = Sunday) and hour at `at` in `timeZone`. */
-export function localClock(timeZone: string, at: Date): { day: string; weekday: number; hour: number } {
+/** The date, weekday (0 = Sunday), hour and minute at `at` in `timeZone`. */
+export function localClock(timeZone: string, at: Date): { day: string; weekday: number; hour: number; minute: number } {
   let zone = timeZone;
   try { new Intl.DateTimeFormat("en-CA", { timeZone: zone }); } catch { zone = DEFAULT_TIME_ZONE; }
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
-    timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", weekday: "short", hourCycle: "h23",
+    timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", weekday: "short", hourCycle: "h23",
   }).formatToParts(at).map((p) => [p.type, p.value]));
-  return { day: `${parts.year}-${parts.month}-${parts.day}`, weekday: WEEKDAYS.indexOf(parts.weekday), hour: Number(parts.hour) };
+  return { day: `${parts.year}-${parts.month}-${parts.day}`, weekday: WEEKDAYS.indexOf(parts.weekday), hour: Number(parts.hour), minute: Number(parts.minute) };
 }
 
 const MAX_PER_PROJECT = 10;
 const LINE = "━━━━━━━━━━━━━━";
 const PROJECT_LINE = "━━━━━━━━━━";
-const SIGN_OFF = "🤍 *1FOLD By TensorFold* 🤍";
 
 const utcDate = (day: string) => new Date(`${day}T00:00:00Z`);
 const part = (day: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(utcDate(day));
@@ -71,7 +71,9 @@ export function pendingByProject(db: Db, personId: string): ProjectTasks[] {
  * they're no longer on). With nothing pending it's null — the 9:00 brief is then skipped — unless `whenEmpty`
  * (someone asked for it), which says so instead.
  */
-export function briefText(company: Db, person: Person, clock: { day: string; hour: number }, appUrl: string, opts: { whenEmpty?: boolean } = {}): string | null {
+export function briefText(company: Db, person: Person, clock: { day: string; hour: number }, appUrl: string,
+  opts: { whenEmpty?: boolean; settings?: WhatsAppSettings } = {}): string | null {
+  const settings = opts.settings ?? DEFAULT_SETTINGS;
   const db = withoutArchived(snapshotFor(company, person)); // never an archived product's tickets
   const projects = pendingByProject(db, person.id);
   const total = projects.reduce((n, p) => n + p.tickets.length, 0);
@@ -95,7 +97,7 @@ export function briefText(company: Db, person: Person, clock: { day: string; hou
       if (p.tickets.length > MAX_PER_PROJECT) lines.push("", `_…and ${p.tickets.length - MAX_PER_PROJECT} more — see All your work_`);
     });
   }
-  lines.push(LINE, `📋 All your work: ${appUrl}/my-work`, "", "Reply *1FOLD* anytime for updates.", "", SIGN_OFF);
+  lines.push(LINE, `📋 All your work: ${appUrl}/my-work`, "", `Reply ${wordsText(settings.words)} anytime for updates.`, "", settings.templates.signOff);
   return lines.join("\n");
 }
 
@@ -115,25 +117,29 @@ export async function briefFor(orgId: string, memberId: string, appUrl: string, 
   const company = await companyOf(orgId);
   const person = company?.db.people.find((p) => p.id === memberId);
   if (!company || !person?.active) return null;
-  return briefText(company.db, person, localClock(company.timeZone, at), appUrl, { whenEmpty: true });
+  return briefText(company.db, person, localClock(company.timeZone, at), appUrl, { whenEmpty: true, settings: await settingsFor(orgId) });
 }
 
 export interface BriefRun { whatsapp: number; email: number; none: number; failed: number }
 
 /**
- * Sends every brief that's due now: companies where it's a working day between 9:00 and 18:00, people who linked
- * WhatsApp and want briefs and haven't had today's. Runs every minute in the worker; safe to run any number of times.
+ * Sends every brief that's due now: companies whose brief is on, on one of its days, from its time to 9 hours after;
+ * people who linked WhatsApp and want briefs and haven't had today's. Runs every minute in the worker; safe to run
+ * any number of times.
  */
 export async function sendDueBriefs(opts: { whatsapp: Sender | null; appUrl: string; at?: Date; gapMs?: number }): Promise<BriefRun> {
   const at = opts.at ?? new Date();
   const run: BriefRun = { whatsapp: 0, email: 0, none: 0, failed: 0 };
   const links = await database().select().from(s.whatsappLinks).where(eq(s.whatsappLinks.briefs, true));
   for (const orgId of new Set(links.map((l) => l.orgId))) {
+    const settings = await settingsFor(orgId);
+    if (!settings.briefOn) continue;
     const company = await companyOf(orgId);
     if (!company) continue;
     const clock = localClock(company.timeZone, at);
-    if (clock.weekday === 0 || clock.weekday === 6 || clock.hour < BRIEF_HOUR || clock.hour >= LAST_HOUR) continue;
-    if (opts.whatsapp?.waiting?.() && clock.hour < WAIT_FOR_WHATSAPP_UNTIL) continue; // (re)connecting: try next minute
+    const since = clock.hour * 60 + clock.minute - minutesOf(settings.briefAt); // minutes since the brief's time today
+    if (!settings.briefDays.includes(clock.weekday) || since < 0 || since >= SEND_WINDOW_MINUTES) continue;
+    if (opts.whatsapp?.waiting?.() && since < WAIT_FOR_WHATSAPP_MINUTES) continue; // (re)connecting: try next minute
     for (const link of links.filter((l) => l.orgId === orgId)) {
       const person = company.db.people.find((p) => p.id === link.memberId);
       if (!person?.active || !person.panel) continue;
@@ -148,7 +154,7 @@ export async function sendDueBriefs(opts: { whatsapp: Sender | null; appUrl: str
         })
         .returning();
       if (!claimed.length) continue;
-      const text = briefText(company.db, person, clock, opts.appUrl);
+      const text = briefText(company.db, person, clock, opts.appUrl, { settings });
       const channel = text === null ? "none" : await deliver(opts, link.jid, person, company.db.org.name, text);
       run[channel] += 1;
       await database().update(s.briefDeliveries).set({ channel })
