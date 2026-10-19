@@ -106,6 +106,7 @@
 }
 /* The CSS-only variant for buttons inside floating toolbars (no extra element): data-tip="Bold ⌘B". */
 [data-tip] { position: relative; }
+[data-tip]:hover, [data-tip]:focus-visible { z-index: 82; } /* above its neighbours, so they can't cover its tooltip */
 [data-tip]::after { content: attr(data-tip); }
 [data-tip]::before { top: calc(100% + 6px); opacity: 0; visibility: hidden; z-index: 81; transition: opacity 120ms, visibility 0s linear 120ms; }
 [data-tip]:hover::before, [data-tip]:focus-visible::before { opacity: 1; visibility: visible; transition-delay: 350ms, 0s; }

@@ -102,7 +102,7 @@ export function AssigneeField({ ticket, product, onCard }: { ticket: Ticket; pro
 
   return (
     <Popover
-      width={260} className="assignee-menu" floating={onCard} align={onCard ? "right" : "left"}
+      width={260} className="assignee-menu" floating align={onCard ? "right" : "left"}
       trigger={({ open, toggle: openMenu }) => onCard ? (
         <button
           type="button" className="card-assignees" aria-haspopup="menu" aria-expanded={open} onClick={openMenu}
@@ -150,7 +150,7 @@ export function PriorityField({ ticket, onCard }: { ticket: Ticket; onCard?: boo
   const cur = look(ticket.priority);
   return (
     <Popover
-      width={160} className="priority-menu" floating={onCard}
+      width={160} className="priority-menu" floating
       trigger={({ open, toggle }) => (
         <button
           type="button" className={onCard ? "card-priority" : "priority-cell"} data-priority={ticket.priority} style={cur.style}

@@ -1,31 +1,28 @@
 "use client";
 
-// A project's overview: the numbers that matter up top (progress, open, overdue, due soon), then the status mix,
-// what's coming up, who carries what, each epic's progress, blockers, the latest activity, decisions and docs.
+// A project's overview, nine things only: progress, open, overdue and due soon up top; then the status mix, blockers,
+// what's coming up, who carries what, and each epic's progress. Every card keeps its size; a full one scrolls inside.
 import Link from "next/link";
-import { Activity as ActivityIcon, AlertTriangle, CalendarClock, CheckCircle2, CircleDot, FileText, Flag, Scale, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, CircleDot, Flag, Users } from "lucide-react";
 import { useMe } from "@/data/StoreProvider";
 import { today } from "@/domain/clock";
 import { projectOverview } from "@/domain/selectors/overview";
-import { nextMilestone } from "@/domain/selectors/product";
-import { relativeTime, shortDate, toneVar } from "@/domain/status";
-import type { Activity, Ticket } from "@/domain/types";
-import { docPath } from "@/features/docs/tree";
+import { shortDate, toneVar } from "@/domain/status";
+import type { Ticket } from "@/domain/types";
 import { useAppState } from "@/features/shell/state";
 import { TypeIcon } from "@/features/tickets/TicketBits";
 import { Avatar } from "@/ui/primitives";
-import { StatusPill } from "./DecisionStatus";
-import { BlockerList, CoverageList } from "./LiveWidgets";
-import { MilestoneSummary } from "./Widgets";
+import { BlockerList } from "./LiveWidgets";
 
 const RING = 2 * Math.PI * 26;
-const SHOWN_UPCOMING = 8;
 const SHOWN_AVATARS = 2;
 
-function Card({ title, icon, action, span = 4, children }: { title: string; icon: React.ReactNode; action?: React.ReactNode; span?: 4 | 6 | 8 | 12; children: React.ReactNode }) {
+function Card({ title, icon, action, span = 4, size = "md", children }: {
+  title: string; icon: React.ReactNode; action?: React.ReactNode; span?: 4 | 8 | 12; size?: "sm" | "md" | "lg"; children: React.ReactNode;
+}) {
   const id = `ov-${title.toLowerCase().replace(/\W+/g, "-")}`;
   return (
-    <section className={`ov-card span-${span}`} aria-labelledby={id}>
+    <section className={`ov-card span-${span} is-${size}`} aria-labelledby={id}>
       <header className="ov-card-head"><span className="ov-card-icon" aria-hidden>{icon}</span><h3 id={id}>{title}</h3>{action}</header>
       <div className="ov-card-body">{children}</div>
     </section>
@@ -62,31 +59,13 @@ function TicketRow({ t, day }: { t: Ticket; day: string }) {
   );
 }
 
-const did = (a: Activity) => {
-  switch (a.field) {
-    case "Created": return "created";
-    case "Status": return `moved to ${a.to}`;
-    case "Assignee": return a.to ? `assigned ${a.to}` : "unassigned";
-    case "Priority": return `set priority ${a.to}`;
-    case "Due date": return a.to && a.to !== "—" ? `set due ${a.to}` : "cleared the due date";
-    case "Archive": return a.to ? "archived" : "restored";
-    default: return `changed the ${a.field.toLowerCase()}`;
-  }
-};
-
 export function ProjectOverview({ productKey }: { productKey: string }) {
-  const { db, href, personById } = useMe();
+  const { db, href } = useMe();
   const { openTicket } = useAppState();
   const day = today();
   const o = projectOverview(db, productKey, day);
-  const milestone = nextMilestone(db, productKey);
-  const decisions = db.decisions.filter((d) => d.productKey === productKey).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).slice(0, 4);
-  const docs = db.docs.filter((d) => d.productKey === productKey && !d.archivedAt)
-    .sort((a, b) => (b.updatedAt ?? b.updated).localeCompare(a.updatedAt ?? a.updated)).slice(0, 4);
-  const hasRequirements = db.requirements.some((r) => r.productKey === productKey);
-  const ticketTitle = (key: string) => db.tickets.find((t) => t.key === key)?.title ?? "";
   const busiest = Math.max(1, ...o.team.map((m) => m.open));
-  const upcoming = [...o.overdue, ...o.dueSoon].slice(0, SHOWN_UPCOMING);
+  const upcoming = [...o.overdue, ...o.dueSoon];
   const seeAll = (path: string, label = "See all") => <Link href={href(`/products/${productKey}/${path}`)} className="ov-card-link">{label}</Link>;
 
   return (
@@ -106,7 +85,7 @@ export function ProjectOverview({ productKey }: { productKey: string }) {
       </section>
 
       <div className="ov-grid">
-        <Card title="Status" icon={<CircleDot />} span={8} action={seeAll("tickets", "Open board")}>
+        <Card title="Status" icon={<CircleDot />} span={8} size="sm" action={seeAll("tickets", "Open board")}>
           {o.byStatus.length ? (
             <>
               <div className="ov-stack" role="img" aria-label={o.byStatus.map((s) => `${s.count} ${s.status.name}`).join(", ")}>
@@ -119,16 +98,14 @@ export function ProjectOverview({ productKey }: { productKey: string }) {
           ) : <p className="ov-empty">No tickets yet — add them on the Tickets tab.</p>}
         </Card>
 
-        <Card title={milestone ? `Milestone · ${milestone.name}` : "Milestone"} icon={<Flag />} span={4} action={seeAll("roadmap", "Roadmap")}>
-          {milestone ? <MilestoneSummary milestone={milestone} /> : <p className="ov-empty">No milestones yet — plan them on the Roadmap.</p>}
-        </Card>
+        <Card title="Blockers" icon={<AlertTriangle />} span={4} size="sm"><BlockerList productKey={productKey} /></Card>
 
-        <Card title="Coming up" icon={<CalendarClock />} span={8} action={seeAll("tickets")}>
+        <Card title="Coming up" icon={<CalendarClock />} span={8} size="lg" action={seeAll("tickets")}>
           {upcoming.length ? <ul className="ov-list">{upcoming.map((t) => <TicketRow key={t.key} t={t} day={day} />)}</ul>
-            : <p className="ov-empty">Nothing due in the next two weeks.</p>}
+            : <p className="ov-empty">Nothing late, and nothing due in the next two weeks.</p>}
         </Card>
 
-        <Card title="Team" icon={<Users />} span={4} action={seeAll("members", "Members")}>
+        <Card title="Team" icon={<Users />} span={4} size="lg" action={seeAll("members", "Members")}>
           {o.team.length ? (
             <ul className="ov-team">
               {o.team.map((m) => (
@@ -143,7 +120,7 @@ export function ProjectOverview({ productKey }: { productKey: string }) {
           ) : <p className="ov-empty">No one on this project yet.</p>}
         </Card>
 
-        <Card title="Epics" icon={<Flag />} span={6} action={seeAll("tickets")}>
+        <Card title="Epics" icon={<Flag />} span={12} size="md" action={seeAll("tickets")}>
           {o.epics.length ? (
             <ul className="ov-epics">
               {o.epics.map(({ epic, done, total }) => {
@@ -161,47 +138,6 @@ export function ProjectOverview({ productKey }: { productKey: string }) {
             </ul>
           ) : <p className="ov-empty">No epics yet — group related tickets under one.</p>}
         </Card>
-
-        <Card title="Blockers" icon={<AlertTriangle />} span={6}><BlockerList productKey={productKey} /></Card>
-
-        <Card title="Recent activity" icon={<ActivityIcon />} span={8}>
-          {o.activity.length ? (
-            <ul className="ov-feed">
-              {o.activity.map((a) => (
-                <li key={a.id}>
-                  <Avatar personId={a.actorId} size="sm" />
-                  <p><strong>{personById(a.actorId)?.name.split(" ")[0] ?? "Someone"}</strong> {did(a)}{" "}
-                    <button type="button" className="ov-feed-ticket" onClick={() => openTicket(a.ticketKey)}>{a.ticketKey} {ticketTitle(a.ticketKey)}</button>
-                  </p>
-                  <time dateTime={a.at}>{relativeTime(a.at)} ago</time>
-                </li>
-              ))}
-            </ul>
-          ) : <p className="ov-empty">Nothing has happened here yet.</p>}
-        </Card>
-
-        <div className="ov-side span-4">
-          <Card title="Latest decisions" icon={<Scale />} span={12} action={seeAll("decisions")}>
-            {decisions.length ? (
-              <ul className="ov-mini">
-                {decisions.map((d) => (
-                  <li key={d.id}><Link href={href(`/products/${productKey}/decisions?d=${d.id}`)}><span className="ov-mini-title">{d.title}</span><StatusPill decision={d} /></Link></li>
-                ))}
-              </ul>
-            ) : <p className="ov-empty">No decisions recorded yet.</p>}
-          </Card>
-          <Card title="Recent docs" icon={<FileText />} span={12} action={seeAll("docs")}>
-            {docs.length ? (
-              <ul className="ov-mini">
-                {docs.map((d) => (
-                  <li key={d.id}><Link href={href(docPath(d))}><span aria-hidden>{d.icon ?? <FileText />}</span><span className="ov-mini-title">{d.title}</span><span className="muted">{relativeTime(d.updatedAt ?? `${d.updated}T12:00:00Z`)}</span></Link></li>
-                ))}
-              </ul>
-            ) : <p className="ov-empty">No docs yet.</p>}
-          </Card>
-        </div>
-
-        {hasRequirements && <Card title="Requirements coverage" icon={<CheckCircle2 />} span={12}><CoverageList productKey={productKey} /></Card>}
       </div>
     </div>
   );
