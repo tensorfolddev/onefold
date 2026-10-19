@@ -690,6 +690,13 @@ test("decisions: recorded with a why, opened by link, edited in place, and super
   await accepted.getByLabel("Status of Bill yearly").selectOption("proposed");
   await expect(page.getByRole("region", { name: "Proposed" }).getByRole("row").filter({ hasText: "Bill yearly" })).toBeVisible();
   await expect(page).not.toHaveURL(/\?d=/);
+
+  // Or as sticky notes: open questions first, and a note opens the decision.
+  await page.getByRole("tab", { name: "Notes" }).click();
+  const notes = page.getByRole("list", { name: "Decisions as notes" }).getByRole("button");
+  await expect(notes.first()).toContainText("Bill yearly");
+  await notes.filter({ hasText: "Bill monthly" }).click();
+  await expect(page.getByRole("dialog", { name: "Bill monthly" })).toBeVisible();
 });
 
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
