@@ -31,8 +31,9 @@ const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLow
 export function registerDocTools(server: McpServer, { who, context, changeCompany, attempt, findProduct }: DocToolDeps) {
   const url = (c: DocCtx, id: string) => `${c.appUrl}/${PANEL_SLUG[c.panel]}/d/${id}`;
   const spaceKey = (c: DocCtx, space?: string) => (!space || /^(company|company docs)$/i.test(space.trim()) ? "" : findProduct(c, space).key);
-  const spaceName = (c: DocCtx, d: Doc) => (d.productKey ? c.db.products.find((p) => p.key === d.productKey)?.name ?? d.productKey : "company");
   const personName = (c: DocCtx, id?: string) => c.db.people.find((p) => p.id === id)?.name;
+  const spaceName = (c: DocCtx, d: Doc) => (d.ownerId ? (d.ownerId === c.meId ? "my docs" : `shared by ${personName(c, d.ownerId) ?? "someone"}`)
+    : d.productKey ? c.db.products.find((p) => p.key === d.productKey)?.name ?? d.productKey : "company");
 
   /** A doc by id, link or exact title, among the docs this person can see. */
   function findDoc(c: DocCtx, ref: string): Doc {

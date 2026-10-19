@@ -7,6 +7,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { AccessError, addAttachment, ValidationError } from "../domain/commands/index.ts";
+import { canDoc } from "../domain/docAccess.ts";
 import { can } from "../domain/permissions.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
 import { personFor, type SessionRow } from "./accounts.ts";
@@ -130,7 +131,7 @@ function editableDoc(loaded: Loaded, who: SessionRow, docId: string) {
   if (!doc) throw new ValidationError("Document not found");
   if (doc.archivedAt) throw new ValidationError(`${doc.title} is archived — restore it first`);
   const product = doc.productKey ? loaded.db.products.find((p) => p.key === doc.productKey) : undefined;
-  if (!can(me, "doc.edit", { product })) throw new AccessError();
+  if (!canDoc(loaded.db.docs, me, "doc.edit", doc, product)) throw new AccessError();
   return { me, doc };
 }
 

@@ -1,8 +1,9 @@
 import { now, today } from "../clock.ts";
+import { canDoc, rootOf } from "../docAccess.ts";
 import { can, isOnProduct } from "../permissions.ts";
-import type { Decision, DecisionLabel, DecisionStatus, Doc, DocKind, Person } from "../types.ts";
+import type { Decision, DecisionLabel, DecisionStatus, Doc, DocKind, DocShare, Notification, Person } from "../types.ts";
 import type { Db } from "../../data/db.ts";
-import { check, fail, id, productOf, replace, requiredError, ValidationError } from "./shared.ts";
+import { AccessError, check, fail, id, productOf, replace, requiredError, ValidationError } from "./shared.ts";
 
 // ---------- docs, decisions, milestones ----------
 export function addDoc(db: Db, me: Person, productKey: string, input: { kind: DocKind; title: string }): Db {
@@ -148,7 +149,8 @@ export function upsertMilestone(db: Db, me: Person, productKey: string, input: {
   return { ...db, milestones: [...db.milestones, { id: id(), productKey, lateDays: 0, ...fields }] };
 }
 
-// ---------- pages: the company's space and each project's, nested; only admins archive and delete ----------
+// ---------- pages: the company's space, each project's, and everyone's own (My docs), nested ----------
+// Only admins archive and delete company and project pages; a personal page is its owner's (see docAccess.ts).
 
 const MAX_TITLE = 200;
 
@@ -159,6 +161,11 @@ const docOf = (db: Db, docId: string): Doc => {
 };
 /** The project a doc belongs to, or undefined for the company's own space. */
 const spaceOf = (db: Db, doc: Pick<Doc, "productKey">) => (doc.productKey ? productOf(db, doc.productKey) : undefined);
+/** Refuses unless `me` may do this to the doc: a personal page by its sharing, any other by its space. */
+function checkDoc(db: Db, me: Person, action: "doc.edit" | "doc.archive" | "doc.delete", doc: Doc) {
+  if (!doc.ownerId) return check(me, action, { product: spaceOf(db, doc) });
+  if (!canDoc(db.docs, me, action, doc)) throw new AccessError();
+}
 const liveDocOf = (db: Db, docId: string): Doc => {
   const doc = docOf(db, docId);
   if (doc.archivedAt) throw new ValidationError(`${doc.title} is archived — restore it first`);
@@ -184,19 +191,28 @@ export function withSubpages(docs: Doc[], rootIds: string[]): Set<string> {
   return ids;
 }
 
-export interface NewDoc { productKey?: string; parentId?: string; groupId?: string; title: string; icon?: string; template?: string; kind?: DocKind }
+export interface NewDoc {
+  productKey?: string; parentId?: string; groupId?: string; title: string; icon?: string; template?: string; kind?: DocKind;
+  personal?: boolean; // in My docs (a subpage goes where its parent is)
+}
 
 /** A new page at the end of its space (or of its parent's pages). Returns its id as `key`. */
 export function createDoc(db: Db, me: Person, input: NewDoc): { db: Db; key: string } {
   const productKey = input.productKey ?? "";
-  check(me, "doc.create", { product: spaceOf(db, { productKey }) });
-  if (input.parentId && liveDocOf(db, input.parentId).productKey !== productKey) throw new ValidationError("A page sits in its parent's space");
+  const parent = input.parentId ? liveDocOf(db, input.parentId) : undefined;
+  if (parent && parent.productKey !== productKey) throw new ValidationError("A page sits in its parent's space");
+  const ownerId = parent ? parent.ownerId : input.personal ? me.id : undefined; // a subpage of a personal page is its owner's
+  if (ownerId && productKey) throw new ValidationError("My docs aren't in a project");
+  if (parent?.ownerId) checkDoc(db, me, "doc.edit", parent); // writing inside someone's shared page needs leave to write in it
+  else if (ownerId) { if (!me.active || !me.panel) throw new AccessError(); } // everyone has their own
+  else check(me, "doc.create", { product: spaceOf(db, { productKey }) });
   const at = now();
   const doc: Doc = {
     id: id(), productKey, title: titleOf(input.title), kind: input.kind ?? "Brief", authorId: me.id,
     createdAt: at, updated: at.slice(0, 10), updatedAt: at, updatedBy: me.id, rev: 1,
+    ...(ownerId && { ownerId }),
     ...(input.parentId && { parentId: input.parentId }),
-    ...(!input.parentId && input.groupId && db.docGroups.some((g) => g.id === input.groupId && g.productKey === productKey) && { groupId: input.groupId }),
+    ...(!input.parentId && !ownerId && input.groupId && db.docGroups.some((g) => g.id === input.groupId && g.productKey === productKey) && { groupId: input.groupId }),
     ...(input.icon && { icon: iconOf(input.icon) }),
     ...(input.template && { template: input.template }),
   };
@@ -214,7 +230,7 @@ const coverOf = (c: unknown): string => {
 
 export function updateDoc(db: Db, me: Person, docId: string, patch: DocPatch): Db {
   const doc = liveDocOf(db, docId);
-  check(me, "doc.edit", { product: spaceOf(db, doc) });
+  checkDoc(db, me, "doc.edit", doc);
   const next: Doc = { ...doc };
   if (patch.title !== undefined) next.title = titleOf(patch.title);
   if (patch.icon === null) delete next.icon; else if (patch.icon !== undefined) next.icon = iconOf(patch.icon);
@@ -225,11 +241,15 @@ export function updateDoc(db: Db, me: Person, docId: string, patch: DocPatch): D
 /** Moves a page (with its subpages) under another page of the same space, or to the top; before `beforeId` or last. */
 export function moveDoc(db: Db, me: Person, docId: string, to: { parentId?: string | null; beforeId?: string }): Db {
   const doc = liveDocOf(db, docId);
-  check(me, "doc.edit", { product: spaceOf(db, doc) });
+  checkDoc(db, me, "doc.edit", doc);
   const parentId = to.parentId === undefined ? doc.parentId : to.parentId ?? undefined;
   if (parentId) {
-    if (liveDocOf(db, parentId).productKey !== doc.productKey) throw new ValidationError("Pages move within their own space");
+    const parent = liveDocOf(db, parentId);
+    if (parent.productKey !== doc.productKey || parent.ownerId !== doc.ownerId) throw new ValidationError("Pages move within their own space");
     if (withSubpages(db.docs, [docId]).has(parentId)) throw new ValidationError("A page can't go inside itself");
+    if (doc.ownerId) checkDoc(db, me, "doc.edit", parent);
+  } else if (doc.ownerId && doc.ownerId !== me.id && doc.parentId) {
+    throw new AccessError(); // to the top of My docs would take it out of what's shared: its owner's call
   }
   const moved: Doc = { ...doc };
   if (parentId) { moved.parentId = parentId; delete moved.groupId; } else delete moved.parentId;
@@ -240,7 +260,7 @@ export function moveDoc(db: Db, me: Person, docId: string, to: { parentId?: stri
 
 /** Archives pages with everything under them: gone from every list, read-only, until an admin restores them. */
 export function archiveDocs(db: Db, me: Person, docIds: string[]): Db {
-  for (const docId of docIds) check(me, "doc.archive", { product: spaceOf(db, liveDocOf(db, docId)) });
+  for (const docId of docIds) checkDoc(db, me, "doc.archive", liveDocOf(db, docId));
   const ids = withSubpages(db.docs, docIds);
   const at = now();
   return { ...db, docs: db.docs.map((d) => (ids.has(d.id) && !d.archivedAt ? { ...d, archivedAt: at, archivedBy: me.id } : d)) };
@@ -251,7 +271,7 @@ export function restoreDocs(db: Db, me: Person, docIds: string[]): Db {
   const back = new Map<string, string>(); // id → the archivedAt it shared with its root
   for (const docId of docIds) {
     const root = docOf(db, docId);
-    check(me, "doc.archive", { product: spaceOf(db, root) });
+    checkDoc(db, me, "doc.archive", root);
     if (!root.archivedAt) continue;
     for (const id of withSubpages(db.docs, [docId])) back.set(id, root.archivedAt);
   }
@@ -277,7 +297,7 @@ export const docDeletePhrase = (titles: string[]) => `Delete ${titles.length ===
 export function deleteDocs(db: Db, me: Person, docIds: string[], typed = ""): Db {
   const roots = docIds.map((docId) => docOf(db, docId));
   for (const doc of roots) {
-    check(me, "doc.delete", { product: spaceOf(db, doc) });
+    checkDoc(db, me, "doc.delete", doc);
     if (!doc.archivedAt) throw new ValidationError(`Archive ${doc.title} before deleting it`);
   }
   const phrase = docDeletePhrase(roots.map((d) => d.title));
@@ -289,7 +309,7 @@ export function deleteDocs(db: Db, me: Person, docIds: string[], typed = ""): Db
 /** Server only: a body save's "edited at / by", throttled by the caller. */
 export function touchDoc(db: Db, me: Person, docId: string, at: string, rev: number): Db {
   const doc = docOf(db, docId);
-  check(me, "doc.edit", { product: spaceOf(db, doc) });
+  checkDoc(db, me, "doc.edit", doc);
   return { ...db, docs: replace(db.docs, (d) => d.id === docId, (d) => ({ ...d, updatedAt: at, updatedBy: me.id, rev, updated: at.slice(0, 10) })) };
 }
 
@@ -298,7 +318,7 @@ const WEB_LINK = /^https?:\/\/\S{1,2040}$/i;
 /** Records the web link a doc's body opens with (server side, as the body is saved); none clears it. */
 export function setDocLink(db: Db, me: Person, docId: string, link?: string): Db {
   const doc = docOf(db, docId);
-  check(me, "doc.edit", { product: spaceOf(db, doc) });
+  checkDoc(db, me, "doc.edit", doc);
   const next = typeof link === "string" && WEB_LINK.test(link) ? link : undefined;
   if (doc.link === next) return db;
   return { ...db, docs: replace(db.docs, (d) => d.id === docId, (d) => ({ ...d, link: next })) };
@@ -306,10 +326,50 @@ export function setDocLink(db: Db, me: Person, docId: string, link?: string): Db
 
 /** Of these people, the ones a mention in this doc reaches: they can see it, and it isn't you. */
 export function mentionable(db: Db, me: Person, docId: string, personIds: string[]): Person[] {
-  const product = spaceOf(db, docOf(db, docId));
+  const doc = docOf(db, docId);
+  const product = spaceOf(db, doc);
   return [...new Set(personIds)]
     .map((pid) => db.people.find((p) => p.id === pid))
-    .filter((p): p is Person => !!p && p.id !== me.id && p.active && !!p.panel && (!product || p.panel === "admin" || isOnProduct(p.id, product)));
+    .filter((p): p is Person => !!p && p.id !== me.id && p.active && !!p.panel
+      && (doc.ownerId ? canDoc(db.docs, p, "doc.view", doc) : !product || p.panel === "admin" || isOnProduct(p.id, product)));
+}
+
+const MAX_SHARES = 200;
+export interface DocSharing { people?: DocShare[]; company?: "view" | "edit" | null }
+
+/**
+ * The owner shares a personal page, with everything under it: with these people (`people` replaces the list) and/or
+ * everyone at the company (null: nobody). Whoever's newly added is told. Sharing is set on the top page.
+ */
+export function shareDoc(db: Db, me: Person, docId: string, input: DocSharing): Db {
+  const root = rootOf(db.docs, liveDocOf(db, docId));
+  if (!root.ownerId) throw new ValidationError("Only pages in My docs are shared this way");
+  if (!canDoc(db.docs, me, "doc.share", root)) throw new AccessError();
+  const next: Doc = { ...root };
+  let added: string[] = [];
+  if (input.people !== undefined) {
+    if (!Array.isArray(input.people) || input.people.length > MAX_SHARES) throw new ValidationError(`Share with up to ${MAX_SHARES} people`);
+    const seen = new Set<string>();
+    const people = input.people.flatMap((s): DocShare[] => {
+      const p = db.people.find((x) => x.id === s?.personId);
+      if (!p?.active || p.id === root.ownerId || seen.has(p.id)) return [];
+      seen.add(p.id);
+      return [{ personId: p.id, ...(s.edit === true && { edit: true }) }];
+    });
+    const had = new Set((root.sharedWith ?? []).map((s) => s.personId));
+    added = people.map((s) => s.personId).filter((pid) => !had.has(pid));
+    if (people.length) next.sharedWith = people; else delete next.sharedWith;
+  }
+  if (input.company !== undefined) {
+    if (input.company === null) delete next.companyAccess;
+    else if (input.company === "view" || input.company === "edit") next.companyAccess = input.company;
+    else throw new ValidationError("Share with the company to read, or to write too");
+  }
+  const at = now();
+  const told: Notification[] = added.map((personId) => ({
+    id: id(), personId, kind: "shared", actorId: me.id, text: `shared ${root.title} with you`, target: `/d/${root.id}`, at, read: false,
+  }));
+  return { ...db, docs: replace(db.docs, (d) => d.id === root.id, () => next), notifications: [...told, ...db.notifications] };
 }
 
 /** Server only: tells the people newly mentioned in a doc — urgently those newly @@mentioned — if they can see it,
@@ -378,7 +438,8 @@ export function deleteDocGroup(db: Db, me: Person, groupId: string): Db {
 /** Puts a page (with its subpages) in a group of its space — at the top level — or takes it out (null). */
 export function setDocGroup(db: Db, me: Person, docId: string, groupId: string | null): Db {
   const doc = liveDocOf(db, docId);
-  check(me, "doc.edit", { product: spaceOf(db, doc) });
+  checkDoc(db, me, "doc.edit", doc);
+  if (doc.ownerId && (groupId || doc.ownerId !== me.id)) throw new ValidationError("My docs have no groups");
   if (groupId && groupOf(db, groupId).productKey !== doc.productKey) throw new ValidationError("That group is in another space");
   return {
     ...db,

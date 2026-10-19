@@ -1,6 +1,7 @@
 "use client";
 
-// Settings → Archived docs (admins only, like archiving itself): restore a page with its subpages in one click, or
+// Settings → Archived docs (admins only, like archiving itself) — and, in My docs, your own archived pages: restore a
+// page with its subpages in one click, or
 // delete it for good after typing "Delete <title>" (or "Delete 3 docs") — which the server checks too. Several at once:
 // tick them (or Select all), then Restore or Delete forever.
 import Link from "next/link";
@@ -12,20 +13,22 @@ import { shortDate } from "@/domain/status";
 import type { Doc } from "@/domain/types";
 import { BulkHead, usePicked } from "@/ui/BulkSelect";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
-import { docPath } from "./tree";
+import { docPath, MY_DOCS, spaceKeyOf } from "./tree";
 
 export function ArchivedDocs({ productKey }: { productKey: string }) {
-  const { db, can, act, href, personById, productByKey } = useMe();
-  const product = productKey ? productByKey(productKey) : undefined;
+  const { db, can, act, href, personById, productByKey, me } = useMe();
+  const personal = productKey === MY_DOCS;
+  const product = productKey && !personal ? productByKey(productKey) : undefined;
   const [deleting, setDeleting] = useState<Doc[] | null>(null);
-  const archived = db.docs.filter((d) => d.productKey === productKey && d.archivedAt);
+  const archived = db.docs.filter((d) => spaceKeyOf(d) === productKey && d.archivedAt && (!personal || d.ownerId === me.id));
   const archivedIds = new Set(archived.map((d) => d.id));
   // The pages archived on their own (a subpage archived with its parent goes back with it).
   const roots = archived.filter((d) => !d.parentId || !archivedIds.has(d.parentId) || db.docs.find((p) => p.id === d.parentId)?.archivedAt !== d.archivedAt)
     .sort((a, b) => (b.archivedAt ?? "").localeCompare(a.archivedAt ?? ""));
   const subpages = (d: Doc) => withSubpages(archived, [d.id]).size - 1;
   const { selected, pick, clear } = usePicked(roots.map((d) => d.id));
-  if (!can("doc.archive", { product })) return null;
+  if (!personal && !can("doc.archive", { product })) return null;
+  if (personal && !roots.length) return null; // My docs: shown only when there's something to bring back
   const picked = roots.filter((d) => selected.includes(d.id));
   const restore = (docs: Doc[]) => {
     const ids = docs.map((d) => d.id);
@@ -35,7 +38,7 @@ export function ArchivedDocs({ productKey }: { productKey: string }) {
   return (
     <section className="card admin-card archived-docs" aria-labelledby="archived-docs-title">
       <h2 id="archived-docs-title" className="section-title">Archived docs <span className="muted">{roots.length}</span></h2>
-      <p className="muted">Archived pages are hidden from everyone else and read-only. Restore one, or delete it for good.</p>
+      <p className="muted">{personal ? "Only you can see your archived pages." : "Archived pages are hidden from everyone else and read-only."} Restore one, or delete it for good.</p>
       {roots.length === 0 ? <p className="archived-empty">Nothing archived. Archive a page from its ⋯ menu.</p> : (
         <>
         <BulkHead total={roots.length} picked={picked.length} noun="archived docs" onAll={(on) => pick(roots.map((d) => d.id), on)} onClear={clear}>

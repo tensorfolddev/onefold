@@ -1,6 +1,7 @@
 // What one person's browser receives: the company as *they* may see it. The server keeps the full data and runs every
 // change against it; this copy is only for showing screens (and the instant, local preview of a change).
 import type { Db } from "../data/db.ts";
+import { personalAccess } from "./docAccess.ts";
 import { archivedProducts, visibleProducts } from "./permissions.ts";
 import type { Person, Product, Ticket } from "./types.ts";
 
@@ -44,7 +45,10 @@ export function snapshotFor(db: Db, me: Person): Db {
     // Everyone sees names and roles; only admins (and you) see email addresses.
     people: db.people.map((p) => (admin || p.id === me.id ? p : { ...p, email: "" })),
     notifications: scoped.notifications.filter((n) => n.personId === me.id),
-    docs: admin ? scoped.docs : scoped.docs.filter((d) => !d.archivedAt), // archived docs: admins, in Settings
+    // Archived docs: admins, in Settings. A personal page: only whoever it's shared with — and archived, only its owner.
+    docs: scoped.docs.filter((d) => (d.ownerId
+      ? personalAccess(db.docs, me, d) !== "none" && (!d.archivedAt || d.ownerId === me.id)
+      : admin || !d.archivedAt)),
   };
 }
 

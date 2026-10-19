@@ -4,13 +4,13 @@
 // page on the right. The page stays put; the sidebar and the doc scroll on their own. The sidebar folds away (and
 // remembers that in this browser); a doc's top bar brings it back.
 import Link from "next/link";
-import { ChevronRight, ChevronsLeft, ChevronsRight, FileText, Plus, Search } from "lucide-react";
+import { BookOpen, ChevronRight, ChevronsLeft, ChevronsRight, FileText, Lock, Plus, Search } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useDb } from "@/data/StoreProvider";
 import { searchDocs, type DocHit } from "./api";
 import { DocTree } from "./DocTree";
 import { useNewDoc } from "./NewDoc";
-import { docPath } from "./tree";
+import { docPath, MY_DOCS, spacePath } from "./tree";
 
 const SEARCH_DELAY_MS = 200;
 const FOLDED_KEY = "onefold.docs.sidebar-folded";
@@ -48,15 +48,20 @@ export function DocsTopBar({ crumbs, children }: { crumbs: Crumb[]; children?: R
   );
 }
 
+/** The name of a docs space. */
+export const spaceName = (productKey: string, productName?: string) => (productKey === MY_DOCS ? "My docs" : productName ? `${productName} docs` : "Company docs");
+
 export function DocsSpace({ productKey, activeId, children }: { productKey: string; activeId?: string; children: React.ReactNode }) {
-  const { href, productByKey, can } = useDb();
-  const product = productKey ? productByKey(productKey) : undefined;
+  const { href, productByKey, can, me } = useDb();
+  const personal = productKey === MY_DOCS;
+  const product = productKey && !personal ? productByKey(productKey) : undefined;
+  const name = spaceName(productKey, product?.name);
   const newDoc = useNewDoc(productKey);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<DocHit[] | null>(null);
   const [over, setOver] = useState(false);
   const [folded, setFoldedState] = useState(false);
-  const canCreate = can("doc.create", { product });
+  const canCreate = personal ? me.active : can("doc.create", { product });
 
   useEffect(() => {
     try { setFoldedState(localStorage.getItem(FOLDED_KEY) === "1"); } catch { /* per-browser convenience only */ } // eslint-disable-line react-hooks/set-state-in-effect -- this browser's choice
@@ -84,17 +89,23 @@ export function DocsSpace({ productKey, activeId, children }: { productKey: stri
       <div className={`docs-space${folded ? " is-folded" : ""}`}>
         {!folded && (
           <aside
-            className={`docs-side docs-dropzone${over ? " is-over" : ""}`} aria-label={product ? `${product.name} docs` : "Company docs"}
+            className={`docs-side docs-dropzone${over ? " is-over" : ""}`} aria-label={name}
             onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setOver(true); } }}
             onDragLeave={() => setOver(false)} onDrop={onDrop}
           >
             <div className="docs-side-head">
-              <Link href={href(productKey ? `/products/${productKey}/docs` : "/docs")} className="docs-side-title">
-                <span className="docs-side-mark" aria-hidden><FileText /></span>
-                {product ? `${product.name} docs` : "Company docs"}
+              <Link href={href(spacePath(productKey))} className="docs-side-title">
+                <span className={`docs-side-mark${personal ? " is-mine" : ""}`} aria-hidden>{personal ? <Lock /> : <FileText />}</span>
+                {name}
               </Link>
               <button type="button" className="doc-row-btn" aria-label="Hide the sidebar" data-tip="Hide sidebar" onClick={() => setFolded(true)}><ChevronsLeft aria-hidden /></button>
             </div>
+            {!product && ( // the company's pages, or your own
+              <nav className="docs-spaces" aria-label="Docs spaces">
+                <Link href={href("/docs")} aria-current={personal ? undefined : "page"}><BookOpen aria-hidden /> Company</Link>
+                <Link href={href(spacePath(MY_DOCS))} aria-current={personal ? "page" : undefined}><Lock aria-hidden /> My docs</Link>
+              </nav>
+            )}
             <label className="docs-search">
               <Search aria-hidden />
               <input type="search" placeholder="Search docs" aria-label="Search docs" value={q} onChange={(e) => setQ(e.target.value)} />

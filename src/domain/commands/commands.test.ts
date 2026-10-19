@@ -12,6 +12,7 @@ import * as products from "./products.ts";
 import * as template from "./template.ts";
 import * as tickets from "./tickets.ts";
 import { groupMyWork } from "../selectors/mywork.ts";
+import { snapshotFor } from "../snapshot.ts";
 
 fixClock(`${SEED_TODAY}T10:00:00`);
 const A = { ...docs, ...lists, ...people, ...products, ...template, ...tickets, AccessError, ValidationError };
@@ -377,3 +378,42 @@ test("saved descriptions from before become the first template section", () => {
   assert.equal("description" in t, false);
 });
 
+test("My docs: private to its owner — admins included — until shared, to read or to write; only the owner archives, deletes or shares", () => {
+  const made = A.createDoc(db0, sara, { title: "Salary notes", personal: true });
+  let db = made.db;
+  const id = made.key;
+  const sees = (d: typeof db, p: typeof sara) => snapshotFor(d, p).docs.some((x) => x.id === id);
+  assert.equal(db.docs.find((d) => d.id === id)?.ownerId, sara.id);
+  assert.equal(sees(db, sara), true);
+  for (const p of [admin, lead, faraz]) assert.equal(sees(db, p), false, `${p.name} can't see it`);
+  assert.throws(() => A.updateDoc(db, admin, id, { title: "Mine now" }), AccessError); // an admin's role doesn't reach it
+  assert.throws(() => A.archiveDocs(db, admin, [id]), AccessError);
+  assert.deepEqual(A.mentionable(db, sara, id, [faraz.id, lead.id]), []); // nobody else would be told about a page they can't open
+
+  db = A.shareDoc(db, sara, id, { people: [{ personId: faraz.id }] }); // to read
+  assert.equal(sees(db, faraz), true);
+  assert.ok(db.notifications.some((n) => n.personId === faraz.id && n.kind === "shared" && n.target === `/d/${id}`));
+  assert.throws(() => A.updateDoc(db, faraz, id, { title: "Changed" }), AccessError);
+  assert.throws(() => A.shareDoc(db, faraz, id, { company: "view" }), AccessError);
+
+  db = A.shareDoc(db, sara, id, { people: [{ personId: faraz.id, edit: true }] }); // and to write
+  assert.equal(A.updateDoc(db, faraz, id, { title: "Salary notes v2" }).docs.find((d) => d.id === id)?.title, "Salary notes v2");
+  const sub = A.createDoc(db, faraz, { title: "Faraz's part", parentId: id });
+  assert.equal(sub.db.docs.find((d) => d.id === sub.key)?.ownerId, sara.id); // inside her page: still hers, shared like it
+  assert.equal(snapshotFor(sub.db, faraz).docs.some((d) => d.id === sub.key), true);
+  assert.equal(snapshotFor(sub.db, lead).docs.some((d) => d.id === sub.key), false);
+  assert.throws(() => A.archiveDocs(db, faraz, [id]), AccessError);
+
+  db = A.shareDoc(db, sara, id, { people: [], company: "view" }); // everyone at the company, to read
+  for (const p of [admin, lead, faraz]) assert.equal(sees(db, p), true);
+  assert.throws(() => A.updateDoc(db, lead, id, { title: "x" }), AccessError);
+  assert.throws(() => A.shareDoc(db, sara, id, { company: "everyone" as never }), ValidationError);
+  db = A.shareDoc(db, sara, id, { company: null });
+  assert.equal(sees(db, lead), false);
+
+  db = A.archiveDocs(db, sara, [id]); // the owner archives (and deletes) her own
+  assert.equal(sees(db, sara), true);
+  db = A.deleteDocs(db, sara, [id], "Delete Salary notes");
+  assert.equal(db.docs.some((d) => d.id === id), false);
+  assert.throws(() => A.shareDoc(db0, sara, db0.docs.find((d) => !d.ownerId)!.id, { company: "view" }), ValidationError); // company pages share by their space
+});

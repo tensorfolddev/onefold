@@ -202,6 +202,9 @@ export interface Doc {
   icon?: string; // one emoji
   cover?: string; // a cover gradient's id
   link?: string; // the web link its body opens with (kept on save) — a Claude artifact's, say
+  ownerId?: string; // a personal page (My docs): its owner's, private until shared (see docAccess.ts)
+  sharedWith?: DocShare[]; // on a personal top page: the people it's shared with
+  companyAccess?: "view" | "edit"; // on a personal top page: shared with everyone at the company
   template?: string; // the template it started from
   updated: string; // day of the last edit
   authorId: string;
@@ -212,6 +215,9 @@ export interface Doc {
   archivedAt?: string;
   archivedBy?: string;
 }
+
+/** Someone a personal page is shared with: to read it, or (edit) to write in it too. */
+export interface DocShare { personId: string; edit?: boolean }
 
 /** A named group of top-level pages in a docs space's sidebar (like project groups). */
 export interface DocGroup { id: string; productKey: string; name: string }
@@ -246,7 +252,7 @@ export interface Comment {
 export interface Notification {
   id: string;
   personId: string; // whose inbox
-  kind: "mention" | "assigned" | "approval" | "status" | "invite";
+  kind: "mention" | "assigned" | "approval" | "status" | "invite" | "shared";
   actorId: string;
   text: string;
   target: string; // ticket key, product key, or a page path ("/people")

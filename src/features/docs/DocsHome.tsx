@@ -11,10 +11,11 @@ import { relativeTime } from "@/domain/status";
 import type { Doc } from "@/domain/types";
 import { RequirementsTable } from "@/features/products/LiveWidgets";
 import { Avatar } from "@/ui/primitives";
-import { DocsTopBar } from "./DocsSpace";
+import { ArchivedDocs } from "./ArchivedDocs";
+import { DocsTopBar, spaceName } from "./DocsSpace";
 import { useNewDoc } from "./NewDoc";
 import { isClaudeArtifact } from "./editor/links";
-import { childrenOf, coverCss, coverOf, docPath, spaceDocs, topLevel } from "./tree";
+import { childrenOf, coverCss, coverOf, docPath, MY_DOCS, spaceDocs, topLevel } from "./tree";
 
 /** monday.com's group colours, in order. */
 const GROUP_COLORS = ["#579bfc", "#00c875", "#fdab3d", "#a25ddc", "#e2445c", "#ffcb00", "#ff158a", "#0086c0"];
@@ -102,15 +103,18 @@ function GroupTable({ name, color, pages, docs, view, shown }: {
 }
 
 export function DocsHome({ productKey }: { productKey: string }) {
-  const { db, can, productByKey } = useDb();
-  const product = productKey ? productByKey(productKey) : undefined;
+  const { db, can, productByKey, me } = useDb();
+  const personal = productKey === MY_DOCS;
+  const product = productKey && !personal ? productByKey(productKey) : undefined;
   const newDoc = useNewDoc(productKey);
   const docs = useMemo(() => spaceDocs(db.docs, productKey), [db.docs, productKey]);
   const groups = useMemo(() => db.docGroups.filter((g) => g.productKey === productKey), [db.docGroups, productKey]);
   const tops = topLevel(docs);
   const ungrouped = tops.filter((d) => !d.groupId || !groups.some((g) => g.id === d.groupId));
-  const canCreate = can("doc.create", { product });
-  const title = product ? `${product.name} docs` : "Company docs";
+  const canCreate = personal ? me.active : can("doc.create", { product });
+  const title = spaceName(productKey, product?.name);
+  const mine = tops.filter((d) => d.ownerId === me.id);
+  const sharedWithMe = tops.filter((d) => d.ownerId !== me.id);
   const [view, setViewState] = useState<View>("table");
   useEffect(() => {
     try { if (localStorage.getItem(VIEW_KEY) === "cards") setViewState("cards"); } catch { /* per-browser convenience only */ } // eslint-disable-line react-hooks/set-state-in-effect -- this browser's choice
@@ -131,7 +135,8 @@ export function DocsHome({ productKey }: { productKey: string }) {
         <header className="docs-home-head">
           <div>
             <h1>{title}</h1>
-            <p>{product ? "Briefs, designs and notes for this project — everyone on it can write here." : "Handbook, policies and how we work — for everyone at the company."}</p>
+            <p>{personal ? `Yours alone until you share a page — with a few people, or everyone at ${db.org.name}.`
+              : product ? "Briefs, designs and notes for this project — everyone on it can write here." : "Handbook, policies and how we work — for everyone at the company."}</p>
           </div>
           <div className="docs-home-actions">
             {artifacts > 0 && (
@@ -151,8 +156,14 @@ export function DocsHome({ productKey }: { productKey: string }) {
 
         {docs.length === 0 ? (
           <div className="docs-empty">
-            <p className="docs-empty-title">No pages here yet</p>
-            <p>Write the first one — start blank, or pick a template and change it freely.</p>
+            <p className="docs-empty-title">{personal ? "Nothing in My docs yet" : "No pages here yet"}</p>
+            <p>{personal ? "Notes, drafts, anything — only you can see them until you share them." : "Write the first one — start blank, or pick a template and change it freely."}</p>
+          </div>
+        ) : personal ? (
+          <div className="docs-board">
+            {shown && !docs.some(shown) && <p className="docs-board-none">{kind === "pages" ? "Every page here is a Claude artifact" : "No Claude artifacts here"}</p>}
+            <GroupTable view={view} shown={shown} name="My pages" color="#676879" docs={docs} pages={mine} />
+            {sharedWithMe.length > 0 && <GroupTable view={view} shown={shown} name="Shared with me" color="#579bfc" docs={docs} pages={sharedWithMe} />}
           </div>
         ) : (
           <div className="docs-board">
@@ -161,7 +172,8 @@ export function DocsHome({ productKey }: { productKey: string }) {
             {(ungrouped.length > 0 || !groups.length) && <GroupTable view={view} shown={shown} name={groups.length ? "Other pages" : "Pages"} color="#676879" docs={docs} pages={ungrouped} />}
           </div>
         )}
-        {productKey && (
+        {personal && <ArchivedDocs productKey={MY_DOCS} />}
+        {product && (
           <>
             <h2 className="docs-section-title">Requirements</h2>
             <RequirementsTable productKey={productKey} />

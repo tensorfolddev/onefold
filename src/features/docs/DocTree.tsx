@@ -3,7 +3,8 @@
 // A space's pages in the sidebar: in groups (collapsible, with counts, like project groups), then the ungrouped
 // "Pages". Each page opens and closes to show its subpages. Drag a page onto another to put it inside, onto its top or
 // bottom edge to put it before or after, or onto a group's name to move it into that group. Each row: "+" for a
-// subpage, and ⋯ (rename, move to a group, copy link, export, archive for admins).
+// subpage, and ⋯ (rename, move to a group, copy link, export, archive for admins). My docs has no groups: your own
+// pages, then the ones shared with you — what each lets you do is the page's own (docAccess.ts).
 import Link from "next/link";
 import {
   Archive, ChevronDown, ChevronRight, Download, FileText, FolderInput, Link2, MoreHorizontal, Pencil, Plus, Trash2,
@@ -11,11 +12,12 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { addDocGroup, archiveDocs, deleteDocGroup, moveDoc, renameDocGroup, setDocGroup, updateDoc } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
+import { canDoc } from "@/domain/docAccess";
 import type { Doc, DocGroup } from "@/domain/types";
 import { InlineName } from "@/features/shell/ProductsSidebar";
 import { Popover } from "@/ui/Popover";
 import { getDoc } from "./api";
-import { ancestorsOf, childrenOf, docPath, downloadMarkdown, spaceDocs, topLevel } from "./tree";
+import { ancestorsOf, childrenOf, docPath, downloadMarkdown, MY_DOCS, spaceDocs, topLevel } from "./tree";
 
 type Zone = "before" | "inside" | "after";
 const storeKey = (space: string, what: string) => `onefold.docs.${what}.${space || "company"}`;
@@ -28,12 +30,14 @@ function writeSet(key: string, set: Set<string>) {
 }
 
 export function DocTree({ productKey, activeId, onNewPage }: { productKey: string; activeId?: string; onNewPage: (opts?: { parentId?: string; groupId?: string }) => void }) {
-  const { db, can, act, href, productByKey, toast } = useDb();
-  const product = productKey ? productByKey(productKey) : undefined;
+  const { db, can, act, href, productByKey, toast, me } = useDb();
+  const personal = productKey === MY_DOCS;
+  const product = productKey && !personal ? productByKey(productKey) : undefined;
   const docs = useMemo(() => spaceDocs(db.docs, productKey), [db.docs, productKey]);
-  const groups = useMemo(() => db.docGroups.filter((g) => g.productKey === productKey), [db.docGroups, productKey]);
-  const canEdit = can("doc.edit", { product });
-  const canArchive = can("doc.archive", { product });
+  const groups = useMemo(() => (personal ? [] : db.docGroups.filter((g) => g.productKey === productKey)), [db.docGroups, productKey, personal]);
+  const canEdit = personal || can("doc.edit", { product }); // in My docs: each page says (below)
+  const editable = (doc: Doc) => (personal ? canDoc(db.docs, me, "doc.edit", doc) : canEdit);
+  const archivable = (doc: Doc) => (personal ? canDoc(db.docs, me, "doc.archive", doc) : can("doc.archive", { product }));
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [shut, setShut] = useState<Set<string>>(() => new Set()); // collapsed groups
   const [dragId, setDragId] = useState<string | null>(null);
@@ -54,7 +58,10 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
   const toggleGroup = (id: string) => setShut((cur) => { const next = flip(cur, id); writeSet(storeKey(productKey, "shut"), next); return next; });
 
   const tops = topLevel(docs);
-  const inGroup = (gid: string | null) => tops.filter((d) => (gid ? d.groupId === gid : !d.groupId || !groups.some((g) => g.id === d.groupId)));
+  const SHARED = "shared-with-me";
+  const inGroup = (gid: string | null) => (personal
+    ? tops.filter((d) => (gid === SHARED) === (d.ownerId !== me.id)) // mine, or shared with me
+    : tops.filter((d) => (gid ? d.groupId === gid : !d.groupId || !groups.some((g) => g.id === d.groupId))));
 
   const zoneOf = (e: React.DragEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -79,7 +86,7 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
     const id = dragId;
     setDragId(null);
     setDrop(null);
-    if (id) act((d, m) => setDocGroup(d, m, id, gid));
+    if (id && !(personal && gid === SHARED)) act((d, m) => setDocGroup(d, m, id, personal ? null : gid)); // My docs: to the top
   };
 
   const rename = (doc: Doc, title: string) => {
@@ -103,8 +110,8 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
     >
       {(close) => (
         <>
-          {canEdit && <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setRenaming(doc.id); }}><Pencil aria-hidden /> Rename</button>}
-          {canEdit && !doc.parentId && (
+          {editable(doc) && <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setRenaming(doc.id); }}><Pencil aria-hidden /> Rename</button>}
+          {canEdit && !personal && !doc.parentId && (
             <>
               <p className="menu-section-label"><FolderInput aria-hidden style={{ width: 13, height: 13, verticalAlign: -2 }} /> Move to group</p>
               {groups.filter((g) => g.id !== doc.groupId).map((g) => (
@@ -117,12 +124,13 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
           )}
           <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void copyLink(doc); }}><Link2 aria-hidden /> Copy link</button>
           <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); void exportMd(doc); }}><Download aria-hidden /> Export as Markdown</button>
-          {canArchive && (
+          {archivable(doc) && (
             <>
               <div className="menu-divider" />
               <button type="button" role="menuitem" className="menu-item is-danger" onClick={() => {
                 close();
-                if (act((d, m) => archiveDocs(d, m, [doc.id]))) toast(`${doc.title} archived — find it in Settings → Archived`, undefined, "success");
+                const where = personal ? "under Archived in My docs" : "in Settings → Archived";
+                if (act((d, m) => archiveDocs(d, m, [doc.id]))) toast(`${doc.title} archived — find it ${where}`, undefined, "success");
               }}><Archive aria-hidden /> Archive</button>
             </>
           )}
@@ -142,7 +150,7 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
             <div
               className={`doc-row${doc.id === activeId ? " is-active" : ""}${dz ? ` is-drop-${dz}` : ""}`}
               style={{ paddingLeft: 6 + depth * 16 }}
-              draggable={canEdit && renaming !== doc.id}
+              draggable={editable(doc) && renaming !== doc.id}
               onDragStart={(e) => { setDragId(doc.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", doc.title); }}
               onDragEnd={() => { setDragId(null); setDrop(null); }}
               onDragOver={(e) => { if (!dragId || dragId === doc.id) return; e.preventDefault(); setDrop({ id: doc.id, zone: zoneOf(e) }); }}
@@ -167,7 +175,7 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
               )}
               <span className="doc-row-actions">
                 {rowMenu(doc)}
-                {canEdit && <button type="button" className="doc-row-btn" aria-label={`New page inside ${doc.title}`} data-tip="Add a page inside" onClick={() => onNewPage({ parentId: doc.id })}><Plus aria-hidden /></button>}
+                {editable(doc) && <button type="button" className="doc-row-btn" aria-label={`New page inside ${doc.title}`} data-tip="Add a page inside" onClick={() => onNewPage({ parentId: doc.id })}><Plus aria-hidden /></button>}
               </span>
             </div>
             {kids.length > 0 && isOpen && rows(kids, depth + 1)}
@@ -181,7 +189,9 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
     const list = inGroup(g?.id ?? null);
     const key = g?.id ?? "ungrouped";
     const closed = shut.has(key);
-    const name = g?.name ?? (groups.length ? "Other pages" : "Pages");
+    const name = g?.name ?? (personal ? "My pages" : groups.length ? "Other pages" : "Pages");
+    const sharedWithMe = personal && g?.id === SHARED;
+    if (sharedWithMe && !list.length) return null;
     return (
       <div key={key} className="sidebar-group doc-group">
         {renaming === `g:${key}` && g ? (
@@ -199,10 +209,10 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
               <span className="sidebar-group-name">{name}</span>
               <span className="sidebar-group-count">{list.length}</span>
             </button>
-            {canEdit && (
+            {canEdit && !sharedWithMe && (
               <span className="doc-group-actions">
                 <button type="button" className="doc-row-btn" aria-label={`New page in ${name}`} data-tip="Add a page" onClick={() => onNewPage({ groupId: g?.id })}><Plus aria-hidden /></button>
-                {g && (
+                {g && !personal && (
                   <Popover align="right" width={200} floating trigger={({ open: o, toggle: t }) => (
                     <button type="button" className={`doc-row-btn${o ? " is-open" : ""}`} aria-label={`${name} group options`} data-tip="Group options" aria-expanded={o} onClick={t}><MoreHorizontal aria-hidden /></button>
                   )}>
@@ -220,7 +230,8 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
             )}
           </div>
         )}
-        {!closed && (list.length ? rows(list, 0) : <p className="sidebar-empty">{g ? "Drag pages here, or add one with +" : "No pages yet"}</p>)}
+        {!closed && (list.length ? rows(list, 0)
+          : <p className="sidebar-empty">{g ? "Drag pages here, or add one with +" : personal ? "Only you can see these until you share them" : "No pages yet"}</p>)}
       </div>
     );
   };
@@ -230,8 +241,9 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
       <div role="tree" aria-label="Pages">
         {groups.map((g) => section(g))}
         {section(null)}
+        {personal && section({ id: SHARED, productKey, name: "Shared with me" })}
       </div>
-      {canEdit && (addingGroup ? (
+      {canEdit && !personal && (addingGroup ? (
         <InlineName label="Group name" onCancel={() => setAddingGroup(false)}
           onSave={(n) => act((d, m) => addDocGroup(d, m, productKey, n, `dg-${crypto.randomUUID().slice(0, 8)}`), { success: "Group added" })} />
       ) : (

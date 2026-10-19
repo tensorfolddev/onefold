@@ -637,3 +637,34 @@ button.doc-chip { border: 0; font: inherit; cursor: pointer; }
 /* An urgent (@@) mention: red, so it reads as "needs you" */
 .doc-chip.is-person.is-urgent, .doc-mention.is-urgent { color: #fff; background: var(--negative-color); }
 .doc-chip.is-person.is-urgent .avatar { box-shadow: 0 0 0 1.5px #fff; }
+
+/* ---------- My docs: the space switch, and sharing a personal page ---------- */
+.docs-spaces { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin: 0 0 10px; padding: 3px; border-radius: 8px; background: var(--allgrey-background-color); }
+.docs-spaces a {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; color: var(--secondary-text-color); text-decoration: none;
+  transition: background var(--motion-productive-short), color var(--motion-productive-short);
+}
+.docs-spaces a svg { width: 14px; height: 14px; }
+.docs-spaces a:hover { color: var(--primary-text-color); }
+.docs-spaces a[aria-current="page"] { background: var(--primary-background-color); color: var(--primary-text-color); font-weight: 600; box-shadow: 0 1px 3px rgb(15 23 42 / 0.12); }
+.docs-side-mark.is-mine { background: linear-gradient(135deg, #6b5cff, #a25ddc); }
+.share-btn { display: inline-flex; align-items: center; width: auto; gap: 6px; padding: 0 10px; font-size: 13px; font-weight: 600; }
+.share-btn.is-shared { color: var(--primary-color); background: var(--primary-selected-color); }
+.share-panel { display: grid; gap: 10px; padding: 6px; }
+.share-title { margin: 0; font-weight: 650; font-size: 15px; }
+.share-note { margin: -4px 0 0; font-size: 13px; color: var(--secondary-text-color); }
+.share-search { display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+.share-search svg { width: 16px; height: 16px; flex: none; color: var(--secondary-text-color); }
+.share-search input { flex: 1; min-width: 0; height: 34px; border: 0; background: none; outline: none; color: inherit; }
+.share-matches, .share-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.share-match { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border-radius: 8px; text-align: left; }
+.share-match:hover, .share-match:focus-visible { background: var(--primary-background-hover-color); }
+.share-match .muted { margin-left: auto; font-size: 12.5px; }
+.share-list li, .share-company { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 2px 4px 2px 8px; }
+.share-company { border-top: 1px solid var(--layout-border-color); padding-top: 10px; }
+.share-company-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--allgrey-background-color); color: var(--secondary-text-color); }
+.share-company-icon svg { width: 14px; height: 14px; }
+.share-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.share-level { flex: none; height: 30px; font-size: 13px; }
+.share-level.is-fixed { display: inline-flex; align-items: center; padding: 0 8px; color: var(--secondary-text-color); }

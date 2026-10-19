@@ -188,6 +188,9 @@ export const docs = pgTable("docs", {
   icon: text("icon"),
   cover: text("cover"),
   link: text("link"), // the web link its body opens with
+  ownerId: text("owner_id"), // a personal page (My docs): its owner's, private until shared
+  sharedWith: jsonb("shared_with"), // on a personal top page: [{ personId, edit? }]
+  companyAccess: text("company_access"), // on a personal top page: "view" | "edit" for everyone at the company
   template: text("template"),
   updated: day("updated").notNull(),
   authorId: text("author_id").notNull(),
