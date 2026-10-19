@@ -7,6 +7,7 @@ import { EmptyState } from "@/ui/primitives";
 import { BoardToolbar } from "./BoardToolbar";
 import { KanbanBoard } from "./KanbanBoard";
 import { TicketGrid } from "./TicketGrid";
+import { TicketMenuProvider } from "./TicketMenu";
 import { EMPTY_FILTERS, filterTickets, type Filters, type SortKey, type ViewMode } from "./filters";
 
 /** Client wrapper: owns view / search / person / quick-filter / sort state for one product's tickets. */
@@ -45,7 +46,7 @@ export function TicketBoard({ productKey }: { productKey: string }) {
       </EmptyState>
     );
   } else {
-    body = view === "table" ? <TicketGrid tickets={visible} /> : <KanbanBoard productKey={productKey} tickets={visible} />;
+    body = <TicketMenuProvider>{view === "table" ? <TicketGrid tickets={visible} /> : <KanbanBoard productKey={productKey} tickets={visible} />}</TicketMenuProvider>;
   }
 
   return (

@@ -12,6 +12,7 @@ import { Assignees, DueDate, EpicChip, PriorityChip, TypeIcon } from "./TicketBi
 import { ListHeader, TaskComposer } from "./KanbanLists";
 import { AssigneeField, CardDueField, PriorityField } from "./TicketFields";
 import { useIsDone } from "./TemplateRelations";
+import { useTicketMenu } from "./TicketMenu";
 
 export const cardId = (key: string) => `card:${key}`;
 export const listId = (statusId: string) => `list:${statusId}`;
@@ -122,6 +123,7 @@ const SortableCard = memo(function SortableCard({ ticket, canMove, onOpen }: { t
     id: cardId(ticket.key), data: { type: "card", key: ticket.key }, disabled: !canMove, transition: SORT_TRANSITION,
   });
   const held = heldUp(db, ticket); // waiting on something, or stuck: the card strains now and then
+  const menu = useTicketMenu(); // right-click: open, copy link, archive
   return (
     <li
       ref={setNodeRef} className={`kanban-card-slot${isDragging ? " is-placeholder" : ""}`}
@@ -132,6 +134,7 @@ const SortableCard = memo(function SortableCard({ ticket, canMove, onOpen }: { t
         className={`kanban-card${canMove ? " is-movable" : ""}${ticket.type === "epic" ? " is-epic" : ""}${held ? " is-held" : ""}`}
         style={ticket.type === "epic" ? ({ "--epic": ticket.color } as React.CSSProperties) : undefined}
         onClick={() => onOpen(ticket.key)}
+        onContextMenu={menu && ((e) => menu(e, ticket.key))}
         {...attributes} {...listeners}
         onKeyDown={(e) => {
           if (e.key === "Enter" && e.target === e.currentTarget) onOpen(ticket.key);

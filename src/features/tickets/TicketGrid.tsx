@@ -10,6 +10,7 @@ import { StatusCell } from "@/ui/StatusCell";
 import { Battery, IconButton } from "@/ui/primitives";
 import { Assignees, DueDate, EpicChip, PrBadge, PriorityCell, requirementById, TypeIcon } from "./TicketBits";
 import { useDb } from "@/data/StoreProvider";
+import { useTicketMenu } from "./TicketMenu";
 
 const COLUMNS = [
   { id: "ticket", label: "Ticket" },
@@ -21,6 +22,18 @@ const COLUMNS = [
   { id: "req", label: "Requirement" },
   { id: "pr", label: "PR" },
 ];
+
+/** Who's on it: their faces, and the first one's name (+N more). */
+function Owner({ ids }: { ids?: string[] }) {
+  const { personById } = useDb();
+  const first = ids?.length ? personById(ids[0]) : undefined;
+  return (
+    <span className="owner-cell">
+      <Assignees ids={ids} max={2} />
+      {first && <span className="owner-name">{ids!.length > 1 ? `${first.name.split(" ")[0]} +${ids!.length - 1}` : first.name}</span>}
+    </span>
+  );
+}
 
 /** Table view: one group per status category (monday groups), rows 36px, full-bleed status cells. */
 export function TicketGrid({ tickets }: { tickets: Ticket[] }) {
@@ -129,9 +142,11 @@ function GridRow({ ticket, selected, onSelect }: { ticket: Ticket; selected: boo
   const done = statusById(ticket.statusId)?.category === "done";
   const req = requirementById(db.requirements, ticket.requirementId);
   const open = () => openTicket(ticket.key);
+  const menu = useTicketMenu(); // right-click: open, copy link, archive
 
   return (
-    <div role="row" className={`grid-row${openTicketKey === ticket.key ? " is-open" : ""}${selected ? " is-selected" : ""}`}>
+    <div role="row" className={`grid-row${openTicketKey === ticket.key ? " is-open" : ""}${selected ? " is-selected" : ""}`}
+      onContextMenu={menu && ((e) => menu(e, ticket.key))}>
       <span className="grid-cell col-check" role="cell">
         <input
           type="checkbox" className="checkbox" checked={selected}
@@ -147,7 +162,7 @@ function GridRow({ ticket, selected, onSelect }: { ticket: Ticket; selected: boo
           <IconButton label="Open ticket" onClick={open}><Maximize2 /></IconButton>
         </span>
       </span>
-      <span className="grid-cell col-owner" role="cell"><Assignees ids={ticket.assigneeIds} /></span>
+      <span className="grid-cell col-owner" role="cell"><Owner ids={ticket.assigneeIds} /></span>
       <span className="grid-cell col-status" role="cell"><StatusCell ticket={ticket} /></span>
       <span className="grid-cell col-priority" role="cell"><PriorityCell priority={ticket.priority} /></span>
       <span className="grid-cell col-due" role="cell"><DueDate ticket={ticket} done={done} /></span>

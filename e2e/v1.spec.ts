@@ -782,6 +782,36 @@ test("a project's overview: progress, what's late, what's coming up", async ({ p
   await expect(page.getByRole("region", { name: "Coming up" }).getByRole("button", { name: /Ship the beta/ })).toContainText("1d late");
 });
 
+test("right-click a ticket — on the board or in the table — to open it, copy its link or archive it", async ({ page }) => {
+  await signUp(page, "Chi", email("chi"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Lumen");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  await page.goto(`${new URL(page.url()).pathname}/tickets`);
+  for (const title of ["Right-click me", "Me too"]) {
+    await page.getByRole("button", { name: "New ticket" }).click();
+    await page.getByLabel("New ticket title").fill(title);
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.keyboard.press("Escape");
+  }
+  await page.locator(".kanban-card", { hasText: "Right-click me" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Archive ticket" }).click();
+  await expect(page.getByText(/archived — they're in Settings → Archived/)).toBeVisible();
+  await expect(page.locator(".kanban-card", { hasText: "Right-click me" })).toHaveCount(0);
+
+  await page.locator(".view-switcher").click();
+  await page.getByRole("menuitemradio", { name: "Main table" }).click();
+  const row = page.getByRole("row").filter({ hasText: "Me too" });
+  await expect(row.locator(".owner-name")).toHaveCount(0); // nobody on it yet
+  await row.click({ button: "right" });
+  await expect(page.getByRole("menu", { name: /actions/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu", { name: /actions/ })).toHaveCount(0);
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

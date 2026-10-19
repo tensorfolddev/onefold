@@ -65,8 +65,8 @@ button.priority-cell:hover { filter: brightness(0.94); }
 
 /* ---------- Grouped grid (table view) ---------- */
 .ticket-grid {
-  --cols: 36px minmax(240px, 1fr) 64px 150px 104px 104px 116px 96px 72px;
-  --grid-min: 982px;
+  --cols: 36px minmax(240px, 1fr) 160px 150px 104px 104px 116px 96px 72px;
+  --grid-min: 1078px;
 }
 .grid-group + .grid-group { margin-top: 8px; }
 .group-header { display: flex; align-items: center; gap: 4px; height: 40px; margin-top: 16px; }
@@ -124,7 +124,7 @@ button.priority-cell:hover { filter: brightness(0.94); }
 }
 
 @media (max-width: 1280px) {
-  .ticket-grid { --cols: 36px minmax(220px, 1fr) 64px 150px 104px 104px 116px; --grid-min: 798px; }
+  .ticket-grid { --cols: 36px minmax(220px, 1fr) 160px 150px 104px 104px 116px; --grid-min: 894px; }
   .ticket-grid .col-req, .ticket-grid .col-pr { display: none; }
 }
 
@@ -295,7 +295,7 @@ button.ticket-description:hover { background-color: var(--primary-background-hov
 /* ---------- Tablet / mobile ---------- */
 @media (max-width: 1024px) {
   .ticket-grid .col-time { display: none; }
-  .ticket-grid { --cols: 36px minmax(200px, 1fr) 64px 150px 104px 104px; --grid-min: 658px; }
+  .ticket-grid { --cols: 36px minmax(200px, 1fr) 120px 150px 104px 104px; --grid-min: 714px; }
 }
 
 @media (max-width: 767px) {
@@ -572,3 +572,11 @@ button.ticket-description:hover { background-color: var(--primary-background-hov
 .card-assignees:hover, .card-assignees[aria-expanded="true"] { background: var(--primary-background-hover-color); }
 .card-due { position: relative; display: inline-flex; }
 .card-due-input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+
+/* Owner column: faces and a name */
+.owner-cell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.owner-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
+
+/* Right-click menu on a ticket */
+.menu.ticket-menu { padding: 6px; }
+.menu-sep { margin: 4px 0; border: 0; border-top: 1px solid var(--layout-border-color); }
