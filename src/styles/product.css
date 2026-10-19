@@ -335,3 +335,52 @@
 .icon-picker-skeleton { width: 18px; height: 18px; border-radius: 5px; background: var(--ui-background-color); animation: icon-pulse 1s ease-in-out infinite alternate; }
 @keyframes icon-pulse { from { opacity: 0.45; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .icon-picker-skeleton { animation: none; } }
+
+/* ---------- Members: leads, then the team as cards ---------- */
+.members { display: flex; flex-direction: column; gap: 14px; max-width: 1120px; }
+.members-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+.members-title { margin: 0; font: 600 28px/36px var(--title-font-family); }
+.members-title .muted { font-size: 18px; font-weight: 500; margin-left: 4px; }
+.members-sub { margin: 2px 0 0; font-size: 14px; color: var(--secondary-text-color); }
+.members-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.members-search { margin: 0; width: 240px; max-width: 100%; }
+.members-group { margin: 10px 0 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--secondary-text-color); }
+.members-group .muted { margin-left: 4px; font-weight: 500; }
+.members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.members-grid.is-leads { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.member-card {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "a m" "l l"; gap: 12px 14px;
+  padding: 16px; border-radius: 12px; background: var(--primary-background-color); border: 1px solid var(--layout-border-color);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04); transition: box-shadow 150ms ease-out, transform 150ms ease-out;
+}
+.member-card:hover { box-shadow: var(--box-shadow-small); transform: translateY(-1px); }
+.member-card.is-lead { background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 7%, var(--primary-background-color)), var(--primary-background-color) 60%); }
+.member-card > .avatar { grid-area: a; }
+.member-main { grid-area: m; min-width: 0; }
+.member-name { margin: 0; font-size: 15px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.member-role { margin: 1px 0 0; font-size: 13px; color: var(--secondary-text-color); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.member-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.member-lead {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 600;
+  color: var(--primary-color); background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+.member-load { grid-area: l; display: grid; gap: 6px; }
+.member-load-bar { height: 6px; border-radius: 3px; background: var(--ui-background-color); overflow: hidden; }
+.member-load-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--primary-color); }
+.member-load-text { font-size: 12px; color: var(--secondary-text-color); }
+.member-load-text strong { color: var(--primary-text-color); }
+.member-remove {
+  position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+  color: var(--secondary-text-color); opacity: 0; transition: opacity 120ms ease-out;
+}
+.member-remove svg { width: 16px; height: 16px; }
+.member-card:hover .member-remove, .member-remove:focus-visible { opacity: 1; }
+.member-remove:hover { background: var(--ui-background-color); color: var(--negative-color); }
+@media (hover: none) { .member-remove { opacity: 1; } }
+.members-empty { margin: 0; font-size: 14px; color: var(--secondary-text-color); }
+.member-picker .member-picker-search { display: flex; width: 100%; height: 36px; margin-bottom: 6px; }
+.menu.member-picker { padding: 8px; }
+.member-picker-list { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+.member-picker-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.member-picker-empty { margin: 0; padding: 14px 8px; text-align: center; font-size: 13px; color: var(--secondary-text-color); }
+@media (prefers-reduced-motion: reduce) { .member-card { transition: none; } .member-card:hover { transform: none; } }
