@@ -1,44 +1,83 @@
 "use client";
 
-// A product's decision log: a timeline of decision records, by month, newest first. Search it, filter it by status,
-// open one (?d=<id>, so it can be linked) to read or edit it in the side panel.
+// A product's decision log as a monday-style table: one group per status, a coloured status cell you can change in
+// place, who decided, when, and what it links to. Click a row to open the full record (?d=<id>, so it can be linked).
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FileText, Plus, Scale, Search, Ticket } from "lucide-react";
+import { ChevronDown, FileText, Plus, Scale, Search } from "lucide-react";
+import { updateDecision } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
 import type { Decision, DecisionStatus } from "@/domain/types";
-import { Avatar, EmptyState, Tabs } from "@/ui/primitives";
-import { DecisionPanel, NewDecision, STATUS, StatusPill, statusOf } from "./DecisionPanel";
+import { Avatar, EmptyState } from "@/ui/primitives";
+import { DecisionPanel, NewDecision, STATUS, statusOf } from "./DecisionPanel";
 
-const FILTERS = ["All", ...(Object.keys(STATUS) as DecisionStatus[]).map((s) => STATUS[s].label)];
-const month = (date: string) => new Date(`${date.slice(0, 7)}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+const GROUPS: DecisionStatus[] = ["proposed", "accepted", "rejected", "superseded"];
+const SHOWN_TICKETS = 2;
 const haystack = (d: Decision) => [d.title, d.why, d.context, d.alternatives, d.consequences, ...(d.ticketKeys ?? [])].join(" ").toLowerCase();
+const tone = (s: DecisionStatus) => ({ "--status": STATUS[s].color, "--group": STATUS[s].color }) as React.CSSProperties;
 
-function DecisionRow({ decision, replacedBy, onOpen }: { decision: Decision; replacedBy?: Decision; onOpen: () => void }) {
-  const { personById } = useMe();
+function StatusCell({ decision, editable }: { decision: Decision; editable: boolean }) {
+  const { act } = useMe();
   const status = statusOf(decision);
-  const tickets = decision.ticketKeys?.length ?? 0;
-  const docs = decision.docIds?.length ?? 0;
+  if (!editable) return <span role="cell" className="decision-cell-status" style={tone(status)}>{STATUS[status].label}</span>;
   return (
-    <li className="decision-entry" style={{ "--status": STATUS[status].color } as React.CSSProperties}>
-      <button type="button" className={`decision-row${status === "superseded" || status === "rejected" ? " is-faded" : ""}`} onClick={onOpen}>
-        <span className="decision-row-head">
-          <span className="decision-row-title">{decision.title}</span>
-          <StatusPill status={status} />
-        </span>
-        <span className="decision-row-why">{decision.why}</span>
-        <span className="decision-row-meta">
-          <Avatar personId={decision.byId} size="sm" />
-          <span>{personById(decision.byId)?.name ?? "Someone"}</span>
-          <span aria-hidden>·</span>
-          <time dateTime={decision.date}>{shortDate(decision.date)}</time>
-          {tickets > 0 && <span className="decision-row-count" data-tip={`${tickets} linked ticket${tickets === 1 ? "" : "s"}`}><Ticket aria-hidden />{tickets}</span>}
-          {docs > 0 && <span className="decision-row-count" data-tip={`${docs} linked doc${docs === 1 ? "" : "s"}`}><FileText aria-hidden />{docs}</span>}
-          {replacedBy && <span className="decision-row-replaced">→ {replacedBy.title}</span>}
-        </span>
+    <span role="cell" className="decision-cell-status" style={tone(status)}>
+      <select aria-label={`Status of ${decision.title}`} value={status} onChange={(e) => {
+        const next = e.target.value as DecisionStatus;
+        act((d, m) => updateDecision(d, m, decision.id, { status: next, ...(next !== "superseded" && { supersededBy: null }) }));
+      }}>
+        {GROUPS.map((s) => <option key={s} value={s}>{STATUS[s].label}</option>)}
+      </select>
+    </span>
+  );
+}
+
+function Group({ status, items, all, editable, forceOpen, onOpen }: {
+  status: DecisionStatus; items: Decision[]; all: Map<string, Decision>; editable: boolean; forceOpen: boolean; onOpen: (id: string) => void;
+}) {
+  const { personById } = useMe();
+  const [open, setOpen] = useState(status === "proposed" || status === "accepted");
+  const shown = open || forceOpen;
+  const label = STATUS[status].label;
+  return (
+    <section className="docs-board-group decision-group" style={tone(status)} aria-label={label}>
+      <button type="button" className="docs-board-head" aria-expanded={shown} onClick={() => setOpen((o) => !o)}>
+        <ChevronDown aria-hidden className={shown ? undefined : "is-collapsed"} />
+        <span className="docs-board-name">{label}</span>
+        <span className="docs-board-count">{items.length} {items.length === 1 ? "decision" : "decisions"}</span>
       </button>
-    </li>
+      {shown && (
+        <div className="docs-board-table decision-table" role="table" aria-label={`${label} decisions`}>
+          <div className="docs-board-row is-head" role="row">
+            <span role="columnheader">Decision</span><span role="columnheader">Status</span><span role="columnheader">Decided by</span>
+            <span role="columnheader">Date</span><span role="columnheader">Tickets</span><span role="columnheader">Docs</span>
+          </div>
+          {!items.length && <div className="docs-board-row is-empty" role="row"><span role="cell">No {label.toLowerCase()} decisions</span></div>}
+          {items.map((d) => {
+            const by = personById(d.byId);
+            const keys = d.ticketKeys ?? [];
+            const replacedBy = d.supersededBy ? all.get(d.supersededBy) : undefined;
+            return (
+              <div key={d.id} className="docs-board-row decision-row" role="row">
+                <span role="cell" className="decision-cell-title">
+                  <button type="button" className="decision-open" onClick={() => onOpen(d.id)}>{d.title}</button>
+                  {replacedBy && <span className="decision-cell-replaced">→ {replacedBy.title}</span>}
+                </span>
+                <StatusCell decision={d} editable={editable} />
+                <span role="cell" className="docs-board-person">{by && <><Avatar personId={by.id} size="sm" /> {by.name}</>}</span>
+                <span role="cell" className="docs-board-when"><time dateTime={d.date}>{shortDate(d.date)}</time></span>
+                <span role="cell" className="decision-cell-tickets">
+                  {keys.slice(0, SHOWN_TICKETS).map((k) => <span key={k} className="decision-key">{k}</span>)}
+                  {keys.length > SHOWN_TICKETS && <span className="decision-more" data-tip={keys.slice(SHOWN_TICKETS).join(", ")}>+{keys.length - SHOWN_TICKETS}</span>}
+                </span>
+                <span role="cell" className="docs-board-when">{d.docIds?.length ? <><FileText aria-hidden className="decision-doc-icon" /> {d.docIds.length}</> : null}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -49,7 +88,6 @@ export function DecisionLog({ productKey }: { productKey: string }) {
   const openId = useSearchParams().get("d");
   const product = productByKey(productKey);
   const canAdd = !!product && can("decision.add", { product });
-  const [filter, setFilter] = useState("All");
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -57,10 +95,8 @@ export function DecisionLog({ productKey }: { productKey: string }) {
     .filter((d) => d.productKey === productKey)
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   const byId = new Map(all.map((d) => [d.id, d]));
-  const count = (label: string) => (label === "All" ? all.length : all.filter((d) => STATUS[statusOf(d)].label === label).length);
   const q = query.trim().toLowerCase();
-  const shown = all.filter((d) => (filter === "All" || STATUS[statusOf(d)].label === filter) && (!q || haystack(d).includes(q)));
-  const months = Map.groupBy(shown, (d) => month(d.date));
+  const shown = q ? all.filter((d) => haystack(d).includes(q)) : all;
   const open = openId ? byId.get(openId) : undefined;
   const openDecision = (id: string | null) => router.replace(id ? `${pathname}?d=${id}` : pathname, { scroll: false });
 
@@ -71,42 +107,29 @@ export function DecisionLog({ productKey }: { productKey: string }) {
           <h2 className="decisions-title">Decisions</h2>
           <p className="decisions-sub">Why we chose what we chose, so nobody has to ask twice.</p>
         </div>
-        {canAdd && <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}><Plus aria-hidden /> New decision</button>}
-      </header>
-
-      {all.length > 0 && (
-        <>
-          <div className="decisions-mix" role="img" aria-label={FILTERS.slice(1).map((f) => `${count(f)} ${f.toLowerCase()}`).join(", ")}>
-            {(Object.keys(STATUS) as DecisionStatus[]).map((s) => {
-              const n = count(STATUS[s].label);
-              return n ? <span key={s} style={{ flexGrow: n, background: STATUS[s].color }} /> : null;
-            })}
-          </div>
-          <div className="decisions-toolbar">
-            <Tabs ariaLabel="Filter by status" active={filter} onSelect={setFilter} items={FILTERS.map((label) => ({ label, count: count(label) }))} />
+        <div className="decisions-actions">
+          {all.length > 0 && (
             <label className="docs-search decisions-search">
               <Search aria-hidden />
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search decisions" aria-label="Search decisions" />
             </label>
-          </div>
-        </>
-      )}
+          )}
+          {canAdd && <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}><Plus aria-hidden /> New decision</button>}
+        </div>
+      </header>
 
       {!all.length ? (
         <EmptyState icon={<Scale aria-hidden />} title="No decisions yet">
           Record why the team chose one path over another — the context, the options, the trade-offs.
         </EmptyState>
-      ) : !shown.length ? (
-        <EmptyState icon={<Search aria-hidden />} title="Nothing matches">Try another word or status.</EmptyState>
+      ) : q && !shown.length ? (
+        <EmptyState icon={<Search aria-hidden />} title="Nothing matches">Try another word.</EmptyState>
       ) : (
-        [...months].map(([label, items]) => (
-          <section key={label} className="decisions-month" aria-label={label}>
-            <h3 className="decisions-month-title">{label} <span className="muted">{items.length}</span></h3>
-            <ol className="decisions-timeline">
-              {items.map((d) => <DecisionRow key={d.id} decision={d} replacedBy={d.supersededBy ? byId.get(d.supersededBy) : undefined} onOpen={() => openDecision(d.id)} />)}
-            </ol>
-          </section>
-        ))
+        <div className="docs-board">
+          {GROUPS.map((s) => (
+            <Group key={s} status={s} items={shown.filter((d) => statusOf(d) === s)} all={byId} editable={canAdd} forceOpen={!!q} onOpen={openDecision} />
+          ))}
+        </div>
       )}
 
       {open && <DecisionPanel key={open.id} decision={open} onClose={() => openDecision(null)} onOpen={openDecision} />}

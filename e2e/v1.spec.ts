@@ -681,9 +681,15 @@ test("decisions: recorded with a why, opened by link, edited in place, and super
   await expect(panel.getByRole("button", { name: /Superseded by Bill yearly/ })).toBeVisible();
   await expect(panel.getByLabel("Status")).toHaveValue("superseded");
   await panel.getByRole("button", { name: "Close" }).click();
-  await page.getByRole("tab", { name: /Superseded/ }).click();
-  await expect(page.locator(".decision-row")).toHaveCount(1);
-  await expect(page.locator(".decision-row")).toContainText("Bill monthly");
+  const superseded = page.getByRole("region", { name: "Superseded" });
+  await superseded.getByRole("button", { name: /Superseded/ }).click(); // closed groups open on click
+  await expect(superseded.getByRole("row").filter({ hasText: "Bill monthly" })).toContainText("→ Bill yearly");
+
+  // The status changes right in the table, without opening the decision.
+  const accepted = page.getByRole("region", { name: "Accepted" });
+  await accepted.getByLabel("Status of Bill yearly").selectOption("proposed");
+  await expect(page.getByRole("region", { name: "Proposed" }).getByRole("row").filter({ hasText: "Bill yearly" })).toBeVisible();
+  await expect(page).not.toHaveURL(/\?d=/);
 });
 
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {

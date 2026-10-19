@@ -1,57 +1,45 @@
 /* ---------- Decision log: timeline of decision records + the record's side panel ---------- */
-.decisions { display: flex; flex-direction: column; gap: 20px; max-width: 880px; }
+.decisions { display: flex; flex-direction: column; gap: 20px; max-width: 1240px; }
 .decisions-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .decisions-title { font-family: var(--title-font-family); font-size: 28px; font-weight: 600; line-height: 36px; }
 .decisions-sub { margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--secondary-text-color); }
 
-/* Status mix: one thin bar, a segment per status sized by its count. */
-.decisions-mix { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; }
-.decisions-mix > span { min-width: 6px; }
+.decisions-actions { display: flex; align-items: center; gap: 10px; }
+@media (max-width: 600px) { .decisions-actions { flex-wrap: wrap; } }
+.decisions-search { margin: 0; width: 260px; max-width: 100%; }
 
-.decisions-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
-.decisions-search { margin: 0; width: min(260px, 100%); }
-
-.decisions-month { display: flex; flex-direction: column; gap: 10px; }
-.decisions-month-title {
-  font-size: 12px; font-weight: 600; line-height: 16px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--secondary-text-color);
+/* monday-style table: reuses the docs board (groups, rows); six columns, a full-colour status cell. */
+.decision-table .docs-board-row { grid-template-columns: minmax(0, 1fr) 140px 190px 96px 150px 72px; }
+.decision-row { position: relative; }
+.decision-row:hover { background: var(--primary-background-hover-color); }
+.decision-cell-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.decision-open { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; text-align: left; }
+.decision-open::after { content: ""; position: absolute; inset: 0; } /* the whole row opens it */
+.decision-open:focus-visible { outline: none; }
+.decision-row:has(.decision-open:focus-visible) { box-shadow: inset 6px 0 0 var(--group), inset 0 0 0 2px var(--primary-color); }
+.decision-cell-replaced { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; color: var(--secondary-text-color); }
+.docs-board-row > span.decision-cell-status {
+  position: relative; z-index: 1; justify-content: center; padding: 0; color: #fff; background: var(--status);
+  font-size: 13px; font-weight: 500; border-left-color: var(--primary-background-color);
 }
-.decisions-month-title .muted { margin-left: 4px; font-weight: 500; }
-
-/* The timeline: a rail on the left, a dot per decision in its status colour. */
-.decisions-timeline { position: relative; display: flex; flex-direction: column; gap: 10px; padding-left: 26px; list-style: none; }
-.decisions-timeline::before {
-  content: ""; position: absolute; left: 7px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px;
-  background: var(--layout-border-color);
+:root .decision-cell-status select {
+  width: 100%; height: 100%; min-height: 40px; padding: 0 8px; border: 0; border-radius: 0; text-align: center; text-align-last: center;
+  font-size: 13px; font-weight: 500; color: #fff; background: transparent; box-shadow: none; cursor: pointer;
 }
-.decision-entry { position: relative; }
-.decision-entry::before {
-  content: ""; position: absolute; left: -24px; top: 20px; width: 12px; height: 12px; border-radius: 50%;
-  background: var(--status); box-shadow: 0 0 0 3px var(--primary-background-color);
+:root .decision-cell-status select:hover { background: rgb(0 0 0 / 0.08); }
+:root .decision-cell-status select:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; }
+.decision-cell-tickets { gap: 4px; overflow: hidden; }
+.decision-key, .decision-more {
+  flex: none; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 18px;
+  color: var(--secondary-text-color); background: var(--ui-background-color);
 }
-.decision-row {
-  display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 14px 16px; text-align: left;
-  background: var(--primary-background-color); color: var(--primary-text-color);
-  border: 1px solid var(--layout-border-color); border-left: 4px solid var(--status); border-radius: var(--border-radius-medium);
-  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+.decision-more { position: relative; z-index: 1; }
+.decision-doc-icon { width: 14px; height: 14px; margin-right: 4px; }
+@media (max-width: 900px) {
+  .decision-table .docs-board-row { grid-template-columns: minmax(0, 1fr) 112px; }
+  .decision-table .docs-board-row > span:nth-child(2) { display: flex; } /* the docs table hides its 2nd column here */
+  .decision-table .docs-board-row > span:nth-child(n + 3) { display: none; }
 }
-.decision-row:hover { transform: translateY(-1px); box-shadow: var(--box-shadow-small); }
-.decision-row:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
-.decision-row.is-faded .decision-row-title {
-  color: var(--secondary-text-color);
-  text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--status) 70%, transparent);
-}
-.decision-row-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.decision-row-title { font-size: 16px; font-weight: 600; line-height: 22px; overflow-wrap: anywhere; }
-.decision-row-why {
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
-  font-size: 14px; line-height: 20px; color: var(--secondary-text-color);
-}
-.decision-row-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; line-height: 18px; color: var(--secondary-text-color); }
-.decision-row-meta .avatar { width: 20px; height: 20px; font-size: 9px; }
-.decision-row-count { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; }
-.decision-row-count svg { width: 14px; height: 14px; }
-.decision-row-replaced { margin-left: 6px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 36ch; }
 
 /* monday-style status label: solid colour, white text. */
 .decision-status {
@@ -136,7 +124,3 @@ textarea.decision-panel-title:focus { outline: none; border-color: var(--primary
 .decision-status-choice button:hover { border-color: var(--status); }
 .decision-status-choice button[aria-checked="true"] { color: #fff; background: var(--status); border-color: var(--status); }
 
-@media (prefers-reduced-motion: reduce) {
-  .decision-row { transition: none; }
-  .decision-row:hover { transform: none; }
-}
