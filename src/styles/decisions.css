@@ -97,45 +97,41 @@
 .decision-status-select:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 .decision-status-select option { color: var(--primary-text-color); background: var(--primary-background-color); }
 
-/* ---------- The record, opened ---------- */
+/* ---------- The record, opened: reads like a note; text turns into an editor on click ---------- */
 .decision-panel { overflow: hidden; }
-.decision-panel-head { padding: 16px 24px; border-bottom: 1px solid var(--layout-border-color); }
-.decision-panel-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.decision-panel-head { padding: 16px 28px 18px; border-bottom: 1px solid var(--layout-border-color); }
+.decision-panel-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .decision-panel-bar .spacer { flex: 1; }
-.decision-panel-title {
-  display: block; width: calc(100% + 12px); margin: 0 -6px; padding: 4px 6px; resize: none; field-sizing: content;
-  font-family: var(--title-font-family); font-size: 24px; font-weight: 600; line-height: 32px;
-  color: var(--primary-text-color); background: transparent; border: 1px solid transparent; border-radius: 6px;
-  overflow-wrap: anywhere;
-}
-textarea.decision-panel-title:hover { background: var(--primary-background-hover-color); }
-textarea.decision-panel-title:focus { outline: none; border-color: var(--primary-color); background: var(--primary-background-color); }
-.decision-panel-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--secondary-text-color); }
-.decision-panel-meta .avatar { width: 22px; height: 22px; font-size: 10px; }
+.decision-panel-title { margin: 0; }
+.decision-panel-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--secondary-text-color); }
+.decision-panel-meta .avatar { width: 20px; height: 20px; font-size: 9px; }
 .decision-banner {
   display: block; width: 100%; margin-top: 12px; padding: 8px 12px; text-align: left; font-size: 13px; line-height: 18px;
   border-radius: 6px; background: color-mix(in srgb, #9699a6 16%, transparent); color: var(--primary-text-color);
 }
 .decision-banner:hover { background: color-mix(in srgb, #9699a6 26%, transparent); }
-.decision-banner.is-quiet { margin: 0 0 8px; background: var(--ui-background-color); }
-.decision-panel-body { flex: 1; display: flex; flex-direction: column; gap: 22px; padding: 20px 24px 40px; overflow-y: auto; }
+.decision-banner.is-quiet { background: var(--ui-background-color); }
+.decision-replaced-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--secondary-text-color); }
+:root .decision-add-select { height: 30px; font-size: 13px; padding-right: 32px; }
+.decision-panel-body { flex: 1; display: flex; flex-direction: column; gap: 22px; padding: 22px 28px 40px; overflow-y: auto; }
 
-.decision-part-label {
-  display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; line-height: 16px;
-  letter-spacing: 0.05em; text-transform: uppercase; color: var(--secondary-text-color);
+.decision-section-label {
+  margin: 0 0 4px; font-size: 12px; font-weight: 600; line-height: 16px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--secondary-text-color);
 }
-.decision-part-input {
-  display: block; width: 100%; min-height: 64px; padding: 8px 10px; resize: vertical; field-sizing: content;
-  font: inherit; font-size: 14px; line-height: 22px; color: var(--primary-text-color);
-  background: var(--ui-background-color); border: 1px solid transparent; border-radius: 6px;
+.decision-text {
+  display: block; width: calc(100% + 12px); margin: 0 -6px; padding: 3px 6px; text-align: left;
+  font: inherit; font-size: 15px; line-height: 24px; color: var(--primary-text-color);
+  white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 6px; border: 1px solid transparent; background: transparent;
 }
-.decision-part-input:hover { border-color: var(--ui-border-color); }
-.decision-part-input:focus { outline: none; border-color: var(--primary-color); background: var(--primary-background-color); }
-.decision-part-input[aria-invalid="true"] { border-color: var(--negative-color); }
-.decision-part-text { font-size: 14px; line-height: 22px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.decision-part-empty { font-size: 14px; line-height: 22px; color: var(--secondary-text-color); font-style: italic; }
+.decision-text.is-title { font-family: var(--title-font-family); font-size: 24px; font-weight: 600; line-height: 32px; }
+.decision-text.is-editable { cursor: text; }
+.decision-text.is-editable:hover { background: var(--primary-background-hover-color); }
+.decision-text.is-editable:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 0; }
+.decision-text.is-editing { resize: none; field-sizing: content; min-height: 0; border-color: var(--primary-color); outline: none; background: var(--primary-background-color); }
+.decision-text-hint { color: var(--secondary-text-color); font-style: italic; }
 
-.decision-links { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.decision-related { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
 .decision-linked { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; }
 .decision-unlink {
   display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 4px; opacity: 0;
@@ -144,19 +140,30 @@ textarea.decision-panel-title:focus { outline: none; border-color: var(--primary
 .decision-unlink svg { width: 12px; height: 12px; }
 .decision-linked:hover .decision-unlink, .decision-unlink:focus-visible { opacity: 1; }
 .decision-unlink:hover { background: var(--primary-background-hover-color); color: var(--negative-color); }
-:root .decision-add {
-  height: 28px; max-width: 100%; padding: 0 8px; font-size: 13px; color: var(--secondary-text-color); cursor: pointer;
-  background: transparent; border: 1px dashed var(--ui-border-color); border-radius: 6px;
+.decision-add-btn {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; font-size: 13px; color: var(--secondary-text-color);
+  border: 1px dashed var(--ui-border-color); border-radius: 6px; background: transparent;
 }
-:root .decision-add:is(:hover, :focus-visible) { color: var(--primary-color); border-color: var(--primary-color); outline: none; }
+.decision-add-btn svg { width: 14px; height: 14px; }
+.decision-add-btn:hover, .decision-add-btn[aria-expanded="true"] { color: var(--primary-color); border-color: var(--primary-color); }
+.decision-add-btn.is-quiet { border-color: transparent; }
+.decision-add-btn.is-quiet:hover { border-color: var(--primary-color); }
+.decision-adds { display: flex; flex-wrap: wrap; gap: 4px; margin: -8px 0 0 -10px; }
+.menu.decision-picker { padding: 8px; }
+.menu.decision-picker .tpl-picker-search { display: flex; width: 100%; }
 
-/* ---------- New decision ---------- */
-.decision-dialog { width: min(600px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; }
+/* ---------- New decision: title, why, decided or still open ---------- */
+.decision-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; }
 .decision-dialog form { display: flex; flex-direction: column; gap: 14px; }
 .decision-dialog .field { display: flex; flex-direction: column; gap: 4px; }
 .decision-dialog .field-label { font-size: 13px; line-height: 18px; color: var(--secondary-text-color); }
-.decision-dialog .decision-part-input { min-height: 48px; background: var(--primary-background-color); border-color: var(--ui-border-color); }
-.decision-dialog .decision-part-input:focus { border-color: var(--primary-color); }
+.decision-dialog textarea {
+  display: block; width: 100%; min-height: 72px; padding: 8px 10px; resize: vertical; field-sizing: content;
+  font: inherit; font-size: 14px; line-height: 22px; color: var(--primary-text-color);
+  background: var(--primary-background-color); border: 1px solid var(--ui-border-color); border-radius: 6px;
+}
+.decision-dialog textarea:focus { outline: none; border-color: var(--primary-color); }
+.decision-dialog textarea[aria-invalid="true"] { border-color: var(--negative-color); }
 .decision-dialog .confirm-actions { margin-top: 4px; }
 .decision-status-choice { display: flex; gap: 8px; flex-wrap: wrap; }
 .decision-status-choice button {
