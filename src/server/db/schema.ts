@@ -426,7 +426,10 @@ export const whatsappOutbox = pgTable("whatsapp_outbox", {
   createdAt: ts("created_at").notNull().defaultNow(),
   sentAt: ts("sent_at"),
   attempts: integer("attempts").notNull().default(0),
-}, (t) => [index("whatsapp_outbox_pending").on(t.sentAt, t.id)]);
+  orgId: text("org_id"), // whose company, whom and why — for the delivery log (rows queued before these are NULL)
+  memberId: text("member_id"),
+  kind: text("kind"), // "urgent" (an @@mention), "brief", …
+}, (t) => [index("whatsapp_outbox_pending").on(t.sentAt, t.id), index("whatsapp_outbox_org").on(t.orgId, t.id)]);
 
 /** The one-time code a teammate sends the bot to link their number ("1FOLD-7K2QXM"). Only its hash is kept. */
 export const whatsappLinkCodes = pgTable("whatsapp_link_codes", {

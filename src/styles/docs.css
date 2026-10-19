@@ -616,3 +616,6 @@ button.doc-chip { border: 0; font: inherit; cursor: pointer; }
 .docs-board-cards { margin-top: 10px; }
 .docs-board-cards .doc-card { box-shadow: inset 0 4px 0 var(--group); }
 .docs-board-none { margin: 8px 0 0 30px; font-size: 13px; color: var(--secondary-text-color); }
+/* An urgent (@@) mention: red, so it reads as "needs you" */
+.doc-chip.is-person.is-urgent, .doc-mention.is-urgent { color: #fff; background: var(--negative-color); }
+.doc-chip.is-person.is-urgent .avatar { box-shadow: 0 0 0 1.5px #fff; }

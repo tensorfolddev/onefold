@@ -17,7 +17,7 @@ import { saveCompany } from "./company/store.ts";
 import { inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
 import { CHANNEL, journal, type Source } from "./journal.ts";
-import { queueMentionAlerts } from "./whatsapp/outbox.ts";
+import { sendUrgent } from "./whatsapp/urgent.ts";
 
 export const MAX_BODY_CHARS = 1_000_000;
 const VERSION_WINDOW_MS = 10 * 60_000; // one version per author per ten minutes of editing
@@ -60,15 +60,6 @@ async function relink(tx: Tx, orgId: string, docId: string, body: string): Promi
   return refs.people.filter((p) => !before.has(p));
 }
 
-/** WhatsApp alerts for the people a doc now mentions (the in-app notices are made by notifyDocMentions). */
-async function alertMentioned(db: Db, me: Person, orgId: string, doc: Doc, mentioned: string[]) {
-  const visible = mentionable(db, me, doc.id, mentioned).map((p) => p.id);
-  if (!visible.length) return;
-  const space = doc.productKey ? db.products.find((p) => p.key === doc.productKey)?.name ?? doc.productKey : "Company docs";
-  await queueMentionAlerts({ orgId, memberIds: visible, actor: me.name, docId: doc.id, docTitle: doc.title, space })
-    .catch((e: unknown) => console.error("[docs] couldn't queue WhatsApp alerts", e)); // the in-app notice stands
-}
-
 /** Docs (visible to this person, not archived) whose body links to `target`. */
 async function linkedFrom(tx: Tx, db: Db, me: Person, orgId: string, kind: "doc" | "ticket", target: string) {
   const ids = new Set((await tx.select({ docId: s.docLinks.docId }).from(s.docLinks)
@@ -98,7 +89,7 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
   const template = templateFor(input.template);
   const body = String(input.body ?? template?.body ?? "");
   if (body.length > MAX_BODY_CHARS) throw new ValidationError("That doc is too long");
-  return inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
+  const done = await inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
     const made = createDocCommand(loaded.db, me, {
@@ -106,18 +97,20 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
       icon: input.icon ?? template?.icon, template: template?.id, kind: template?.kind ?? input.kind,
     });
     const id = made.key;
-    const mentioned = refsIn(body).people;
-    const db = mentioned.length ? notifyDocMentions(made.db, me, id, mentioned) : made.db;
+    const refs = refsIn(body);
+    const mentioned = refs.people;
+    const db = mentioned.length ? notifyDocMentions(made.db, me, id, mentioned, refs.urgent) : made.db;
     const version = await saveCompany(tx, loaded, db);
     await tx.insert(s.docBodies).values({ orgId: who.orgId, docId: id, body, rev: 1, updatedBy: me.id });
     await relink(tx, who.orgId, id, body);
-    if (mentioned.length) await alertMentioned(made.db, me, who.orgId, db.docs.find((d) => d.id === id)!, mentioned);
     const doc = db.docs.find((d) => d.id === id)!;
     await tx.insert(s.docVersions).values({ orgId: who.orgId, id: newId("ver"), docId: id, rev: 1, title: doc.title, body, authorId: me.id });
     await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source },
       [{ command: "createDoc", args: { id, productKey: doc.productKey, title: doc.title, template: template?.id } }], version);
-    return { version, id };
+    return { version, id, before: loaded.db, after: db, me };
   });
+  await sendUrgent(who.orgId, done.before, done.after, done.me); // its @@mentions, on WhatsApp
+  return { version: done.version, id: done.id };
 }
 
 // ---------- read ----------
@@ -158,7 +151,7 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
     if (cur.rev !== input.baseRev && !input.force) {
       throw new DocConflict({ body: cur.body, rev: cur.rev, updatedBy: cur.updated_by ?? undefined, updatedAt: String(cur.updated_at) });
     }
-    if (cur.body === input.body) return { rev: cur.rev, doc, me, db: loaded.db, changed: false, mentioned: [] as string[] };
+    if (cur.body === input.body) return { rev: cur.rev, doc, me, db: loaded.db, changed: false, mentioned: [] as string[], urgent: [] as string[] };
     const rev = cur.rev + 1;
     const now = new Date();
     if (input.force && cur.rev !== input.baseRev) await addVersion(tx, who.orgId, id, cur.rev, doc.title, cur.body, cur.updated_by, now, false);
@@ -166,20 +159,23 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
       .where(and(eq(s.docBodies.orgId, who.orgId), eq(s.docBodies.docId, id)));
     await addVersion(tx, who.orgId, id, rev, doc.title, input.body, me.id, now, true);
     const mentioned = await relink(tx, who.orgId, id, input.body);
+    const wasUrgent = new Set(refsIn(cur.body).urgent);
+    const urgent = refsIn(input.body).urgent.filter((p) => !wasUrgent.has(p)); // newly @@mentioned
     await notify(tx, who.orgId, "doc", { docId: id, productKey: doc.productKey, rev, personId: me.id });
-    return { rev, doc, me, db: loaded.db, changed: true, mentioned };
+    return { rev, doc, me, db: loaded.db, changed: true, mentioned, urgent };
   });
   const touch = saved.changed && Date.now() - Date.parse(saved.doc.updatedAt ?? "1970-01-01") > TOUCH_EVERY_MS;
-  if (touch || saved.mentioned.length) {
+  const told = saved.mentioned.length || saved.urgent.length;
+  if (touch || told) {
     const at = new Date().toISOString();
+    // In-app notices for the newly mentioned (urgent ones also go to WhatsApp, once this is saved — see applyComposed).
     await applyComposed(who, "web", (db, me) => {
       let next = db;
       const steps = [];
       if (touch) { next = touchDoc(next, me, id, at, saved.rev); steps.push({ name: "touchDoc", args: [id, saved.rev] }); }
-      if (saved.mentioned.length) { next = notifyDocMentions(next, me, id, saved.mentioned); steps.push({ name: "notifyDocMentions", args: [id, saved.mentioned] }); }
+      if (told) { next = notifyDocMentions(next, me, id, saved.mentioned, saved.urgent); steps.push({ name: "notifyDocMentions", args: [id, saved.mentioned, saved.urgent] }); }
       return { db: next, steps };
     });
-    if (saved.mentioned.length) await alertMentioned(saved.db, saved.me, who.orgId, saved.doc, saved.mentioned);
   }
   return { rev: saved.rev };
 }

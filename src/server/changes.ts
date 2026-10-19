@@ -14,6 +14,7 @@ import { inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
 import { emailEnabled, inviteEmail, sendEmail } from "./email.ts";
 import { journal, type Source } from "./journal.ts";
+import { sendUrgent } from "./whatsapp/urgent.ts";
 
 export interface Step { name: string; args: unknown[] }
 export const MAX_STEPS = 25;
@@ -57,7 +58,7 @@ export async function applySteps(who: SessionRow, steps: Step[], opts: { undoabl
       throw new ValidationError("That change isn't allowed");
     }
   }
-  return inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
+  const done = await inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
     let db = loaded.db;
@@ -80,8 +81,10 @@ export async function applySteps(who: SessionRow, steps: Step[], opts: { undoabl
     }
     await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source: opts.source ?? "web" },
       steps.map((st) => ({ command: st.name, args: st.args })), version);
-    return { version, key };
+    return { version, key, before: loaded.db, after: db, me };
   });
+  await sendUrgent(who.orgId, done.before, done.after, done.me); // saved: now its @@mentions go to WhatsApp
+  return { version: done.version, key: done.key };
 }
 
 /** A change put together on the server (an MCP tool): the new data, a key it made, and the steps for the audit log. */
@@ -92,7 +95,7 @@ export interface Composed<K> { db: Db; key?: K; steps: Step[] }
  * audit log and live update as applySteps — the commands check permissions themselves, as always.
  */
 export async function applyComposed<K>(who: SessionRow, source: Source, run: (db: Db, me: Person) => Composed<K>): Promise<{ version: number; key?: K }> {
-  return inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
+  const done = await inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
     const loaded = await mustLoad(tx, who);
     const me = personFor(loaded, who.userId);
     let result: Composed<K>;
@@ -107,8 +110,10 @@ export async function applyComposed<K>(who: SessionRow, source: Source, run: (db
     const version = await saveCompany(tx, loaded, result.db);
     await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source },
       result.steps.map((st) => ({ command: st.name, args: st.args })), version);
-    return { version, key: result.key };
+    return { version, key: result.key, saved: { before: loaded.db, after: result.db, me } };
   });
+  if (done.saved) await sendUrgent(who.orgId, done.saved.before, done.saved.after, done.saved.me);
+  return { version: done.version, key: done.key };
 }
 
 /** Puts back the company as it was before your last undoable change — only if nobody changed anything since. */

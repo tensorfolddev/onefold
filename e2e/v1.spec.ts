@@ -937,6 +937,25 @@ test("notifications: an @mention in an update reaches them live; @@ is urgent; b
   await expect(dev.getByRole("button", { name: "Notifications, 0 unread" })).toBeVisible(); // read stays read
 });
 
+test("docs: @@ makes an urgent mention, kept as one after a reload", async ({ page }) => {
+  await signUp(page, "Lambda", email("lambda"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/docs");
+  await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
+  await expect(page).toHaveURL(/\/d(ocs)?\/.+/);
+  const editor = page.locator(".doc-prose .ProseMirror, .ProseMirror").first();
+  await editor.click();
+  const saved = page.waitForResponse((r) => r.url().includes("/api/docs/") && r.request().method() === "POST" && !!r.request().postData()?.includes("[@@Ayla Khan]"));
+  await page.keyboard.type("Over to @@Ayl");
+  await expect(page.getByRole("listbox").getByText("🚨 Urgent mention")).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(editor.locator(".doc-chip.is-urgent")).toHaveText(/@@Ayla Khan/);
+  await saved;
+  await page.reload();
+  await expect(page.locator(".ProseMirror .doc-chip.is-urgent").first()).toHaveText(/@@Ayla Khan/);
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

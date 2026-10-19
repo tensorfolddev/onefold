@@ -78,6 +78,22 @@ const MentionPicker = (get: Get) => Extension.create({
   },
 });
 
+/** "@@" — an urgent mention: a person only, who's also sent it on WhatsApp. */
+const UrgentMentionPicker = (get: Get) => Extension.create({
+  name: "urgentMentionPicker",
+  addProseMirrorPlugins() {
+    return [Suggestion({ ...suggestMenu({
+      editor: this.editor, char: "@@", empty: "Nobody by that name",
+      allow: ({ editor, range }) => !editor.isActive("codeBlock") && /(^|[\s(])$/.test(editor.state.doc.textBetween(Math.max(0, range.from - 1), range.from, "\n", " ")),
+      items: (q) => get().people.filter((p) => has(p.name, q)).slice(0, LIMIT)
+        .map((p) => ({ key: `urgent:${p.id}`, label: p.name, hint: "Urgent · WhatsApp too", group: "🚨 Urgent mention", icon: <Avatar personId={p.id} size="sm" /> })),
+      pick: (editor, range, item: MenuItem) => {
+        editor.chain().focus().insertContentAt(range, [{ type: "mention", attrs: { id: item.key.slice(7), label: item.label, urgent: true } }, { type: "text", text: " " }]).run();
+      },
+    }), pluginKey: new PluginKey("urgentMentionPicker") })];
+  },
+});
+
 /** "[[" — a ticket (by key or title) or a doc (by title). */
 const RefPicker = (get: Get) => Extension.create({
   name: "refPicker",
@@ -163,4 +179,4 @@ const LinkShortcut = Extension.create({
   },
 });
 
-export const connectExtensions = (get: Get) => [MentionPicker(get), RefPicker(get), TicketKeyRule(get), PasteLinks(get), LinkShortcut];
+export const connectExtensions = (get: Get) => [UrgentMentionPicker(get), MentionPicker(get), RefPicker(get), TicketKeyRule(get), PasteLinks(get), LinkShortcut];

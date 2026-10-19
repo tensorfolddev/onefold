@@ -45,7 +45,9 @@ export interface DecisionInput {
 const MAX_DECISION_BODY = 200_000;
 const SUMMARY = 280;
 const MENTION = /\]\(mention:([A-Za-z0-9_-]+)\)/g;
+const URGENT_MENTION = /\[@@[^\]\n]*\]\(mention:([A-Za-z0-9_-]+)\)/g;
 const mentionIds = (md = "") => new Set([...md.matchAll(MENTION)].map((m) => m[1]));
+const urgentIds = (md = "") => new Set([...md.matchAll(URGENT_MENTION)].map((m) => m[1]));
 /** A body's prose as one plain line (links, mentions and tickets by their text; no headings or tables) — its summary. */
 export function plainSummary(md: string): string {
   const text = md
@@ -60,18 +62,19 @@ export function plainSummary(md: string): string {
     .replace(/\s+/g, " ").trim();
   return text.length > SUMMARY ? `${text.slice(0, SUMMARY - 1).trimEnd()}…` : text;
 }
-/** A decision's new body: kept, summarised, and the people it newly @mentions told (if they can see it, never you). */
+/** A decision's new body: kept, summarised, and the people it newly @mentions told — urgently when newly @@mentioned
+ * (if they can see it, never you). */
 function withBody(db: Db, me: Person, d: Decision, body: unknown): { decision: Decision; notifications: Db["notifications"] } {
   if (typeof body !== "string") throw new ValidationError("The decision's text is missing");
   if (body.length > MAX_DECISION_BODY) throw new ValidationError("That's too long — put the details in a doc and link it");
   const product = productOf(db, d.productKey);
-  const before = mentionIds(d.body);
+  const [before, urgentBefore, urgentNow] = [mentionIds(d.body), urgentIds(d.body), urgentIds(body)];
   const at = now();
-  const notifications = [...mentionIds(body)].filter((pid) => !before.has(pid))
+  const notifications = [...mentionIds(body)].filter((pid) => !before.has(pid) || (urgentNow.has(pid) && !urgentBefore.has(pid)))
     .map((pid) => db.people.find((p) => p.id === pid))
     .filter((p): p is Person => !!p && p.id !== me.id && p.active && !!p.panel && (p.panel === "admin" || isOnProduct(p.id, product)))
     .map((p) => ({ id: id(), personId: p.id, kind: "mention" as const, actorId: me.id, text: `mentioned you in the decision ${d.title}`,
-      target: `/products/${d.productKey}/decisions?d=${d.id}`, at, read: false }));
+      target: `/products/${d.productKey}/decisions?d=${d.id}`, at, read: false, ...(urgentNow.has(p.id) && { urgent: true }) }));
   return { decision: { ...d, body, why: plainSummary(body) }, notifications };
 }
 
@@ -298,16 +301,19 @@ export function mentionable(db: Db, me: Person, docId: string, personIds: string
     .filter((p): p is Person => !!p && p.id !== me.id && p.active && !!p.panel && (!product || p.panel === "admin" || isOnProduct(p.id, product)));
 }
 
-/** Server only: tells the people newly mentioned in a doc — if they can see it, and never you. */
-export function notifyDocMentions(db: Db, me: Person, docId: string, personIds: string[]): Db {
+/** Server only: tells the people newly mentioned in a doc — urgently those newly @@mentioned — if they can see it,
+ * and never you. */
+export function notifyDocMentions(db: Db, me: Person, docId: string, personIds: string[], urgentIds: string[] = []): Db {
   const doc = docOf(db, docId);
   const at = now();
-  const told = mentionable(db, me, docId, personIds);
+  const urgent = new Set(Array.isArray(urgentIds) ? urgentIds : []);
+  const told = mentionable(db, me, docId, [...personIds, ...urgent]);
   if (!told.length) return db;
   return {
     ...db,
     notifications: [
-      ...told.map((p) => ({ id: id(), personId: p.id, kind: "mention" as const, actorId: me.id, text: `mentioned you in ${doc.title}`, target: `/d/${doc.id}`, at, read: false })),
+      ...told.map((p) => ({ id: id(), personId: p.id, kind: "mention" as const, actorId: me.id, text: `mentioned you in ${doc.title}`, target: `/d/${doc.id}`, at, read: false,
+        ...(urgent.has(p.id) && { urgent: true }) })),
       ...db.notifications,
     ],
   };

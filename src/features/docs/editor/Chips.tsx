@@ -21,8 +21,9 @@ function MentionView({ node }: NodeViewProps) {
   const { personById } = useDb();
   const p = personById(node.attrs.id);
   return (
-    <NodeViewWrapper as="span" className={`doc-chip is-person${p ? "" : " is-missing"}`} data-tip={p ? `${p.name} · ${p.role}` : undefined} data-tip-pos="top">
-      {p && <Avatar personId={p.id} size="sm" />}@{p?.name ?? node.attrs.label}
+    <NodeViewWrapper as="span" className={`doc-chip is-person${p ? "" : " is-missing"}${node.attrs.urgent ? " is-urgent" : ""}`}
+      data-tip={p ? `${node.attrs.urgent ? "Urgent — " : ""}${p.name} · ${p.role}` : undefined} data-tip-pos="top">
+      {p && <Avatar personId={p.id} size="sm" />}{node.attrs.urgent ? "@@" : "@"}{p?.name ?? node.attrs.label}
     </NodeViewWrapper>
   );
 }
