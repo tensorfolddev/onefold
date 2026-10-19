@@ -4,8 +4,9 @@
 .is-claude { --app: #c15f3c; --app-2: #e08a62; }
 .is-whatsapp { --app: #128c4b; --app-2: #34d399; }
 .is-bot { --app: #5b21b6; --app-2: #8b5cf6; }
+.is-team { --app: #0e7490; --app-2: #22d3ee; }
 
-.int-center { padding: 24px 32px 64px; max-width: 1280px; }
+.int-center { max-width: 1280px; margin: 0 auto; padding: 24px 32px 64px; } /* centred in the work area */
 .int-hero {
   position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 280px; align-items: center; gap: 24px; overflow: hidden;
   padding: 36px 40px; border-radius: 20px;
@@ -36,9 +37,10 @@
 .int-hero-art { position: relative; height: 180px; }
 .int-logo.is-float { position: absolute; width: 72px; height: 72px; border-radius: 20px; box-shadow: 0 14px 30px rgb(15 23 42 / 0.18); animation: int-float 6s ease-in-out infinite; }
 .int-logo.is-float svg { width: 34px; height: 34px; }
-.int-logo.is-float.f0 { left: 20px; top: 26px; transform: rotate(-8deg); }
-.int-logo.is-float.f1 { left: 120px; top: 0; animation-delay: -2s; }
-.int-logo.is-float.f2 { left: 170px; top: 96px; transform: rotate(7deg); animation-delay: -4s; }
+.int-logo.is-float.f0 { left: 0; top: 34px; transform: rotate(-8deg); }
+.int-logo.is-float.f1 { left: 104px; top: 0; animation-delay: -1.5s; }
+.int-logo.is-float.f2 { left: 196px; top: 54px; transform: rotate(7deg); animation-delay: -3s; }
+.int-logo.is-float.f3 { left: 92px; top: 108px; transform: rotate(4deg); animation-delay: -4.5s; }
 @keyframes int-float { 50% { translate: 0 -8px; } }
 
 /* Logos: a rounded tile in the app's colours. */
@@ -62,20 +64,10 @@
 .int-cats button[aria-pressed="true"] svg { color: var(--primary-color); }
 .int-cat-count { flex: none !important; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--allgrey-background-color); font-size: 12px; text-align: center; color: var(--secondary-text-color); }
 .int-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ui-border-color); }
-.is-on > .int-dot, .int-cats .int-dot { background: #00c875; box-shadow: 0 0 0 3px rgb(0 200 117 / 0.18); }
+.is-on > .int-dot { background: #00c875; box-shadow: 0 0 0 3px rgb(0 200 117 / 0.18); }
 
 .int-section + .int-section { margin-top: 30px; }
 .int-section h2 { margin: 0 0 14px; font: 600 18px/1.3 var(--title-font-family); }
-.int-connected { display: flex; flex-wrap: wrap; gap: 10px; }
-.int-connected-chip {
-  display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border: 1px solid var(--layout-border-color); border-radius: 14px;
-  background: var(--primary-background-color); color: var(--primary-text-color); text-decoration: none;
-  transition: border-color var(--motion-productive-short), box-shadow var(--motion-productive-short);
-}
-.int-connected-chip:hover { border-color: var(--ui-border-color); box-shadow: 0 6px 16px rgb(15 23 42 / 0.07); }
-.int-connected-chip > span:last-child { display: grid; font-size: 14px; }
-.int-connected-chip .muted { font-size: 12px; }
-
 .int-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .int-card {
   display: flex; flex-direction: column; gap: 4px; padding: 20px; border: 1px solid var(--layout-border-color); border-radius: 16px;
@@ -103,7 +95,7 @@
 .int-recipe-var { font-weight: 650; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--app, var(--primary-color)) 55%, transparent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 
 /* ---------- An app's own page ---------- */
-.int-app { max-width: 1180px; }
+.int-app { max-width: 1180px; margin: 0 auto; }
 .int-app-hero {
   padding: 20px 28px 26px; margin-bottom: 18px; border-radius: 20px; border: 1px solid color-mix(in srgb, var(--app) 18%, transparent);
   background:

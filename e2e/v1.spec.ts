@@ -1214,25 +1214,31 @@ test("My docs: a public link lets anyone read the page signed out — with its i
   await expect(stranger.getByRole("heading", { name: "This page isn't available" })).toBeVisible();
 });
 
-test("Integrations center: Claude and WhatsApp for you; an admin runs the WhatsApp bot — brief time and days, reply words, messages", async ({ page }) => {
+test("Integrations center: Claude and WhatsApp for you; for admins the WhatsApp bot (its number) and Team WhatsApp (brief, words, messages)", async ({ page }) => {
   await signUp(page, "Relay", email("integrations"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("link", { name: "Integrations" }).click(); // beside the bell
   await expect(page).toHaveURL(/\/admin\/integrations$/);
   await expect(page.getByRole("heading", { name: "Your work, wherever you are" })).toBeVisible();
   const cards = page.locator(".int-grid");
-  await expect(cards.locator(".int-card")).toHaveCount(3); // Claude, WhatsApp, and (for admins) the WhatsApp bot
+  await expect(cards.locator(".int-card")).toHaveCount(4); // Claude, WhatsApp — and for admins, the WhatsApp bot and Team WhatsApp
+  await expect(cards.getByText("Connected", { exact: true })).toHaveCount(0); // said on a card only once it's connected
   await page.getByLabel("Search integrations").fill("claude");
   await expect(cards.locator(".int-card")).toHaveCount(1);
   await page.getByLabel("Search integrations").fill("");
   await page.getByRole("navigation", { name: "Categories" }).getByRole("button", { name: /For your company/ }).click();
-  await cards.getByRole("link", { name: /^WhatsApp bot/ }).click();
+  await expect(cards.locator(".int-card")).toHaveCount(2);
+  await cards.getByRole("link", { name: /^WhatsApp bot/ }).click(); // the bot's number: one place
   await expect(page).toHaveURL(/\/admin\/integrations\/whatsapp-bot$/);
-  await expect(page.getByRole("heading", { name: "WhatsApp bot", level: 1 })).toBeVisible();
-  await expect(page.getByRole("list").filter({ hasText: "send each teammate" })).toContainText("working day at 09:00"); // a recipe, from the settings
-
-  await page.getByRole("tab", { name: "Bot", exact: true }).click();
+  await page.getByRole("button", { name: "Connect the bot" }).click();
   await expect(page.getByRole("heading", { name: "1FOLD's bot" })).toBeVisible();
+  await page.getByRole("link", { name: "Integrations", exact: true }).first().click();
+
+  await page.getByRole("navigation", { name: "Categories" }).getByRole("button", { name: /For your company/ }).click();
+  await cards.getByRole("link", { name: /^Team WhatsApp/ }).click(); // how it talks to the team: another
+  await expect(page).toHaveURL(/\/admin\/integrations\/team-whatsapp$/);
+  await expect(page.getByRole("heading", { name: "Team WhatsApp", level: 1 })).toBeVisible();
+  await expect(page.getByRole("list").filter({ hasText: "send each teammate" })).toContainText("working day at 09:00"); // a recipe, from the settings
   await page.getByRole("tab", { name: /Connected/ }).click();
   await expect(page.getByRole("list", { name: "Who's linked" })).toContainText("Not linked");
 
