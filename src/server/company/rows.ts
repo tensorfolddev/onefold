@@ -94,6 +94,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     })),
     notifications: db.notifications.map((n) => r(n.id, {
       personId: n.personId, kind: n.kind, actorId: n.actorId, text: n.text, target: n.target, at: instant(n.at), read: n.read,
+      urgent: n.urgent ? true : null,
     })),
   };
 }
@@ -204,7 +205,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     comments: t.comments.map((c): Comment => ({ id: c.id, ticketKey: str(c.ticketId), authorId: str(c.authorId), at: str(c.at), body: str(c.body) })),
     notifications: t.notifications.map((n): Notification => ({
       id: n.id, personId: str(n.personId), kind: n.kind as Notification["kind"], actorId: str(n.actorId), text: str(n.text),
-      target: str(n.target), at: str(n.at), read: n.read as boolean,
+      target: str(n.target), at: str(n.at), read: n.read as boolean, ...(n.urgent ? { urgent: true } : {}),
     })),
     stageRequests: t.stageRequests.map((s): StageRequest => ({ id: s.id, productKey: str(s.productId), stage: s.stage as StageRequest["stage"], requestedBy: str(s.requestedBy), at: str(s.at) })),
   });

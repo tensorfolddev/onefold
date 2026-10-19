@@ -111,7 +111,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const v = await api<View>("/api/org");
-      if (pending.current === 0) show(v);
+      // Two quick changes mean two fetches; if the older answer lands last, keep the newer view (else the page would sit
+      // on stale data until the next change).
+      const cur = viewRef.current;
+      const older = !!cur && cur.db.org.id === v.db.org.id && v.version < cur.version;
+      if (pending.current === 0 && !older) show(v);
       if (v.build && BUILD !== "dev" && v.build !== BUILD && !toldNewVersion.current) {
         toldNewVersion.current = true;
         toast("A new version of 1Fold is ready — refresh the page to get it");

@@ -122,6 +122,10 @@
 .notification-row[data-unread="true"] { background: var(--allgrey-background-color); }
 .notification-meta { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; color: var(--secondary-text-color); }
 .notification-meta svg { width: 12px; height: 12px; }
+.notification-urgent {
+  display: inline-flex; align-items: center; height: 18px; margin-right: 6px; padding: 0 6px; border-radius: 4px; vertical-align: 1px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #fff; background: var(--negative-color);
+}
 .unread-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--primary-color); }
 
 .mobile-only { display: none !important; }

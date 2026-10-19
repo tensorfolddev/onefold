@@ -354,6 +354,7 @@ export const notifications = pgTable("notifications", {
   target: text("target").notNull(),
   at: ts("at").notNull(),
   read: boolean("read").notNull(),
+  urgent: boolean("urgent"), // an @@mention
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("notifications_person").on(t.orgId, t.personId)]);
 
 // ---------- platform ----------

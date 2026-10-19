@@ -73,3 +73,12 @@ test("a project keeps its own priority names and colours through rows and back",
   assert.deepEqual(back.products.find((p) => p.key === "AP")!.priorities, priorities);
   assert.equal(back.products.find((p) => p.key !== "AP")!.priorities, undefined);
 });
+
+test("an urgent (@@) notification stays urgent through rows and back", () => {
+  const db = demoDb();
+  const n = { id: "n-urgent", personId: "u-sara", kind: "mention" as const, actorId: "u-tayyab", text: "mentioned you in AP-1 Login", target: "AP-1", at: "2026-10-19T10:00:00Z", read: false, urgent: true };
+  const withOne = { ...db, notifications: [n, ...db.notifications] };
+  const back = fromRows(orgRow(withOne), withPositions(toRows(withOne)), new Map(db.people.map((p) => [p.id, p.email])));
+  assert.deepEqual(back.notifications.find((x) => x.id === "n-urgent"), n);
+  assert.equal(back.notifications.find((x) => x.id !== "n-urgent")!.urgent, undefined);
+});

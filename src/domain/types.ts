@@ -251,4 +251,5 @@ export interface Notification {
   target: string; // ticket key, product key, or a page path ("/people")
   at: string;
   read: boolean;
+  urgent?: boolean; // an @@mention: louder, and sent on WhatsApp too
 }
