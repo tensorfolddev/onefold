@@ -10,7 +10,8 @@ const PASSWORD = "Correct-Horse-42";
 const NEW_PASSWORD = "Battery-Staple-77";
 const OUTBOX = process.env.EMAIL_OUTBOX_DIR!;
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
-const slug = (name: string) => `${name}-${RUN}`;
+let slugs = 0; // two tests may name their company alike: each short name is still the run's own
+const slug = (name: string) => `${name}-${RUN}${(slugs += 1)}`;
 const email = (who: string) => `${who}-${RUN}@acme.example`;
 
 // Sign-ups are limited per address (10 an hour). Each test's founder signs up from an address of their own, as real
