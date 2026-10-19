@@ -1015,6 +1015,41 @@ test("docs: centred text, a right-aligned table column, an emoji from \":\", and
   await expect(prose.locator("a.file-card", { hasText: "brief.pdf" })).toHaveAttribute("target", "_blank");
 });
 
+test("docs: a page that opens with a Claude artifact link is marked as one, wears the artifact cover, and opens from its card", async ({ page }) => {
+  const art = "https://claude.ai/artifact/Jxj9Rt3T6Gc9Soi171mwUE";
+  await signUp(page, "Artifacts", email("artifact"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/docs");
+  await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Blank page/ }).click();
+  await expect(page).toHaveURL(/\/d(ocs)?\/.+/);
+  const saved = page.waitForResponse((r) => r.ok() && r.url().includes("/api/docs/") && r.request().method() === "POST" && !!r.request().postData()?.includes(art));
+  await page.locator('.doc-prose[contenteditable="true"]').click();
+  await page.keyboard.type(art);
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Our pitch, built in Claude.");
+  await saved;
+  await expect(page.locator(".doc-cover")).toHaveAttribute("style", /claude-artifact\.svg/); // no cover picked: the artifact's own
+
+  await page.goto("/admin/docs");
+  await page.getByRole("tab", { name: "Cards" }).click();
+  const card = page.locator(".doc-card-wrap", { hasText: "Untitled" });
+  await expect(card.getByText("Claude artifact")).toBeVisible();
+  await expect(card.locator(".doc-card")).toHaveAttribute("style", /claude-artifact\.svg/);
+  await card.hover();
+  const open = card.getByRole("link", { name: /Open the artifact/ });
+  await expect(open).toBeVisible();
+  await expect(open).toHaveAttribute("href", art);
+  await expect(open).toHaveAttribute("target", "_blank");
+
+  const show = page.getByRole("group", { name: "Show" }); // artifacts and plain pages, told apart
+  await show.getByRole("button", { name: "Pages", exact: true }).click();
+  await expect(card).toBeHidden();
+  await expect(page.getByText("Every page here is a Claude artifact")).toBeVisible();
+  await show.getByRole("button", { name: /Claude artifacts · 1/ }).click();
+  await expect(card).toBeVisible();
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

@@ -293,6 +293,17 @@ export function touchDoc(db: Db, me: Person, docId: string, at: string, rev: num
   return { ...db, docs: replace(db.docs, (d) => d.id === docId, (d) => ({ ...d, updatedAt: at, updatedBy: me.id, rev, updated: at.slice(0, 10) })) };
 }
 
+const WEB_LINK = /^https?:\/\/\S{1,2040}$/i;
+
+/** Records the web link a doc's body opens with (server side, as the body is saved); none clears it. */
+export function setDocLink(db: Db, me: Person, docId: string, link?: string): Db {
+  const doc = docOf(db, docId);
+  check(me, "doc.edit", { product: spaceOf(db, doc) });
+  const next = typeof link === "string" && WEB_LINK.test(link) ? link : undefined;
+  if (doc.link === next) return db;
+  return { ...db, docs: replace(db.docs, (d) => d.id === docId, (d) => ({ ...d, link: next })) };
+}
+
 /** Of these people, the ones a mention in this doc reaches: they can see it, and it isn't you. */
 export function mentionable(db: Db, me: Person, docId: string, personIds: string[]): Person[] {
   const product = spaceOf(db, docOf(db, docId));

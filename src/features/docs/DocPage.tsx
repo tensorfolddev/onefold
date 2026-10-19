@@ -18,7 +18,7 @@ import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
 import type { Heading } from "./editor/DocEditor";
 import { useEditorLinks, useUpload } from "./editor/useEditorLinks";
-import { ancestorsOf, COVER_IMAGES, COVERS, coverCss, docPath, downloadMarkdown, printDoc, readingMinutes } from "./tree";
+import { ancestorsOf, COVER_IMAGES, COVERS, coverCss, coverOf, docPath, downloadMarkdown, printDoc, readingMinutes } from "./tree";
 import { DocHistory } from "./DocHistory";
 import { DocsTopBar } from "./DocsSpace";
 import { useDocBody } from "./useDocBody";
@@ -84,6 +84,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
   const typing = others.filter((p) => p.editing).map((p) => personById(p.personId)?.name.split(" ")[0]).filter(Boolean);
   const editedBy = personById(doc.updatedBy ?? doc.authorId);
   const crumbs = ancestorsOf(db.docs, doc);
+  const cover = coverOf(doc); // a Claude artifact wears its own until another is picked
   const status = b.conflict ? { text: "Not saved", cls: "is-error" }
     : b.error ? { text: "Can't save — retrying", cls: "is-error" }
     : b.saving ? { text: "Saving…", cls: "is-busy" }
@@ -91,7 +92,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
     : b.savedAt ? { text: "Saved", cls: "" } : null;
 
   return (
-    <article className={`doc-page${doc.cover ? " has-cover" : ""}`} aria-labelledby="doc-title">
+    <article className={`doc-page${cover ? " has-cover" : ""}`} aria-labelledby="doc-title">
       <DocsTopBar crumbs={[
         { label: product ? product.name : "Company docs", href: href(product ? `/products/${product.key}/docs` : "/docs") },
         ...crumbs.map((c) => ({ label: c.title, href: href(docPath(c)), icon: c.icon ? <span aria-hidden>{c.icon}</span> : undefined })),
@@ -134,7 +135,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
               )}
             </Popover>
       </DocsTopBar>
-      {doc.cover && <div className="doc-cover" style={{ "--cover": coverCss(doc.cover) } as React.CSSProperties} aria-hidden />}
+      {cover && <div className="doc-cover" style={{ "--cover": coverCss(cover) } as React.CSSProperties} aria-hidden />}
       {/* The writing column, and beside it (when there's room) the contents, which stays in view as you scroll. */}
       <div className={`doc-grid${headings.length > 2 ? " has-toc" : ""}`}>
       <div className="doc-col">
@@ -155,7 +156,7 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
                 {(close) => <IconPicker query={emojiQuery} setQuery={setEmojiQuery} onPick={(icon) => { look({ icon }); close(); }} />}
               </Popover>
             )}
-            <Popover width={380} floating className="cover-menu" trigger={({ toggle }) => <button type="button" className="doc-head-tool" onClick={toggle}><ImagePlus aria-hidden /> {doc.cover ? "Change cover" : "Add cover"}</button>}>
+            <Popover width={380} floating className="cover-menu" trigger={({ toggle }) => <button type="button" className="doc-head-tool" onClick={toggle}><ImagePlus aria-hidden /> {cover ? "Change cover" : "Add cover"}</button>}>
               {(close) => (
                 <>
                   <p className="menu-section-label">Gallery</p>

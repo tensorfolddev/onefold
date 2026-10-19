@@ -4,8 +4,8 @@
 // Who has a doc open is kept in memory and sent the same way ("org:presence:…").
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../data/db.ts";
-import { AccessError, createDoc as createDocCommand, notifyDocMentions, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
-import { refsIn } from "../features/docs/editor/links.ts";
+import { AccessError, createDoc as createDocCommand, notifyDocMentions, setDocLink, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
+import { refsIn, topLink } from "../features/docs/editor/links.ts";
 import { templateFor } from "../domain/docTemplates.ts";
 import { can } from "../domain/permissions.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
@@ -99,7 +99,8 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
     const id = made.key;
     const refs = refsIn(body);
     const mentioned = refs.people;
-    const db = mentioned.length ? notifyDocMentions(made.db, me, id, mentioned, refs.urgent) : made.db;
+    const linked = setDocLink(made.db, me, id, topLink(body));
+    const db = mentioned.length ? notifyDocMentions(linked, me, id, mentioned, refs.urgent) : linked;
     const version = await saveCompany(tx, loaded, db);
     await tx.insert(s.docBodies).values({ orgId: who.orgId, docId: id, body, rev: 1, updatedBy: me.id });
     await relink(tx, who.orgId, id, body);
@@ -166,7 +167,9 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
   });
   const touch = saved.changed && Date.now() - Date.parse(saved.doc.updatedAt ?? "1970-01-01") > TOUCH_EVERY_MS;
   const told = saved.mentioned.length || saved.urgent.length;
-  if (touch || told) {
+  const link = topLink(input.body);
+  const linkChanged = saved.changed && link !== saved.doc.link; // the link it opens with (a Claude artifact's, say) changed
+  if (touch || told || linkChanged) {
     const at = new Date().toISOString();
     // In-app notices for the newly mentioned (urgent ones also go to WhatsApp, once this is saved — see applyComposed).
     await applyComposed(who, "web", (db, me) => {
@@ -174,6 +177,7 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
       const steps = [];
       if (touch) { next = touchDoc(next, me, id, at, saved.rev); steps.push({ name: "touchDoc", args: [id, saved.rev] }); }
       if (told) { next = notifyDocMentions(next, me, id, saved.mentioned, saved.urgent); steps.push({ name: "notifyDocMentions", args: [id, saved.mentioned, saved.urgent] }); }
+      if (linkChanged) { next = setDocLink(next, me, id, link); steps.push({ name: "setDocLink", args: [id, link] }); }
       return { db: next, steps };
     });
   }
@@ -252,11 +256,14 @@ export async function restoreVersion(who: SessionRow, docId: string, versionId: 
     await addVersion(tx, who.orgId, docId, rev, doc.title, v.body, me.id, new Date(now.getTime() + 1), false);
     await relink(tx, who.orgId, docId, v.body);
     await notify(tx, who.orgId, "doc", { docId, productKey: doc.productKey, rev, personId: me.id });
-    return { rev };
+    return { rev, link: topLink(v.body) };
   });
   const at = new Date().toISOString();
-  await applyComposed(who, "web", (db, me) => ({ db: touchDoc(db, me, docId, at, done.rev), steps: [{ name: "touchDoc", args: [docId, done.rev] }] }));
-  return done;
+  await applyComposed(who, "web", (db, me) => ({
+    db: setDocLink(touchDoc(db, me, docId, at, done.rev), me, docId, done.link),
+    steps: [{ name: "touchDoc", args: [docId, done.rev] }, { name: "setDocLink", args: [docId, done.link] }],
+  }));
+  return { rev: done.rev };
 }
 
 // ---------- search ----------

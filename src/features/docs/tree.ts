@@ -1,5 +1,6 @@
 // Small helpers over the docs list: a space's live pages, the tree, paths, reading time, Markdown files.
 import type { Doc } from "@/domain/types";
+import { isClaudeArtifact } from "./editor/links";
 
 export const COVERS = [
   { id: "dawn", label: "Dawn", css: "linear-gradient(120deg, #fde68a 0%, #fca5a5 50%, #c4b5fd 100%)" },
@@ -20,6 +21,11 @@ export const COVER_IMAGES = [
 /** A cover's CSS background: an image (from the gallery or uploaded) or a colour gradient. */
 export const coverCss = (cover?: string) =>
   cover?.startsWith("/") ? `url("${cover}") center / cover no-repeat` : COVERS.find((c) => c.id === cover)?.css;
+
+/** What a Claude artifact's doc wears until someone picks a cover. */
+export const ARTIFACT_COVER = "/covers/claude-artifact.svg";
+/** The cover a doc shows: its own, else the artifact cover for a Claude artifact, else none. */
+export const coverOf = (doc: Pick<Doc, "cover" | "link">) => doc.cover ?? (isClaudeArtifact(doc.link) ? ARTIFACT_COVER : undefined);
 
 /** A space's pages that aren't archived ("" = the company's own space). */
 export const spaceDocs = (docs: Doc[], productKey: string) => docs.filter((d) => d.productKey === productKey && !d.archivedAt);
