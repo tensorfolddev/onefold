@@ -170,7 +170,11 @@ export interface Decision {
   docIds?: string[];
   supersededBy?: string; // the decision that replaced this one
   updatedAt?: string;
+  label?: DecisionLabel; // a status of the team's own (e.g. Suspended), shown instead of the built-in one
+  color?: string; // its sticky note's colour (#rrggbb); none = the status colour
 }
+
+export interface DecisionLabel { name: string; color: string }
 
 export interface Milestone {
   id: string;

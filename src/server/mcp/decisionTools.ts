@@ -56,7 +56,7 @@ export function registerDecisionTools(server: McpServer, { context, changeCompan
     const byId = (id: string) => c.db.decisions.find((x) => x.id === id);
     const replacedBy = d.supersededBy ? byId(d.supersededBy) : undefined;
     return {
-      id: d.id, product: d.productKey, title: d.title, status: d.status ?? "accepted", why: d.why,
+      id: d.id, product: d.productKey, title: d.title, status: d.status ?? "accepted", label: d.label?.name ?? null, color: d.color ?? null, why: d.why,
       context: d.context ?? null, alternatives: d.alternatives ?? null, consequences: d.consequences ?? null,
       decided_by: c.db.people.find((p) => p.id === d.byId)?.name ?? null, date: d.date, updated_at: d.updatedAt ?? null,
       tickets: d.ticketKeys ?? [],
