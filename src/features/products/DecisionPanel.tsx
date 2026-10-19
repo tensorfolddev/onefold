@@ -1,16 +1,18 @@
 "use client";
 
-// One decision, opened — short and readable: status, title, who and when, why. Context, alternatives and consequences
-// show only once written; related tickets and docs sit in one row. Managers and admins click any text to edit it in
-// place (it saves when you leave it). Also the short "new decision" form.
+// One decision, opened: status, title, who and when, then the decision written freely in the docs editor (headings,
+// bold, tables, images, @people, tickets, docs — type / for everything), saved as you type; related tickets and docs
+// sit in one row. Managers and admins edit; everyone on the project reads. Also the short "new decision" form.
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { FileText, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { addDecision, updateDecision } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
 import type { Decision, DecisionStatus, Doc } from "@/domain/types";
 import type { DecisionPatch } from "@/data/commands";
+import { useEditorLinks, useUpload } from "@/features/docs/editor/useEditorLinks";
 import { docPath } from "@/features/docs/tree";
 import { useAppState } from "@/features/shell/state";
 import { TicketPickerList } from "@/features/tickets/TemplateRelations";
@@ -19,12 +21,41 @@ import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
 import { STATUS, StatusMenu, StatusPill, statusOf, tone } from "./DecisionStatus";
 
-const EXTRAS = [
-  { field: "context", label: "Context", hint: "What called for a decision?" },
-  { field: "alternatives", label: "Alternatives", hint: "What else was considered, and why not?" },
-  { field: "consequences", label: "Consequences", hint: "Trade-offs, risks, follow-ups." },
-] as const;
-type Extra = (typeof EXTRAS)[number]["field"];
+const DocEditor = dynamic(() => import("@/features/docs/editor/DocEditor"), { ssr: false, loading: () => <div className="doc-skeleton" aria-busy="true" /> });
+const SAVE_AFTER_MS = 800;
+
+/** A decision recorded before free text: its parts, as the text to start from. */
+export const legacyBody = (d: Decision) => [d.why, d.context && `## Context\n\n${d.context}`,
+  d.alternatives && `## Alternatives\n\n${d.alternatives}`, d.consequences && `## Consequences\n\n${d.consequences}`].filter(Boolean).join("\n\n");
+
+/** The decision's text, in the docs editor; saved a moment after you stop typing, and when you close it. */
+function DecisionBody({ decision, editable }: { decision: Decision; editable: boolean }) {
+  const { act } = useMe();
+  const links = useEditorLinks(decision.productKey);
+  const uploadFile = useUpload({ decision: decision.id });
+  const [initial] = useState(() => decision.body ?? legacyBody(decision)); // loaded once; what's typed after is ours
+  const pending = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flush = useCallback(() => {
+    clearTimeout(timer.current);
+    const md = pending.current;
+    pending.current = null;
+    if (md !== null) act((d, m) => updateDecision(d, m, decision.id, { body: md }));
+  }, [act, decision.id]);
+  const onChange = useCallback((md: string) => {
+    if (md === initial && decision.body === undefined) return; // just opened: don't rewrite an old decision unasked
+    pending.current = md;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(flush, SAVE_AFTER_MS);
+  }, [flush, initial, decision.body]);
+  useEffect(() => flush, [flush]); // closing it: save what was typed
+  return (
+    <div className="decision-body">
+      <DocEditor body={initial} editable={editable} onChange={onChange} links={links} uploadFile={editable ? uploadFile : undefined}
+        placeholder={editable ? "Write it your way — type / for headings, tables, images, @people, tickets, docs…" : "Nothing written yet."} />
+    </div>
+  );
+}
 
 /** Text that reads as text; if you may edit, click it to change it. Saves when you leave it; Escape puts it back. */
 function EditableText({ label, value, editable, hint, startEditing = false, required = false, title = false, onSave, onDone }: {
@@ -97,7 +128,6 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
   const { openTicket } = useAppState();
   const product = productByKey(decision.productKey);
   const editable = !!product && can("decision.add", { product });
-  const [adding, setAdding] = useState<Extra[]>([]);
   useEffect(() => {
     const typing = (t: EventTarget | null) => t instanceof HTMLTextAreaElement || t instanceof HTMLInputElement || t instanceof HTMLSelectElement;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !typing(e.target)) onClose(); };
@@ -115,8 +145,6 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
   const others = siblings.filter((d) => d.id !== decision.id);
   const replacedBy = decision.supersededBy ? db.decisions.find((d) => d.id === decision.supersededBy) : undefined;
   const replaces = others.filter((d) => d.supersededBy === decision.id);
-  const shownExtras = EXTRAS.filter((x) => decision[x.field] || adding.includes(x.field));
-  const missingExtras = EXTRAS.filter((x) => !shownExtras.includes(x));
   const linkableTickets = db.tickets.filter((t) => t.productKey === decision.productKey && !keys.includes(t.key));
   const linkableDocs = db.docs.filter((d) => !d.archivedAt && (d.productKey === decision.productKey || d.productKey === "") && !docIds.includes(d.id));
   const by = personById(decision.byId);
@@ -149,19 +177,7 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
         </header>
 
         <div className="decision-panel-body">
-          <section className="decision-section">
-            <h3 className="decision-section-label">Why</h3>
-            <EditableText key={decision.why} label="Why" value={decision.why} editable={editable} required hint="What we decided, and why." onSave={(v) => save({ why: v })} />
-          </section>
-
-          {shownExtras.map((x) => (
-            <section key={x.field} className="decision-section">
-              <h3 className="decision-section-label">{x.label}</h3>
-              <EditableText key={decision[x.field] ?? ""} label={x.label} value={decision[x.field] ?? ""} editable={editable} hint={x.hint}
-                startEditing={adding.includes(x.field)} onSave={(v) => save({ [x.field]: v })}
-                onDone={() => setAdding((cur) => cur.filter((f) => f !== x.field))} />
-            </section>
-          ))}
+          <DecisionBody key={decision.id} decision={decision} editable={editable} />
 
           {(tickets.length > 0 || docs.length > 0 || editable) && (
             <section className="decision-section">
@@ -189,25 +205,19 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
             </section>
           )}
 
-          {editable && missingExtras.length > 0 && (
-            <div className="decision-adds">
-              {missingExtras.map((x) => (
-                <button key={x.field} type="button" className="decision-add-btn is-quiet" onClick={() => setAdding((cur) => [...cur, x.field])}><Plus aria-hidden /> {x.label}</button>
-              ))}
-            </div>
-          )}
         </div>
       </aside>
     </>
   );
 }
 
-/** "New decision": just what was decided and why; the rest is added on the decision itself, if it's worth it. */
-export function NewDecision({ productKey, onClose }: { productKey: string; onClose: () => void }) {
+/** "New decision": just its title and whether it's decided; it then opens, to be written however you like. */
+export function NewDecision({ productKey, onClose, onCreated }: { productKey: string; onClose: () => void; onCreated: (id: string) => void }) {
   const { act } = useMe();
   const ref = useRef<HTMLDialogElement>(null);
-  const [f, setF] = useState({ title: "", why: "", status: "accepted" as DecisionStatus });
-  const [errors, setErrors] = useState<{ title?: string; why?: string }>({});
+  const [title, setTitle] = useState("");
+  const [status, setStatus] = useState<DecisionStatus>("accepted");
+  const [error, setError] = useState<string>();
   useEffect(() => {
     const d = ref.current;
     if (!d?.open) d?.showModal();
@@ -215,11 +225,9 @@ export function NewDecision({ productKey, onClose }: { productKey: string; onClo
   }, []);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const next = { title: f.title.trim() ? undefined : "Give the decision a title.", why: f.why.trim() ? undefined : "Say why — future you will ask." };
-    setErrors(next);
-    if (next.title || next.why) return;
+    if (!title.trim()) { setError("Give the decision a title."); return; }
     const decisionId = crypto.randomUUID(); // named here so the server keeps the same id
-    if (act((d, m) => addDecision(d, m, productKey, f, decisionId), { success: "Decision recorded" })) onClose();
+    if (act((d, m) => addDecision(d, m, productKey, { title, status }, decisionId), { success: "Decision recorded" })) onCreated(decisionId);
   };
 
   return (
@@ -228,24 +236,20 @@ export function NewDecision({ productKey, onClose }: { productKey: string; onClo
         <h2 id="new-decision-title" className="confirm-title">Record a decision</h2>
         <label className="field">
           <span className="field-label">Decision</span>
-          <span className="input"><input autoFocus value={f.title} onChange={(e) => setF((c) => ({ ...c, title: e.target.value }))} maxLength={140} placeholder="e.g. Use Postgres full-text search" aria-invalid={!!errors.title} /></span>
-          {errors.title && <span className="field-error" role="alert">{errors.title}</span>}
-        </label>
-        <label className="field">
-          <span className="field-label">Why</span>
-          <textarea rows={3} value={f.why} onChange={(e) => setF((c) => ({ ...c, why: e.target.value }))} placeholder="One or two lines are enough." aria-invalid={!!errors.why} />
-          {errors.why && <span className="field-error" role="alert">{errors.why}</span>}
+          <span className="input"><input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} placeholder="e.g. Use Postgres full-text search" aria-invalid={!!error} /></span>
+          {error && <span className="field-error" role="alert">{error}</span>}
         </label>
         <div className="decision-status-choice" role="radiogroup" aria-label="Status">
           {(["accepted", "proposed"] as const).map((s) => (
-            <button key={s} type="button" role="radio" aria-checked={f.status === s} style={tone(STATUS[s].color)} onClick={() => setF((c) => ({ ...c, status: s }))}>
+            <button key={s} type="button" role="radio" aria-checked={status === s} style={tone(STATUS[s].color)} onClick={() => setStatus(s)}>
               {s === "accepted" ? "Decided" : "Still open"}
             </button>
           ))}
         </div>
+        <p className="decision-dialog-hint">Next, write it your way: why, options, tables, images, @people, tickets…</p>
         <div className="confirm-actions">
           <button type="button" className="btn btn-tertiary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn-primary"><Plus aria-hidden /> Record decision</button>
+          <button type="submit" className="btn btn-primary"><Plus aria-hidden /> Create and write</button>
         </div>
       </form>
     </dialog>

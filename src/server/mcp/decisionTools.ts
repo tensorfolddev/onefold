@@ -8,6 +8,7 @@ import { z } from "zod";
 import { PANEL_SLUG } from "../../data/session.ts";
 import { addDecision, updateDecision, ValidationError, type DecisionInput } from "../../domain/commands/index.ts";
 import type { Decision, DecisionStatus } from "../../domain/types.ts";
+import { normalizeMentions } from "../docs.ts";
 import type { DocToolDeps } from "./docTools.ts";
 
 type Ctx = Awaited<ReturnType<DocToolDeps["context"]>>;
@@ -25,6 +26,7 @@ const PARTS = {
   consequences: z.string().max(8000).optional().describe("What it means: trade-offs, risks, follow-ups"),
   tickets: z.array(z.string()).max(50).optional().describe("Ticket keys it drives, e.g. [\"CH-12\"]"),
   docs: z.array(z.string()).max(50).optional().describe("Docs behind it: id, link or exact title"),
+  body: z.string().max(200_000).optional().describe("The decision written freely, as Markdown (headings, lists, tables). Mention someone with [@Name](mention:their@email) — they're told; link a ticket with [EN-12](ticket:EN-12), a doc with [Title](doc:<id>)"),
 };
 
 export function registerDecisionTools(server: McpServer, { context, changeCompany, attempt, findProduct }: DocToolDeps) {
@@ -58,7 +60,7 @@ export function registerDecisionTools(server: McpServer, { context, changeCompan
     return {
       id: d.id, product: d.productKey, title: d.title, status: d.status ?? "accepted", label: d.label?.name ?? null, color: d.color ?? null, why: d.why,
       context: d.context ?? null, alternatives: d.alternatives ?? null, consequences: d.consequences ?? null,
-      decided_by: c.db.people.find((p) => p.id === d.byId)?.name ?? null, date: d.date, updated_at: d.updatedAt ?? null,
+      decided_by: c.db.people.find((p) => p.id === d.byId)?.name ?? null, date: d.date, updated_at: d.updatedAt ?? null, body: d.body ?? null,
       tickets: d.ticketKeys ?? [],
       docs: (d.docIds ?? []).flatMap((id) => c.db.docs.filter((x) => x.id === id).map((x) => ({ id: x.id, title: x.title }))),
       superseded_by: replacedBy ? { id: replacedBy.id, title: replacedBy.title } : null,
@@ -103,7 +105,7 @@ export function registerDecisionTools(server: McpServer, { context, changeCompan
     inputSchema: {
       product: z.string().describe("Product key or name, e.g. CH"),
       title: z.string().min(1).max(140).describe("The decision, e.g. \"Use Postgres full-text search\""),
-      why: z.string().min(1).max(8000).describe("What was decided, and why"),
+      why: z.string().max(8000).optional().describe("A one-line summary of why (made from body when you give one)"),
       status: STATUS.optional(),
       ...PARTS,
     },
@@ -112,7 +114,8 @@ export function registerDecisionTools(server: McpServer, { context, changeCompan
     const c = await context();
     const key = findProduct(c, a.product).key;
     const input: DecisionInput = {
-      title: a.title, why: a.why, ...(a.status && { status: a.status }),
+      title: a.title, ...(a.why !== undefined && { why: a.why }), ...(a.status && { status: a.status }),
+      ...(a.body !== undefined && { body: normalizeMentions(c.db, a.body) }),
       ...(a.context !== undefined && { context: a.context }), ...(a.alternatives !== undefined && { alternatives: a.alternatives }),
       ...(a.consequences !== undefined && { consequences: a.consequences }),
       ...(a.tickets && { ticketKeys: ticketKeys(c, a.tickets) }), ...(a.docs && { docIds: docIds(c, a.docs) }),
@@ -140,6 +143,7 @@ export function registerDecisionTools(server: McpServer, { context, changeCompan
     const clearing = a.superseded_by === "";
     const patch: Patch = {
       ...(a.title !== undefined && { title: a.title }), ...(a.why !== undefined && { why: a.why }),
+      ...(a.body !== undefined && { body: normalizeMentions(c.db, a.body) }),
       ...(a.context !== undefined && { context: a.context }), ...(a.alternatives !== undefined && { alternatives: a.alternatives }),
       ...(a.consequences !== undefined && { consequences: a.consequences }),
       ...(a.tickets && { ticketKeys: ticketKeys(c, a.tickets) }), ...(a.docs && { docIds: docIds(c, a.docs) }),

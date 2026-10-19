@@ -244,6 +244,8 @@ test("decisions over MCP: full records with links, superseding, filters; develop
   assert.deepEqual([updated.status, updated.superseded_by?.title, updated.consequences], ["superseded", "Bill yearly", "Slower revenue"]);
   assert.deepEqual((await tool(adminToken, "list_decisions", { product: "CH", status: "proposed" })).data.map((d: Rec) => d.title), ["Bill yearly"]);
   assert.match((await tool(adminToken, "get_decision", { decision: "nope" })).refused!, /No decision/);
+  const written = (await tool(adminToken, "update_decision", { decision: newer.id, body: "## Why\n\nCash **up front**.\n\n| Plan | Price |\n| --- | --- |\n| Yearly | 10 |" })).data;
+  assert.deepEqual([written.why, written.body.startsWith("## Why")], ["Cash up front.", true]); // written freely; the summary follows
 });
 
 test("a token stops working when its owner is turned off, or their password changes", async () => {

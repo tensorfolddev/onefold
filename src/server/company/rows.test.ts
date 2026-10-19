@@ -59,7 +59,7 @@ test("docs keep their space, nesting, icon and archive through rows and back", (
 test("a decision keeps its own label and note colour through rows and back", () => {
   const db = demoDb();
   const extra = { id: "dec-x", productKey: "AP", title: "Pause the importer", why: "Waiting on legal", byId: "u-tayyab", date: "2026-10-19",
-    label: { name: "Suspended", color: "#a25ddc" }, color: "#ffcb00" };
+    label: { name: "Suspended", color: "#a25ddc" }, color: "#ffcb00", body: "## Why\n\nLegal asked us to **pause** it." };
   const withOne = { ...db, decisions: [...db.decisions, extra] };
   const back = fromRows(orgRow(withOne), withPositions(toRows(withOne)), new Map(db.people.map((p) => [p.id, p.email])));
   assert.deepEqual(back.decisions.at(-1), extra);

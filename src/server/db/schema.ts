@@ -160,6 +160,7 @@ export const decisions = pgTable("decisions", {
   docIds: jsonb("doc_ids"),
   supersededBy: text("superseded_by"),
   updatedAt: ts("updated_at"),
+  body: text("body"), // the decision written freely, as Markdown; NULL = only the parts above
   labelName: text("label_name"), // the team's own status label (e.g. Suspended), with its colour
   labelColor: text("label_color"),
   color: text("color"), // the sticky note's colour
@@ -233,6 +234,17 @@ export const docFiles = pgTable("doc_files", {
   uploadedBy: text("uploaded_by"),
   at: ts("at").notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("doc_files_doc").on(t.orgId, t.docId), companyRows()]);
+
+/** Images and files in a decision's text (bytes on disk, like a doc's): which decision each belongs to, for access. */
+export const decisionFiles = pgTable("decision_files", {
+  ...keyed,
+  decisionId: text("decision_id").notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  size: integer("size").notNull(),
+  uploadedBy: text("uploaded_by"),
+  at: ts("at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("decision_files_decision").on(t.orgId, t.decisionId), companyRows()]);
 
 /** What each doc's body points at — people (mentions), tickets and docs — rebuilt on every save: backlinks and notices. */
 export const docLinks = pgTable("doc_links", {

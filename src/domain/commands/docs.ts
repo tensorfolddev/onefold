@@ -38,8 +38,41 @@ function checkedLabel(label: DecisionLabel): DecisionLabel {
 }
 
 export interface DecisionInput {
-  title: string; why: string; status?: DecisionStatus; context?: string; alternatives?: string; consequences?: string;
-  ticketKeys?: string[]; docIds?: string[];
+  title: string; why?: string; status?: DecisionStatus; context?: string; alternatives?: string; consequences?: string;
+  ticketKeys?: string[]; docIds?: string[]; body?: string;
+}
+
+const MAX_DECISION_BODY = 200_000;
+const SUMMARY = 280;
+const MENTION = /\]\(mention:([A-Za-z0-9_-]+)\)/g;
+const mentionIds = (md = "") => new Set([...md.matchAll(MENTION)].map((m) => m[1]));
+/** A body's prose as one plain line (links, mentions and tickets by their text; no headings or tables) — its summary. */
+export function plainSummary(md: string): string {
+  const text = md
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/^\s*(?:#{1,6}\s.*|\|.*)$/gm, "") // headings and table rows
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "") // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // links, @mentions, tickets, docs → their text
+    .replace(/^\s*(?:[-+*]|\d+\.)\s+(?:\[[ x]\]\s+)?/gm, "") // list markers
+    .replace(/\*+|~~|`+/g, "") // bold, italics, strike, code: just the words
+    .replace(/(^|\W)_+|_+(?=\W|$)/g, "$1") // _italics_, but not snake_case
+    .replace(/[#>|]/g, " ")
+    .replace(/\s+/g, " ").trim();
+  return text.length > SUMMARY ? `${text.slice(0, SUMMARY - 1).trimEnd()}…` : text;
+}
+/** A decision's new body: kept, summarised, and the people it newly @mentions told (if they can see it, never you). */
+function withBody(db: Db, me: Person, d: Decision, body: unknown): { decision: Decision; notifications: Db["notifications"] } {
+  if (typeof body !== "string") throw new ValidationError("The decision's text is missing");
+  if (body.length > MAX_DECISION_BODY) throw new ValidationError("That's too long — put the details in a doc and link it");
+  const product = productOf(db, d.productKey);
+  const before = mentionIds(d.body);
+  const at = now();
+  const notifications = [...mentionIds(body)].filter((pid) => !before.has(pid))
+    .map((pid) => db.people.find((p) => p.id === pid))
+    .filter((p): p is Person => !!p && p.id !== me.id && p.active && !!p.panel && (p.panel === "admin" || isOnProduct(p.id, product)))
+    .map((p) => ({ id: id(), personId: p.id, kind: "mention" as const, actorId: me.id, text: `mentioned you in the decision ${d.title}`,
+      target: `/products/${d.productKey}/decisions?d=${d.id}`, at, read: false }));
+  return { decision: { ...d, body, why: plainSummary(body) }, notifications };
 }
 
 /** The optional parts of a decision, checked: a known status, text within bounds, links to things that exist. */
@@ -64,14 +97,15 @@ function decisionExtras(db: Db, input: Partial<DecisionInput>): Partial<Decision
 export function addDecision(db: Db, me: Person, productKey: string, input: DecisionInput, decisionId: string = id()): Db {
   check(me, "decision.add", { product: productOf(db, productKey) });
   fail(requiredError("Decision", input.title));
-  fail(requiredError("Why", input.why));
   fail(typeof decisionId !== "string" || !decisionId || decisionId.length > 64 ? "Invalid decision id." : null);
   fail(db.decisions.some((d) => d.id === decisionId) ? "That decision already exists." : null);
   const decision: Decision = {
-    id: decisionId, productKey, title: input.title.trim(), why: input.why.trim(), byId: me.id, date: today(),
+    id: decisionId, productKey, title: input.title.trim(), why: typeof input.why === "string" ? input.why.trim() : "", byId: me.id, date: today(),
     ...decisionExtras(db, input), updatedAt: now(),
   };
-  return { ...db, decisions: [...db.decisions, decision] };
+  if (input.body === undefined) return { ...db, decisions: [...db.decisions, decision] };
+  const written = withBody(db, me, decision, input.body);
+  return { ...db, decisions: [...db.decisions, written.decision], notifications: [...written.notifications, ...db.notifications] };
 }
 
 /** Edits a decision; superseding it (by another decision of the same project) also marks it superseded. */
@@ -96,7 +130,9 @@ export function updateDecision(db: Db, me: Person, decisionId: string, patch: De
     next.status = "superseded";
     delete next.label; // "Superseded" says it now
   }
-  return { ...db, decisions: replace(db.decisions, (d) => d.id === decisionId, () => next) };
+  if (patch.body === undefined || patch.body === cur.body) return { ...db, decisions: replace(db.decisions, (d) => d.id === decisionId, () => next) };
+  const written = withBody(db, me, next, patch.body);
+  return { ...db, decisions: replace(db.decisions, (d) => d.id === decisionId, () => written.decision), notifications: [...written.notifications, ...db.notifications] };
 }
 
 export function upsertMilestone(db: Db, me: Person, productKey: string, input: { id?: string; name: string; due: string; pct: number }): Db {

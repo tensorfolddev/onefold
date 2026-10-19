@@ -134,9 +134,24 @@ function editableDoc(loaded: Loaded, who: SessionRow, docId: string) {
   return { me, doc };
 }
 
-/** Refuses an upload to a doc before any bytes are read. */
-export async function checkDocUpload(who: SessionRow, docId: string): Promise<void> {
-  await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => { editableDoc(await mustLoad(tx, who), who, docId); });
+/** A decision you may edit: it's in your view, and you may record decisions on its project. */
+function editableDecision(loaded: Loaded, who: SessionRow, decisionId: string) {
+  const me = personFor(loaded, who.userId);
+  const decision = snapshotFor(loaded.db, me).decisions.find((d) => d.id === decisionId);
+  if (!decision) throw new ValidationError("Decision not found");
+  if (!can(me, "decision.add", { product: loaded.db.products.find((p) => p.key === decision.productKey) })) throw new AccessError();
+  return { me };
+}
+
+/** Where an uploaded file goes: into a doc, or into a decision's text. */
+export interface FileOwner { docId?: string; decisionId?: string }
+const editableOwner = (loaded: Loaded, who: SessionRow, o: FileOwner) =>
+  (o.docId ? editableDoc(loaded, who, o.docId) : editableDecision(loaded, who, o.decisionId ?? ""));
+
+/** Refuses an upload to a doc (or a decision) before any bytes are read. */
+export async function checkDocUpload(who: SessionRow, owner: string | FileOwner): Promise<void> {
+  const o = typeof owner === "string" ? { docId: owner } : owner;
+  await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => { editableOwner(await mustLoad(tx, who), who, o); });
 }
 
 /** What a doc file is, from its bytes: an image (by its header), a PDF, or anything else (always downloaded). */
@@ -148,7 +163,7 @@ export function fileType(b: Buffer): string {
 }
 
 /** Adds any file to a doc: written to disk, then recorded against the doc (removed again if that fails). */
-export async function uploadDocFile(who: SessionRow, input: { docId: string; name: string }, bytes: Buffer): Promise<{ id: string; name: string; type: string; size: number }> {
+export async function uploadDocFile(who: SessionRow, input: FileOwner & { name: string }, bytes: Buffer): Promise<{ id: string; name: string; type: string; size: number }> {
   if (!bytes.length) throw new ValidationError("That file is empty");
   const type = fileType(bytes);
   const id = newId("file");
@@ -158,8 +173,10 @@ export async function uploadDocFile(who: SessionRow, input: { docId: string; nam
   await writeFile(/*turbopackIgnore: true*/ path, bytes, { mode: 0o640, flag: "wx" });
   try {
     await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-      const { me } = editableDoc(await mustLoad(tx, who), who, input.docId);
-      await tx.insert(s.docFiles).values({ orgId: who.orgId, id, docId: input.docId, name, type, size: bytes.length, uploadedBy: me.id });
+      const { me } = editableOwner(await mustLoad(tx, who), who, input);
+      const row = { orgId: who.orgId, id, name, type, size: bytes.length, uploadedBy: me.id };
+      if (input.docId) await tx.insert(s.docFiles).values({ ...row, docId: input.docId });
+      else await tx.insert(s.decisionFiles).values({ ...row, decisionId: input.decisionId ?? "" });
     });
   } catch (e) {
     await rm(/*turbopackIgnore: true*/ path, { force: true });
@@ -181,8 +198,10 @@ export async function readImage(who: SessionRow, id: string): Promise<{ bytes: B
     const onTicket = view.tickets.flatMap((t) => t.attachments ?? []).find((a) => a.id === id);
     if (onTicket) return onTicket;
     const [f] = await tx.select().from(s.docFiles).where(and(eq(s.docFiles.orgId, who.orgId), eq(s.docFiles.id, id)));
-    if (!f || !view.docs.some((d) => d.id === f.docId)) return null;
-    return { id: f.id, name: f.name, type: f.type, download: !f.type.startsWith("image/") };
+    if (f) return view.docs.some((d) => d.id === f.docId) ? { id: f.id, name: f.name, type: f.type, download: !f.type.startsWith("image/") } : null;
+    const [g] = await tx.select().from(s.decisionFiles).where(and(eq(s.decisionFiles.orgId, who.orgId), eq(s.decisionFiles.id, id)));
+    if (!g || !view.decisions.some((d) => d.id === g.decisionId)) return null;
+    return { id: g.id, name: g.name, type: g.type, download: !g.type.startsWith("image/") };
   });
   if (!att) return null;
   try {
@@ -207,9 +226,10 @@ export async function cleanupFiles(now = Date.now()): Promise<number> {
     removed += await inScope({ orgId, lock: true }, async (tx) => {
       const onTickets = await tx.select({ id: s.attachments.id }).from(s.attachments).where(eq(s.attachments.orgId, orgId));
       const inDocs = await tx.select({ id: s.docFiles.id }).from(s.docFiles).where(eq(s.docFiles.orgId, orgId));
+      const inDecisions = await tx.select({ id: s.decisionFiles.id }).from(s.decisionFiles).where(eq(s.decisionFiles.orgId, orgId));
       const inUndo = await tx.execute(sql`select distinct jsonb_path_query(before, '$.tickets[*].attachments[*].id') #>> '{}' as id
         from undo_points where org_id = ${orgId}`);
-      const used = new Set([...onTickets.map((r) => r.id), ...inDocs.map((r) => r.id), ...(inUndo.rows as { id: string }[]).map((r) => r.id)]);
+      const used = new Set([...onTickets.map((r) => r.id), ...inDocs.map((r) => r.id), ...inDecisions.map((r) => r.id), ...(inUndo.rows as { id: string }[]).map((r) => r.id)]);
       let n = 0;
       for (const name of names) {
         if (used.has(name)) continue;

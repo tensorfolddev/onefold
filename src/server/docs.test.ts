@@ -143,6 +143,18 @@ test("any file can go in a doc; only people who can see the doc fetch it; anythi
   assert.equal((await readImage(sam, img.id))?.download, false);
 });
 
+test("a decision's text holds images too: managers upload them; only people who can see the decision fetch them", async () => {
+  process.env.FILES_DIR = await mkdtemp(joinPath(tmpdir(), "onefold-decisionfiles-"));
+  await applySteps(admin, [{ name: "addDecision", args: ["DC", { title: "Use one queue" }, "dec-files"] }]);
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const img = await uploadDocFile(admin, { decisionId: "dec-files", name: "diagram.png" }, png);
+  assert.equal(img.type, "image/png");
+  assert.equal((await readImage(sam, img.id))?.download, false); // on the project: sees it
+  assert.equal(await readImage(lee, img.id), null); // not Lee's project
+  await assert.rejects(uploadDocFile(sam, { decisionId: "dec-files", name: "x.png" }, png), /don.t have access/); // developers don't edit decisions
+  await assert.rejects(uploadDocFile(admin, { decisionId: "nope", name: "x.png" }, png), /Decision not found/);
+});
+
 test("history: every save is a version with who and when; restoring keeps what it replaced", async () => {
   const { listVersions, getVersion, restoreVersion } = await import("./docs.ts");
   const made = await createDoc(sam, { productKey: "DC", title: "History", body: "first" });

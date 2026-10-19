@@ -152,6 +152,12 @@
 .decision-dialog textarea:focus { outline: none; border-color: var(--primary-color); }
 .decision-dialog textarea[aria-invalid="true"] { border-color: var(--negative-color); }
 .decision-dialog .confirm-actions { margin-top: 4px; }
+.decision-dialog-hint { margin: 0; font-size: 13px; color: var(--secondary-text-color); }
+
+/* The decision's text: the docs editor, sized for the panel */
+.decision-body { margin: -6px -4px 0; }
+.decision-body .doc-prose { font-size: 15px; }
+.decision-body .ProseMirror { min-height: 160px; }
 .decision-status-choice { display: flex; gap: 8px; flex-wrap: wrap; }
 .decision-status-choice button {
   height: 32px; padding: 0 14px; font-size: 13px; font-weight: 500; border-radius: 6px;

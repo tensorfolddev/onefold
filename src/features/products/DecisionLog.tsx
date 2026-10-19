@@ -180,7 +180,7 @@ export function DecisionLog({ productKey }: { productKey: string }) {
       )}
 
       {open && <DecisionPanel key={open.id} decision={open} onClose={() => openDecision(null)} onOpen={openDecision} />}
-      {creating && <NewDecision productKey={productKey} onClose={() => setCreating(false)} />}
+      {creating && <NewDecision productKey={productKey} onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); openDecision(id); }} />}
     </div>
   );
 }
