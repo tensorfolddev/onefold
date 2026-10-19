@@ -9,15 +9,15 @@ import { Archive, ArchiveRestore, Copy, Download, FileDown, History, Paperclip, 
 import { useCallback, useMemo, useState } from "react";
 import { archiveDocs, restoreDocs, updateDoc } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
-import { relativeTime, toneVar } from "@/domain/status";
+import { relativeTime } from "@/domain/status";
 import type { Doc } from "@/domain/types";
 import { useAppState } from "@/features/shell/state";
 import { TypeIcon } from "@/features/tickets/TicketBits";
 import { EmojiGrid } from "@/ui/EmojiGrid";
 import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
-import { upload } from "@/data/api";
-import type { DocLinks, Heading, Uploaded } from "./editor/DocEditor";
+import type { Heading } from "./editor/DocEditor";
+import { useEditorLinks, useUpload } from "./editor/useEditorLinks";
 import { ancestorsOf, COVER_IMAGES, COVERS, coverCss, docPath, downloadMarkdown, printDoc, readingMinutes } from "./tree";
 import { DocHistory } from "./DocHistory";
 import { DocsTopBar } from "./DocsSpace";
@@ -52,31 +52,10 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
     const keys = new Set(db.comments.filter((c) => c.body.includes(`(doc:${doc.id})`)).map((c) => c.ticketKey));
     return db.tickets.filter((t) => keys.has(t.key));
   }, [db.comments, db.tickets, doc.id]);
-  // Who can be mentioned (whoever can see this doc), and what can be linked.
-  const links: DocLinks = useMemo(() => ({
-    people: db.people.filter((p) => p.active && p.panel && (!product || p.panel === "admin" || p.id === product.pmId || p.id === product.projectManagerId || product.memberIds.includes(p.id)))
-      .map((p) => ({ id: p.id, name: p.name, role: p.role })),
-    // This space's pages first (a project's own docs), then the rest you can see.
-    docs: db.docs.filter((d) => !d.archivedAt && d.id !== doc.id)
-      .sort((a, b) => Number(b.productKey === doc.productKey) - Number(a.productKey === doc.productKey))
-      .map((d) => ({ id: d.id, title: d.title, icon: d.icon, space: d.productKey ? db.products.find((p) => p.key === d.productKey)?.name : "Company" })),
-    tickets: (product ? db.tickets.filter((t) => t.productKey === product.key) : []).concat(db.tickets.filter((t) => !product || t.productKey !== product.key))
-      .map((t) => {
-        const st = db.statusesByProduct[t.productKey]?.find((s) => s.id === t.statusId);
-        return { key: t.key, title: t.title, type: t.type, status: st ? { name: st.name, color: toneVar(st.tone) } : undefined };
-      }),
-  }), [db.people, db.tickets, db.docs, db.products, db.statusesByProduct, product, doc.id, doc.productKey]);
+  const links = useEditorLinks(doc.productKey, doc.id); // who can be mentioned (whoever can see this doc), what can be linked
 
   const onChange = useCallback((md: string) => { setLatest(md); b.setDraft(md); }, [b]);
-  const uploadFile = useCallback(async (file: File): Promise<Uploaded | null> => {
-    if (file.size > 25 * 1024 * 1024) { toast(`${file.name} is over 25 MB`, undefined, "error"); return null; }
-    try {
-      return await upload<Uploaded>(`/api/files?doc=${encodeURIComponent(doc.id)}&name=${encodeURIComponent(file.name || "file")}`, file);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : `Couldn't upload ${file.name}`, undefined, "error");
-      return null;
-    }
-  }, [doc.id, toast]);
+  const uploadFile = useUpload({ doc: doc.id });
   const onHeadings = useCallback((h: Heading[]) => setHeadings((cur) => (sameHeadings(cur, h) ? cur : h)), []);
   const saveTitle = () => {
     const next = title.trim();

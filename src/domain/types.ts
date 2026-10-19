@@ -170,6 +170,7 @@ export interface Decision {
   docIds?: string[];
   supersededBy?: string; // the decision that replaced this one
   updatedAt?: string;
+  body?: string; // the decision written freely, as Markdown (headings, tables, images, @mentions…); none = the parts above
   label?: DecisionLabel; // a status of the team's own (e.g. Suspended), shown instead of the built-in one
   color?: string; // its sticky note's colour (#rrggbb); none = the status colour
 }

@@ -155,3 +155,22 @@ test("doc covers: a colour, a gallery image or an uploaded image — nothing els
     assert.throws(() => cover(bad), /cover/, bad);
   }
 });
+
+test("decisions: a body you write freely (Markdown); its first words become the summary; new @mentions are told once", async () => {
+  const { addDecision, updateDecision } = await import("./docs.ts");
+  let db = addDecision(db0, lead, "AP", { title: "Pick a queue" }, "dec-b"); // a title is enough to start
+  const get = () => db.decisions.find((d) => d.id === "dec-b")!;
+  assert.equal(get().why, "");
+  const body = `## Why\n\nWe need **retries** without a new service. See [AP-1](ticket:AP-1) and ask [@${sara.name}](mention:${sara.id}).\n\n| Option | Cost |\n| --- | --- |\n| Postgres | 0 |`;
+  const before = db.notifications.length;
+  db = updateDecision(db, lead, "dec-b", { body });
+  assert.equal(get().body, body);
+  assert.equal(get().why, `We need retries without a new service. See AP-1 and ask @${sara.name}.`); // the words, not headings or tables
+  const told = db.notifications.slice(0, db.notifications.length - before);
+  assert.deepEqual(told.map((n) => [n.personId, n.kind, n.target]), [[sara.id, "mention", "/products/AP/decisions?d=dec-b"]]);
+  db = updateDecision(db, lead, "dec-b", { body: `${body}\n\nMore.` }); // still mentioned: not told again
+  assert.equal(db.notifications.length, before + 1);
+  assert.throws(() => updateDecision(db, lead, "dec-b", { body: "x".repeat(200_001) }), /too long/);
+  const { plainSummary } = await import("./docs.ts");
+  assert.equal(plainSummary("Ship **now**, _not_ later; keep `snake_case` and ~~old~~ words."), "Ship now, not later; keep snake_case and old words.");
+});

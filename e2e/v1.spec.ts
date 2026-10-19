@@ -642,7 +642,7 @@ test("docs connect: an @mention notifies, a ticket key becomes a live chip, and 
   await expect(page.locator(".doc-backlinks")).toContainText("Untitled");
 });
 
-test("decisions: sticky notes by default, a why, edited in place, superseded, your own labels and note colours", async ({ page }) => {
+test("decisions: sticky notes by default, written freely in the editor, superseded, your own labels and note colours", async ({ page }) => {
   await signUp(page, "Tau", email("tau"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.goto("/admin/products?new=1");
@@ -654,34 +654,38 @@ test("decisions: sticky notes by default, a why, edited in place, superseded, yo
   /** The save of this very edit (an earlier one may still be in flight). */
   const saving = (part: string) => page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok() && !!r.request().postData()?.includes(part));
 
-  const record = async (title: string, why: string) => {
+  // A title is all it takes; the decision then opens, to be written however you like.
+  const record = async (title: string) => {
     await page.getByRole("button", { name: "New decision" }).click();
     const dialog = page.getByRole("dialog", { name: "Record a decision" });
     await dialog.getByLabel("Decision", { exact: true }).fill(title);
-    await dialog.getByLabel("Why").fill(why);
-    await dialog.getByRole("button", { name: "Record decision" }).click();
-    await expect(dialog).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Create and write" }).click();
+    const opened = page.getByRole("dialog", { name: title });
+    await expect(opened.locator(".ProseMirror")).toBeVisible();
+    await opened.getByRole("button", { name: "Close" }).click();
+    await expect(opened).toHaveCount(0);
   };
   await page.getByRole("button", { name: "New decision" }).click();
-  await page.getByRole("button", { name: "Record decision" }).click();
-  await expect(page.getByText("Give the decision a title.")).toBeVisible(); // a decision needs its title and why
+  await page.getByRole("button", { name: "Create and write" }).click();
+  await expect(page.getByText("Give the decision a title.")).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
-  await record("Bill monthly", "Lower commitment for new teams.");
-  await record("Bill yearly", "Cash up front; churn is low.");
+  await record("Bill monthly");
+  await record("Bill yearly");
   await expect(page.getByRole("tab", { name: "Notes" })).toHaveAttribute("aria-selected", "true"); // notes first
 
   const note = (title: string) => page.locator(".decision-wall > li").filter({ has: page.getByText(title, { exact: true }) });
   await note("Bill monthly").locator(".decision-sticky").click();
   await expect(page).toHaveURL(/\?d=/); // a decision has its own link
   const panel = page.getByRole("dialog", { name: "Bill monthly" });
-  let saved = saving("Revenue arrives slower.");
-  await panel.getByRole("button", { name: "Consequences" }).click(); // unwritten parts are just a link
-  await panel.getByLabel("Consequences").fill("Revenue arrives slower.");
-  await panel.getByLabel("Consequences").blur();
+  let saved = saving("Revenue arrives slower");
+  await panel.locator(".ProseMirror").click();
+  await page.keyboard.type("## Trade-offs");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Revenue arrives slower, but **more teams** try it.");
   await saved;
-  await page.reload(); // the link reopens it, edit kept
-  await expect(panel.getByRole("button", { name: "Revenue arrives slower." })).toBeVisible(); // reads as text; click to edit
-  await expect(panel.getByRole("button", { name: "Context" })).toBeVisible();
+  await page.reload(); // the link reopens it, text kept — with its heading and bold
+  await expect(panel.locator(".ProseMirror h2")).toHaveText("Trade-offs");
+  await expect(panel.locator(".ProseMirror strong")).toHaveText("more teams");
 
   await panel.getByRole("button", { name: "Status: Accepted. Change status" }).click();
   await page.getByRole("menuitemradio", { name: "Superseded" }).click();
