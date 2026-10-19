@@ -671,15 +671,17 @@ test("decisions: recorded with a why, opened by link, edited in place, and super
   await expect(page).toHaveURL(/\?d=/); // a decision has its own link
   const panel = page.getByRole("dialog", { name: "Bill monthly" });
   const saved = page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok() && !!r.request().postData()?.includes('"updateDecision"'));
+  await panel.getByRole("button", { name: "Consequences" }).click(); // unwritten parts are just a link
   await panel.getByLabel("Consequences").fill("Revenue arrives slower.");
   await panel.getByLabel("Consequences").blur();
   await saved;
   await page.reload(); // the link reopens it, edit kept
-  await expect(panel.getByLabel("Consequences")).toHaveValue("Revenue arrives slower.");
+  await expect(panel.getByRole("button", { name: "Revenue arrives slower." })).toBeVisible(); // reads as text; click to edit
+  await expect(panel.getByRole("button", { name: "Context" })).toBeVisible();
 
-  await panel.getByLabel("Superseded by").selectOption({ label: "Superseded by: Bill yearly" });
-  await expect(panel.getByRole("button", { name: /Superseded by Bill yearly/ })).toBeVisible();
-  await expect(panel.getByLabel("Status")).toHaveValue("superseded");
+  await panel.getByLabel("Status").selectOption("superseded");
+  await panel.getByLabel("Replaced by").selectOption({ label: "Bill yearly" });
+  await expect(panel.getByRole("button", { name: /Replaced by Bill yearly/ })).toBeVisible();
   await panel.getByRole("button", { name: "Close" }).click();
   const superseded = page.getByRole("region", { name: "Superseded" });
   await superseded.getByRole("button", { name: /Superseded/ }).click(); // closed groups open on click
