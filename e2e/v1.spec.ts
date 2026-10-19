@@ -644,7 +644,7 @@ test("docs connect: an @mention notifies, a ticket key becomes a live chip, and 
 });
 
 test("decisions: sticky notes by default, written freely in the editor, superseded, your own labels and note colours", async ({ page }) => {
-  await signUp(page, "Tau", email("tau"));
+  await signUp(page, "Notes", email("decisionsnotes"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.goto("/admin/products?new=1");
   await page.getByPlaceholder("Product name").fill("Ledger");
@@ -960,7 +960,7 @@ test("docs: @@ makes an urgent mention, kept as one after a reload", async ({ pa
 });
 
 test("docs: centred text, a right-aligned table column, an emoji from \":\", and a PDF that opens in a new tab", async ({ page }) => {
-  await signUp(page, "Upsilon", email("upsilon"));
+  await signUp(page, "Aligned", email("docsalign"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.goto("/admin/docs");
   await page.locator(".docs-home-head").getByRole("button", { name: "New page" }).click();
