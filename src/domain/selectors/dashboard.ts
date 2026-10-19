@@ -6,7 +6,8 @@ import type { StatusCategory, Team, Ticket } from "../types.ts";
 
 export { nextMilestone } from "./product.ts";
 
-export const isBlocked = (db: Db, t: Ticket) => statusOf(db, t)?.tone === "stuck";
+/** In a stuck list (Blocked, Stuck…). Epics sit in the Epic list, which shares that colour — they're never blockers. */
+export const isBlocked = (db: Db, t: Ticket) => t.type !== "epic" && statusOf(db, t)?.tone === "stuck";
 export const isOpen = isOpenTicket;
 
 /** Share of a product's tickets that are done, cancelled excluded. null when there is nothing to measure. */

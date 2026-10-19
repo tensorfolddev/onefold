@@ -755,6 +755,33 @@ test("docs: a cover from the gallery or uploaded from your computer, kept after 
   await expect.poll(background).toBe(saved);
 });
 
+test("a project's overview: progress, what's late, what's coming up", async ({ page }) => {
+  await signUp(page, "Phi", email("phi"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Atlas");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[A-Z]+$/);
+  const overview = new URL(page.url()).pathname;
+  await page.goto(`${overview}/tickets`);
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Ship the beta");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.keyboard.press("Escape");
+  const card = page.locator(".kanban-card", { hasText: "Ship the beta" });
+  await card.getByRole("button", { name: "No due date. Set due date" }).click();
+  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA");
+  await card.locator('input[type="date"]').fill(yesterday, { force: true });
+  await expect(card.getByRole("button", { name: /^Due .+ Change due date$/ })).toBeVisible();
+
+  await page.goto(overview);
+  const kpis = page.getByRole("region", { name: "At a glance" });
+  await expect(kpis).toContainText("Overdue1");
+  await expect(kpis).toContainText("0%");
+  await expect(page.getByRole("region", { name: "Coming up" }).getByRole("button", { name: /Ship the beta/ })).toContainText("1d late");
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");
