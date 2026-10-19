@@ -76,7 +76,7 @@ export async function companyWhatsApp(who: SessionRow): Promise<CompanyWhatsApp>
     ...sent.map((m) => ({
       at: m.createdAt, personId: m.memberId, kind: m.kind ?? "message",
       status: m.sentAt ? "sent" as const : m.attempts >= MAX_ATTEMPTS ? "failed" as const : "waiting" as const,
-      preview: m.text.replace(/\s+/g, " ").slice(0, PREVIEW),
+      preview: m.kind === "asked" ? "Their pending tasks, sent when they asked" : m.text.replace(/[━*_]+/g, " ").replace(/\s+/g, " ").trim().slice(0, PREVIEW),
     })),
     ...briefs.map((b) => ({ at: b.at, personId: b.memberId, kind: "brief", status: BRIEF_STATUS[b.channel] ?? "waiting", preview: `Daily brief for ${b.day}` })),
   ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, LOG_ROWS);

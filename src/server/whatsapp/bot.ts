@@ -152,6 +152,21 @@ const CODE_FAILED = ["⚠️ *That code didn't work*", "", "It may have expired 
   "Get a new one in 1FOLD: your name → *WhatsApp* → *Connect WhatsApp*."].join("\n");
 
 /**
+ * A reply to a linked teammate, written down for their company's Deliveries (as `kind`). One that can't go right now
+ * waits in the outbox and goes with the next alerts — never lost. Capped per number, like every reply.
+ */
+async function replyLogged(whatsapp: Replier, jid: string, text: string, to: { orgId: string; memberId: string; kind: string }): Promise<void> {
+  if (!allowReply(jid)) return;
+  try {
+    await whatsapp.send(jid, text);
+    await database().insert(s.whatsappOutbox).values({ jid, text, ...to, sentAt: new Date().toISOString() });
+  } catch (e) {
+    console.error("[whatsapp] couldn't reply now; it'll go with the next alerts", e);
+    await database().insert(s.whatsappOutbox).values({ jid, text, ...to });
+  }
+}
+
+/**
  * One message someone sent the bot. Replies through `reply` — to a person who just sent a code, or to a linked number;
  * anyone else gets nothing at all. Replies are capped per number, so the bot can't get stuck talking to a bot.
  * `onlyOrg`: a company's own number, which answers only for that company.
@@ -161,7 +176,7 @@ export async function handleMessage(msg: Inbound, whatsapp: Replier, appUrl: str
   const code = msg.text.match(CODE_RE);
   if (code) {
     if (!allowTry(msg.jid)) return;
-    return linkNumber(msg, `1FOLD-${code[1].toUpperCase()}`, reply, onlyOrg);
+    return linkNumber(msg, `1FOLD-${code[1].toUpperCase()}`, reply, whatsapp, onlyOrg);
   }
   const links = await database().select().from(s.whatsappLinks)
     .where(onlyOrg ? and(sameChat(msg), eq(s.whatsappLinks.orgId, onlyOrg)) : sameChat(msg));
@@ -176,13 +191,15 @@ export async function handleMessage(msg: Inbound, whatsapp: Replier, appUrl: str
   const asked = links.filter((_, i) => settings[i].words.includes(word));
   if (asked.length) {
     const briefs = await Promise.all(asked.map((l) => briefFor(l.orgId, l.memberId, appUrl)));
-    for (const text of briefs.filter((t): t is string => !!t)) await reply.send(msg.jid, text);
+    for (const [i, text] of briefs.entries()) {
+      if (text) await replyLogged(whatsapp, msg.jid, text, { orgId: asked[i].orgId, memberId: asked[i].memberId, kind: "asked" });
+    }
     return;
   }
-  await reply.send(msg.jid, message(settings[0], "help"));
+  await replyLogged(whatsapp, msg.jid, message(settings[0], "help"), { orgId: links[0].orgId, memberId: links[0].memberId, kind: "help" });
 }
 
-async function linkNumber(msg: Inbound, code: string, reply: Replier, onlyOrg?: string) {
+async function linkNumber(msg: Inbound, code: string, reply: Replier, whatsapp: Replier, onlyOrg?: string) {
   const [used] = await database().update(s.whatsappLinkCodes).set({ usedAt: sql`now()` })
     .where(and(eq(s.whatsappLinkCodes.id, sha256(code)), isNull(s.whatsappLinkCodes.usedAt), gt(s.whatsappLinkCodes.expiresAt, sql`now()`),
       ...(onlyOrg ? [eq(s.whatsappLinkCodes.orgId, onlyOrg)] : []))) // a company's own number links only its own people
@@ -204,5 +221,6 @@ async function linkNumber(msg: Inbound, code: string, reply: Replier, onlyOrg?: 
   });
   const [org] = await inScope({ orgId: used.orgId }, (tx) => tx.select({ name: s.orgs.name }).from(s.orgs).where(eq(s.orgs.id, used.orgId)));
   const settings = await settingsFor(used.orgId);
-  await reply.send(msg.jid, message(settings, "connected", { company: org?.name ?? "your company", schedule: scheduleText(settings) }));
+  await replyLogged(whatsapp, msg.jid, message(settings, "connected", { company: org?.name ?? "your company", schedule: scheduleText(settings) }),
+    { orgId: used.orgId, memberId: used.memberId, kind: "linked" });
 }

@@ -257,7 +257,7 @@ const DELIVERY: Record<Delivery["status"], { label: string; tone: "green" | "blu
   failed: { label: "Failed", tone: "red" },
   none: { label: "Nothing to send", tone: "grey" },
 };
-const KIND: Record<string, string> = { urgent: "Urgent alert", brief: "Daily brief" };
+const KIND: Record<string, string> = { urgent: "Urgent alert", brief: "Daily brief", asked: "Asked for tasks", linked: "Number linked", help: "Help reply" };
 
 export function DeliveriesTab({ log, onRefresh }: { log: Delivery[]; onRefresh: () => void }) {
   const { personById } = useMe();
@@ -269,7 +269,7 @@ export function DeliveriesTab({ log, onRefresh }: { log: Delivery[]; onRefresh: 
       <header className="tb-section-head">
         <div>
           <h2 id="tb-deliveries">Deliveries</h2>
-          <p>The last two weeks: every urgent alert and daily brief, and whether it arrived.</p>
+          <p>The last two weeks: every daily brief, urgent alert and reply the bot sent — when someone asked for their tasks, too — and whether it arrived.</p>
         </div>
         <div className="tb-head-tools">
           <div className="docs-view-switch" role="group" aria-label="Show">
