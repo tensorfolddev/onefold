@@ -877,6 +877,15 @@ test("members: leads up top, the team as cards with what they carry; add someone
   await page.getByRole("menuitem", { name: /Omar Dev/ }).click();
   const card = page.getByRole("list", { name: "Team" }).getByRole("listitem").filter({ hasText: "Omar Dev" });
   await expect(card).toContainText("0 open · 0 done");
+
+  // A developer on it opens every page of the project, not just its tickets — Settings stays with its managers.
+  const project = new URL(page.url()).pathname.replace(/^\/admin/, "/dev").replace(/\/members$/, "");
+  await dev.goto(`${project}/roadmap`);
+  const tabs = dev.getByRole("tablist", { name: "Nimbus sections" });
+  for (const tab of ["Overview", "Tickets", "Docs", "Decisions", "Roadmap", "Members"]) await expect(tabs.getByRole("tab", { name: new RegExp(`^${tab}`) })).toBeVisible();
+  await expect(tabs.getByRole("tab", { name: "Roadmap" })).toHaveAttribute("aria-selected", "true");
+  await expect(dev).toHaveURL(new RegExp(`${project}/roadmap$`)); // no longer sent to Tickets
+  await expect(dev.getByRole("link", { name: "Settings" })).toHaveCount(0);
   await card.hover();
   await card.getByRole("button", { name: "Remove Omar Dev" }).click();
   await expect(page.getByText("Only the leads so far")).toBeVisible();

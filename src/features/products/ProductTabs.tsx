@@ -8,14 +8,13 @@ import { Tabs, type TabItem } from "@/ui/primitives";
 
 export function ProductTabs({ product }: { product: Product }) {
   const pathname = usePathname();
-  const { db, href, panel } = useMe();
+  const { db, href } = useMe();
   const base = href(`/products/${product.key}`);
   const openCount = db.tickets.filter((t) => t.productKey === product.key && isOpenTicket(db, t)).length;
 
-  const tickets: TabItem = { label: "Tickets", href: `${base}/tickets`, count: openCount };
-  const items: TabItem[] = panel === "developer" ? [tickets] : [
+  const items: TabItem[] = [
     { label: "Overview", href: base },
-    tickets, // second: it's where most of the work is
+    { label: "Tickets", href: `${base}/tickets`, count: openCount }, // second: it's where most of the work is
     { label: "Docs", href: `${base}/docs` },
     { label: "Decisions", href: `${base}/decisions` },
     { label: "Roadmap", href: `${base}/roadmap` },

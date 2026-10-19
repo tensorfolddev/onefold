@@ -16,7 +16,7 @@ import { PANEL_LABEL } from "@/features/shell/AppShell";
 
 const PANELS: Panel[] = ["developer", "manager", "admin"];
 const PANEL_HINT: Record<Panel, string> = {
-  developer: "works tickets on their products",
+  developer: "works on their products: tickets, docs, the roadmap",
   manager: "runs their products and team",
   admin: "everything, including people and settings",
 };
