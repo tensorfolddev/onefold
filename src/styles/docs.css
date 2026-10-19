@@ -289,8 +289,9 @@
 
 /* Home: recent docs, mine, templates. */
 .docs-home { padding: 28px 40px 80px; }
-.docs-home-head { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
-.docs-home-head > div { flex: 1; min-width: 0; }
+.docs-home-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 28px; }
+.docs-home-head > div:first-child { flex: 1; min-width: 0; }
+.docs-home-head > .docs-home-actions { flex: none; margin-left: auto; justify-content: flex-end; }
 .docs-home-head h1 { margin: 0; font: 700 32px/1.2 var(--title-font-family); letter-spacing: -0.02em; }
 .docs-home-head p { margin: 4px 0 0; color: var(--secondary-text-color); }
 .docs-section-title { margin: 32px 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--secondary-text-color); }
