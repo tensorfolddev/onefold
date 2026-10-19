@@ -89,7 +89,7 @@ const DocImage = Image.extend({
     const w = node.attrs?.width ? ` "w=${Math.round(node.attrs.width)}"` : "";
     return `![${String(node.attrs?.alt ?? "").replace(/[[\]]/g, "")}](${node.attrs?.src ?? ""}${w})`;
   },
-}).configure({ inline: false, allowBase64: false, resize: { enabled: true, minWidth: 120, alwaysPreserveAspectRatio: true } });
+}).configure({ inline: false, allowBase64: false, resize: { enabled: true, directions: ["left", "right"], minWidth: 120, alwaysPreserveAspectRatio: true } });
 
 export function docExtensions(opts: { editable: boolean; placeholder?: string }): AnyExtension[] {
   return [

@@ -3,8 +3,8 @@
 // A space's front page, monday.com style: every page, by group — each group a coloured table (page, created by, last
 // edited) with subpages indented under their parent. One "New page" button (blank, or any template).
 import Link from "next/link";
-import { ChevronDown, FileText, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronDown, FileText, LayoutGrid, Plus, Table2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useDb } from "@/data/StoreProvider";
 import { relativeTime } from "@/domain/status";
 import type { Doc } from "@/domain/types";
@@ -12,7 +12,7 @@ import { RequirementsTable } from "@/features/products/LiveWidgets";
 import { Avatar } from "@/ui/primitives";
 import { DocsTopBar } from "./DocsSpace";
 import { useNewDoc } from "./NewDoc";
-import { childrenOf, docPath, spaceDocs, topLevel } from "./tree";
+import { childrenOf, coverCss, docPath, spaceDocs, topLevel } from "./tree";
 
 /** monday.com's group colours, in order. */
 const GROUP_COLORS = ["#579bfc", "#00c875", "#fdab3d", "#a25ddc", "#e2445c", "#ffcb00", "#ff158a", "#0086c0"];
@@ -23,7 +23,25 @@ function flatten(docs: Doc[], list: Doc[], depth = 0): { doc: Doc; depth: number
   return list.flatMap((d) => [{ doc: d, depth }, ...flatten(docs, childrenOf(docs, d.id), depth + 1)]);
 }
 
-function GroupTable({ name, color, pages, docs }: { name: string; color: string; pages: Doc[]; docs: Doc[] }) {
+type View = "table" | "cards";
+const VIEW_KEY = "onefold.docs.view";
+
+function DocCard({ doc }: { doc: Doc }) {
+  const { href, personById } = useDb();
+  const by = personById(doc.updatedBy ?? doc.authorId);
+  return (
+    <Link href={href(docPath(doc))} className="doc-card" style={{ "--cover": coverCss(doc.cover) } as React.CSSProperties}>
+      <span className="doc-card-cover" aria-hidden />
+      <span className="doc-card-icon" aria-hidden>{doc.icon ?? "📄"}</span>
+      <span className="doc-card-body">
+        <span className="doc-card-title">{doc.title}</span>
+        <span className="doc-card-meta"><Avatar personId={by?.id} size="sm" /> {relativeTime(edited(doc))} ago</span>
+      </span>
+    </Link>
+  );
+}
+
+function GroupTable({ name, color, pages, docs, view }: { name: string; color: string; pages: Doc[]; docs: Doc[]; view: View }) {
   const { href, personById } = useDb();
   const [open, setOpen] = useState(true);
   const rows = flatten(docs, pages);
@@ -34,7 +52,11 @@ function GroupTable({ name, color, pages, docs }: { name: string; color: string;
         <span className="docs-board-name">{name}</span>
         <span className="docs-board-count">{rows.length} {rows.length === 1 ? "page" : "pages"}</span>
       </button>
-      {open && (
+      {open && view === "cards" && (
+        rows.length ? <div className="doc-cards docs-board-cards">{rows.map(({ doc }) => <DocCard key={doc.id} doc={doc} />)}</div>
+          : <p className="docs-board-none">No pages in this group yet</p>
+      )}
+      {open && view === "table" && (
         <div className="docs-board-table" role="table" aria-label={`${name} pages`}>
           <div className="docs-board-row is-head" role="row">
             <span role="columnheader">Page</span><span role="columnheader">Created by</span><span role="columnheader">Last edited</span>
@@ -70,6 +92,14 @@ export function DocsHome({ productKey }: { productKey: string }) {
   const ungrouped = tops.filter((d) => !d.groupId || !groups.some((g) => g.id === d.groupId));
   const canCreate = can("doc.create", { product });
   const title = product ? `${product.name} docs` : "Company docs";
+  const [view, setViewState] = useState<View>("table");
+  useEffect(() => {
+    try { if (localStorage.getItem(VIEW_KEY) === "cards") setViewState("cards"); } catch { /* per-browser convenience only */ } // eslint-disable-line react-hooks/set-state-in-effect -- this browser's choice
+  }, []);
+  const setView = (v: View) => {
+    setViewState(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* per-browser convenience only */ }
+  };
 
   return (
     <>
@@ -80,7 +110,13 @@ export function DocsHome({ productKey }: { productKey: string }) {
             <h1>{title}</h1>
             <p>{product ? "Briefs, designs and notes for this project — everyone on it can write here." : "Handbook, policies and how we work — for everyone at the company."}</p>
           </div>
-          {canCreate && <button type="button" className="btn btn-primary" onClick={() => newDoc.open()}><Plus aria-hidden /> New page</button>}
+          <div className="docs-home-actions">
+            <div className="docs-view-switch" role="tablist" aria-label="View">
+              <button type="button" role="tab" aria-selected={view === "table"} onClick={() => setView("table")}><Table2 aria-hidden /> Table</button>
+              <button type="button" role="tab" aria-selected={view === "cards"} onClick={() => setView("cards")}><LayoutGrid aria-hidden /> Cards</button>
+            </div>
+            {canCreate && <button type="button" className="btn btn-primary" onClick={() => newDoc.open()}><Plus aria-hidden /> New page</button>}
+          </div>
         </header>
 
         {docs.length === 0 ? (
@@ -90,8 +126,8 @@ export function DocsHome({ productKey }: { productKey: string }) {
           </div>
         ) : (
           <div className="docs-board">
-            {groups.map((g, i) => <GroupTable key={g.id} name={g.name} color={GROUP_COLORS[i % GROUP_COLORS.length]} docs={docs} pages={tops.filter((d) => d.groupId === g.id)} />)}
-            {(ungrouped.length > 0 || !groups.length) && <GroupTable name={groups.length ? "Other pages" : "Pages"} color="#676879" docs={docs} pages={ungrouped} />}
+            {groups.map((g, i) => <GroupTable key={g.id} view={view} name={g.name} color={GROUP_COLORS[i % GROUP_COLORS.length]} docs={docs} pages={tops.filter((d) => d.groupId === g.id)} />)}
+            {(ungrouped.length > 0 || !groups.length) && <GroupTable view={view} name={groups.length ? "Other pages" : "Pages"} color="#676879" docs={docs} pages={ungrouped} />}
           </div>
         )}
         {productKey && (
