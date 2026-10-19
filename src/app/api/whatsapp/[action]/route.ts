@@ -1,6 +1,6 @@
 // WhatsApp, for the signed-in person:
-//   GET  /api/whatsapp/status          — their link and whether the bot is there; platform admins also get the bot
-//                                         itself (state, its number, and the QR code while it's pairing)
+//   GET  /api/whatsapp/status          — their link, the bot's state and number (botInfo); platform admins also get
+//                                         the bot itself (with the QR code while it's pairing)
 //   POST /api/whatsapp/connect         — a one-time code, and a wa.me link that sends it to the bot
 //   POST /api/whatsapp/unlink          — forget their number
 //   POST /api/whatsapp/pair | logout   — platform admins: pair the bot (a QR appears in status) or log it out
@@ -19,7 +19,8 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/whatsapp/[ac
     if (action !== "status") return refuse("Not found", 404);
     const who = await requireSession(req);
     const me = await myWhatsApp(who);
-    return ok({ me, bot: (await isPlatformAdmin(who)) ? await botStatus() : null });
+    const bot = await botStatus();
+    return ok({ me, botInfo: { state: bot.state, phone: bot.phone }, bot: (await isPlatformAdmin(who)) ? bot : null });
   });
 }
 
