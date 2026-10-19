@@ -74,10 +74,10 @@ test("only a token gets in, and never from another website", async () => {
   const names = (await rpc(adminToken, "tools/list")).body.result!.tools!.map((t) => t.name).sort();
   assert.deepEqual(names, [
     "add_comment", "add_dependency", "add_member", "archive_doc", "archive_product", "archive_ticket", "create_doc", "create_group",
-    "create_ticket", "delete_group", "get_doc", "get_ticket", "list_doc_versions", "list_docs", "list_groups", "list_members", "list_products",
-    "list_tickets", "move_doc", "move_product", "move_ticket", "remove_member", "rename_group", "restore_doc", "restore_doc_version",
-    "restore_product", "restore_ticket",
-    "search_docs", "set_section", "update_doc", "update_ticket",
+    "create_ticket", "delete_group", "get_decision", "get_doc", "get_ticket", "list_decisions", "list_doc_versions", "list_docs", "list_groups",
+    "list_members", "list_products", "list_tickets", "move_doc", "move_product", "move_ticket", "record_decision", "remove_member",
+    "rename_group", "restore_doc", "restore_doc_version", "restore_product", "restore_ticket",
+    "search_docs", "set_section", "update_decision", "update_doc", "update_ticket",
   ]);
   assert.ok(!names.some((n) => /(delete|remove)_(ticket|product|doc)/.test(n))); // no ticket, product or doc is ever deleted over MCP
 });
@@ -228,6 +228,22 @@ test("docs over MCP: anyone on a space reads and writes, edits never overwrite a
   assert.match((await tool(devToken, "get_doc", { doc: secret.id })).refused!, /No doc/);
   assert.ok((await tool(devToken, "list_docs", {})).data.every((d: Meta) => d.id !== secret.id));
   assert.equal((await tool(devToken, "create_doc", { title: "Handbook" })).data.space, "company");
+});
+
+test("decisions over MCP: full records with links, superseding, filters; developers read but don't record", async () => {
+  type Rec = { id: string; title: string; status: string; context: string | null; consequences: string | null; tickets: string[]; docs: { id: string }[]; superseded_by: { title: string } | null; url: string };
+  const ticket = (await tool(adminToken, "create_ticket", { product: "CH", title: "Pricing page" })).data.key;
+  const doc = (await tool(adminToken, "create_doc", { title: "Pricing research", space: "CH" })).data.id;
+  const rec: Rec = (await tool(adminToken, "record_decision", { product: "CH", title: "Bill monthly", why: "Lower commitment", context: "New teams", tickets: [ticket], docs: ["Pricing research"] })).data;
+  assert.deepEqual([rec.status, rec.context, rec.tickets, rec.docs.map((d) => d.id)], ["accepted", "New teams", [ticket], [doc]]);
+  assert.match(rec.url, /\/products\/CH\/decisions\?d=/);
+  assert.match((await tool(devToken, "record_decision", { product: "CH", title: "x", why: "y" })).refused!, /Not allowed/);
+  assert.equal((await tool(devToken, "get_decision", { decision: "bill monthly" })).data.id, rec.id); // developers read them
+  const newer: Rec = (await tool(adminToken, "record_decision", { product: "CH", title: "Bill yearly", why: "Cash up front", status: "proposed" })).data;
+  const updated: Rec = (await tool(adminToken, "update_decision", { decision: rec.url, superseded_by: newer.id, consequences: "Slower revenue" })).data;
+  assert.deepEqual([updated.status, updated.superseded_by?.title, updated.consequences], ["superseded", "Bill yearly", "Slower revenue"]);
+  assert.deepEqual((await tool(adminToken, "list_decisions", { product: "CH", status: "proposed" })).data.map((d: Rec) => d.title), ["Bill yearly"]);
+  assert.match((await tool(adminToken, "get_decision", { decision: "nope" })).refused!, /No decision/);
 });
 
 test("a token stops working when its owner is turned off, or their password changes", async () => {
