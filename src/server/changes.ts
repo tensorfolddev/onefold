@@ -117,8 +117,8 @@ export async function applyComposed<K>(who: SessionRow, source: Source, run: (db
 }
 
 /**
- * Adds a teammate to a product by their email — for a personal product's owner, who doesn't see others' emails. Only
- * people already in the company: who joins it is the admins' call (they invite).
+ * Adds a teammate to a product by their email — for managers, who don't see others' emails. Only people already in
+ * the company: who joins it is the admins' call (they invite).
  */
 export async function addMemberByEmail(who: SessionRow, productKey: string, emailInput: string): Promise<{ version: number; name: string }> {
   const email = emailInput.trim().toLowerCase();

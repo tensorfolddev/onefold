@@ -11,15 +11,15 @@ import { shortDate } from "@/domain/status";
 import type { Product, Ticket } from "@/domain/types";
 import { TypeIcon } from "@/features/tickets/TicketBits";
 import { useAppState } from "@/features/shell/state";
-import { companyProducts } from "@/domain/permissions";
+import { visibleProducts } from "@/domain/permissions";
 import { ArchiveBucket } from "@/ui/ArchiveBucket";
 import { BulkHead, usePicked } from "@/ui/BulkSelect";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 
-/** Archived tickets in a project (`product`), or in every live company project (company Settings). */
+/** Archived tickets in a project (`product`), or in every live project (company Settings). */
 function useArchivedIn(product?: Product): Ticket[] {
   const { archivedTickets, me, db } = useMe();
-  const keys = new Set(product ? [product.key] : companyProducts(me, db.products).map((p) => p.key));
+  const keys = new Set(product ? [product.key] : visibleProducts(me, db.products).map((p) => p.key));
   return archivedTickets.filter((t) => keys.has(t.productKey));
 }
 

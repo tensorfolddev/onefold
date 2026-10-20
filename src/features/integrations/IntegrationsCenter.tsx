@@ -11,12 +11,11 @@ import { APPS, CATEGORIES, RecipeText, useAppStatuses, type App, type AppStatus,
 type Filter = "All" | Category;
 
 export function IntegrationsCenter() {
-  const { panel, workspace } = useMe();
+  const { panel } = useMe();
   const statuses = useAppStatuses();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
-  // The company's integrations are for its admins, in the company's workspace; in your own, only yours.
-  const apps = APPS.filter((a) => !a.adminOnly || (panel === "admin" && workspace === "company"));
+  const apps = APPS.filter((a) => !a.adminOnly || panel === "admin");
   const query = q.trim().toLowerCase();
   const matches = (a: App) => !query || `${a.name} ${a.tagline} ${a.category}`.toLowerCase().includes(query);
   const shown = apps.filter((a) => matches(a) && (filter === "All" || a.category === filter));

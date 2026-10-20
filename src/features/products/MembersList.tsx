@@ -43,7 +43,7 @@ function PersonCard({ person, lead, load, onRemove }: { person: Person; lead?: s
   );
 }
 
-/** Add someone: search the company by name — or type a teammate's email (`onAddEmail`), since not everyone sees emails. */
+/** Add someone: search the company by name — or type a teammate's email (`onAddEmail`): only admins see emails. */
 function AddMember({ candidates, projectName, onAdd, onAddEmail }: {
   candidates: Person[]; projectName: string; onAdd: (p: Person) => void; onAddEmail: (email: string) => void;
 }) {
@@ -108,9 +108,7 @@ export function MembersList({ productKey }: { productKey: string }) {
       <header className="members-head">
         <div>
           <h2 id="members-title" className="members-title">Members <span className="muted">{total}</span></h2>
-          <p className="members-sub">{product.ownerId
-            ? <>Everyone who can open {product.name} — it&apos;s personal: nobody else sees it, not even admins.</>
-            : <>Everyone who can open {product.name}. Admins see every project.</>}</p>
+          <p className="members-sub">Everyone who can open {product.name}. Admins see every project.</p>
         </div>
         <div className="members-actions">
           {members.length > 3 && (

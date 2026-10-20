@@ -1,7 +1,7 @@
 "use client";
 
 import { countByCategory } from "@/domain/selectors/dashboard";
-import { companyProducts } from "@/domain/permissions";
+import { visibleProducts } from "@/domain/permissions";
 import { useMe } from "@/data/StoreProvider";
 import { CATEGORY_LABEL, CATEGORY_ORDER, CATEGORY_TONE, toneVar } from "@/domain/status";
 import type { StatusCategory } from "@/domain/types";
@@ -12,7 +12,7 @@ const R = 15.915;
 /** Tickets by status category — hand-written SVG donut + dot legend (monday pie widget). Reads live tickets. */
 export function DonutChart() {
   const { me, db } = useMe();
-  const keys = new Set(companyProducts(me, db.products).map((p) => p.key));
+  const keys = new Set(visibleProducts(me, db.products).map((p) => p.key));
   const tickets = db.tickets.filter((t) => keys.has(t.productKey));
   const counts = countByCategory(db, tickets);
   const total = tickets.length || 1;

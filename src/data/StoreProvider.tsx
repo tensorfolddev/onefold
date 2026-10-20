@@ -9,7 +9,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { can as canFor, type Action, type Ctx } from "../domain/permissions.ts";
 import type { Panel, Person, Ticket } from "../domain/types.ts";
 import { cheer, finished } from "../domain/selectors/celebrate.ts";
-import { workspaceOfPath, workspaceView, type Workspace } from "../domain/workspace.ts";
 import { celebrate } from "../ui/celebrate.ts";
 import { Toaster, type ToastItem, type ToastTone } from "../ui/Toast.tsx";
 import { api, ApiError, upload } from "./api.ts";
@@ -25,12 +24,8 @@ type ActResult<K> = Db | { db: Db; key: K };
 export interface CreatedInvite { id: string; email: string; panel: Panel; role: string; link: string; emailed: boolean }
 
 export interface Store extends Lookups {
-  /** What screens show: the workspace you're in (the company's, or your own), archived tickets left out. */
+  /** The company as screens show it: archived tickets left out of every board, list and count. */
   db: Db;
-  /** The workspace you're in: the one the page belongs to, else the one you last picked (kept in this browser). */
-  workspace: Workspace;
-  /** Pick a workspace (the sidebar's switcher). Pages of either then show that one. */
-  setWorkspace: (ws: Workspace) => void;
   /** Archived tickets (admins and managers only — developers never receive them): product Settings → Archived. */
   archivedTickets: Ticket[];
   me: Person;
@@ -102,7 +97,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const pending = useRef(0); // changes sent but not yet answered
   const queue = useRef<Promise<void>>(Promise.resolve()); // the server gets changes in the order they were made
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [picked, setPicked] = useState<Workspace>("company");
   const toastId = useRef(0);
   const toldNewVersion = useRef(false);
 
@@ -341,43 +335,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const auth: Auth = useMemo(() => ({ ready, signIn, createCompany, checkSlug, lookupInvite, acceptInvite, signOut }),
     [ready, signIn, createCompany, checkSlug, lookupInvite, acceptInvite, signOut]);
 
-  // The workspace: a page of one (a product, a doc, People…) is in that one; any other page shows the last one picked.
-  const pickKey = view ? `onefold:workspace:${view.db.org.id}:${view.meId}` : null;
-  useEffect(() => {
-    if (!pickKey) return;
-    try { if (localStorage.getItem(pickKey) === "personal") setPicked("personal"); } catch { /* per-browser convenience only */ } // eslint-disable-line react-hooks/set-state-in-effect -- this browser's choice
-  }, [pickKey]);
-  useEffect(() => {
-    try { if (pickKey) localStorage.setItem(pickKey, picked); } catch { /* per-browser convenience only */ }
-  }, [pickKey, picked]);
-  const setWorkspace = useCallback((ws: Workspace) => setPicked(ws), []);
-  const fromPath = view ? workspaceOfPath(view.db, pathname.replace(/^\/[^/]+/, "")) : null;
-  // Stay where a link took you: once a page of the other workspace opens, that's the one picked (set while rendering).
-  const [seenPath, setSeenPath] = useState<Workspace | null>(null);
-  if (fromPath !== seenPath) {
-    setSeenPath(fromPath);
-    if (fromPath && fromPath !== picked) setPicked(fromPath);
-  }
-  const workspace = fromPath ?? picked;
-
-  // Commands run on everything (so archived tickets can be restored or deleted); screens see the workspace, live tickets.
-  const live = useMemo(() => {
-    if (!view) return null;
-    const db = workspaceView(view.db, workspace);
-    return { db: { ...db, tickets: db.tickets.filter((t) => !t.archivedAt) }, archived: db.tickets.filter((t) => t.archivedAt) };
-  }, [view, workspace]);
+  // Commands run on everything (so archived tickets can be restored or deleted); screens see only live tickets.
+  const live = useMemo(() => view && ({
+    db: { ...view.db, tickets: view.db.tickets.filter((t) => !t.archivedAt) },
+    archived: view.db.tickets.filter((t) => t.archivedAt),
+  }), [view]);
   const lookups = useMemo(() => (live ? makeLookups(live.db) : null), [live]);
   const store: Store | null = useMemo(() => {
     const me = view?.db.people.find((p) => p.id === view.meId);
     if (!view || !live || !me || !lookups) return null;
     return {
-      ...lookups, db: live.db, archivedTickets: live.archived, me, panel: view.panel, workspace, setWorkspace,
+      ...lookups, db: live.db, archivedTickets: live.archived, me, panel: view.panel,
       href: (path: string) => `/${PANEL_SLUG[view.panel]}${path}`,
       can: (action, ctx = {}) => canFor(me, action, ctx),
       run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification, uploadImage, createDoc,
       addMemberByEmail,
     };
-  }, [view, live, lookups, workspace, setWorkspace, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage, createDoc, addMemberByEmail]);
+  }, [view, live, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage, createDoc, addMemberByEmail]);
 
   return (
     <StoreCtx.Provider value={{ store, auth }}>

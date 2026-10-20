@@ -26,16 +26,9 @@ export function suggestKey(name: string) {
 
 const NEW_GROUP = "__new";
 
-/**
- * Create a product (no `product`) or edit one (key stays read-only). Group first, then the product. A personal one
- * (`personal`, or a product with an owner) has no group or managers to pick: its owner runs it.
- */
-export function ProductForm({ product, personal = false, onCancel, inDialog }: {
-  product?: Product; personal?: boolean; onCancel?: () => void; inDialog?: boolean;
-}) {
+/** Create a product (no `product`) or edit one (key stays read-only). Group first, then the product. */
+export function ProductForm({ product, onCancel, inDialog }: { product?: Product; onCancel?: () => void; inDialog?: boolean }) {
   const { db, me, act, href } = useMe();
-  const isPersonal = product ? !!product.ownerId : personal;
-  const owner = product?.ownerId ?? me.id;
   const router = useRouter();
   // Admins can run a product too — a new company starts with only its founder.
   const managers = (current?: string) => db.people.filter((p) => (p.active && p.panel !== "developer") || p.id === current);
@@ -62,15 +55,14 @@ export function ProductForm({ product, personal = false, onCancel, inDialog }: {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isPersonal && (!pmId || !projectManagerId)) return setError("Choose a product manager and a project manager");
+    if (!pmId || !projectManagerId) return setError("Choose a product manager and a project manager");
     if (groupId === NEW_GROUP && !newGroup.trim()) return setError("Name the new group, or pick an existing one");
     const isClient = type === "client";
     const newGroupId = groupId === NEW_GROUP ? `grp-${crypto.randomUUID().slice(0, 8)}` : undefined;
     const patch: Omit<ProductInput, "key"> = {
-      name: name.trim(), type, description: description.trim(), client: isClient ? client.trim() : undefined, createdAt,
-      ...(isPersonal
-        ? { pmId: owner, projectManagerId: owner }
-        : { pmId, projectManagerId, groupId: newGroupId ?? (groupId || undefined) }),
+      name: name.trim(), type, pmId, projectManagerId, description: description.trim(),
+      client: isClient ? client.trim() : undefined,
+      groupId: newGroupId ?? (groupId || undefined), createdAt,
     };
     // A new group is created first, in the same step, so nothing half-saves.
     const withGroup = (d: Db, m: Person) => (newGroupId ? addGroup(d, m, newGroup, newGroupId) : d);
@@ -81,7 +73,7 @@ export function ProductForm({ product, personal = false, onCancel, inDialog }: {
       if (act(run, { success: "Settings saved" })) setError(null);
       return;
     }
-    const input: ProductInput = { ...patch, key: shownKey, icon: look.icon, color: look.color, ...(isPersonal ? { personal: true } : {}) };
+    const input: ProductInput = { ...patch, key: shownKey, icon: look.icon, color: look.color };
     const run = (d: Db, m: Person) => createProduct(withGroup(d, m), m, input);
     const err = errorOf(() => run(db, me));
     if (err) return setError(err);
@@ -157,20 +149,20 @@ export function ProductForm({ product, personal = false, onCancel, inDialog }: {
               </Field>
             </>
           )}
-          {!isPersonal && <Field label="Group">
+          <Field label="Group">
             <select className="admin-input" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
               <option value="">Ungrouped</option>
               {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               <option value={NEW_GROUP}>+ New group…</option>
             </select>
-          </Field>}
-          {!isPersonal && groupId === NEW_GROUP && (
+          </Field>
+          {groupId === NEW_GROUP && (
             <Field label="New group name" wide>
               <input className="admin-input" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} placeholder="e.g. AI products, Q4 launches" autoFocus />
             </Field>
           )}
-          {!isPersonal && <Field label="Product manager">{managerSelect(pmId, setPmId)}</Field>}
-          {!isPersonal && <Field label="Project manager">{managerSelect(projectManagerId, setProjectManagerId)}</Field>}
+          <Field label="Product manager">{managerSelect(pmId, setPmId)}</Field>
+          <Field label="Project manager">{managerSelect(projectManagerId, setProjectManagerId)}</Field>
           <Field label="Created">
             <input className="admin-input" type="date" value={createdAt} max="2100-12-31" onChange={(e) => setCreatedAt(e.target.value)} />
           </Field>
@@ -189,9 +181,8 @@ export function ProductForm({ product, personal = false, onCancel, inDialog }: {
   );
 }
 
-/** "New product" as a popup over the Products page — in the company's workspace, or (`personal`) your own. */
-export function NewProductDialog({ onClose, personal = false }: { onClose: () => void; personal?: boolean }) {
-  const { db } = useMe();
+/** "New product" as a popup over the Products page. Native <dialog>: focus stays inside, Escape closes. */
+export function NewProductDialog({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -206,12 +197,12 @@ export function NewProductDialog({ onClose, personal = false }: { onClose: () =>
     >
       <header className="pf-dialog-head">
         <div>
-          <h2 id="pf-dialog-title" className="pf-dialog-title">{personal ? "New product in My workspace" : `New product in ${db.org.name}`}</h2>
-          <p className="muted">{personal ? "Only you and the people you add see it" : "Starts at INTAKE with the standard ticket statuses"}</p>
+          <h2 id="pf-dialog-title" className="pf-dialog-title">New product</h2>
+          <p className="muted">Starts at INTAKE with the standard ticket statuses</p>
         </div>
         <IconButton label="Close" onClick={onClose}><X /></IconButton>
       </header>
-      <ProductForm personal={personal} onCancel={onClose} inDialog />
+      <ProductForm onCancel={onClose} inDialog />
     </dialog>
   );
 }

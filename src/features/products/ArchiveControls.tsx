@@ -94,7 +94,7 @@ export function ArchivedBanner({ product }: { product: Product }) {
 /** Settings → Archived: the company's archived products as a bucket — open it to restore one, or (admins) delete it for good. */
 export function ArchivedProductsBucket() {
   const { me, db } = useMe();
-  const archived = archivedProducts(me, db.products).filter((p) => !p.ownerId)
+  const archived = archivedProducts(me, db.products)
     .sort((a, b) => (b.archivedAt ?? "").localeCompare(a.archivedAt ?? "")); // most recently archived first
   return (
     <ArchiveBucket icon={FolderArchive} title="Archived products" count={archived.length} latest={archived[0] && { name: archived[0].name, at: archived[0].archivedAt }}>

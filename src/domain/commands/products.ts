@@ -11,8 +11,6 @@ export interface ProductInput {
   createdAt?: string; // ISO date, default today
   icon?: ProductIcon;
   color?: string;
-  /** In my own workspace: I run it (both leads), it's in no group, and only I and the people I add see it. */
-  personal?: boolean;
 }
 
 const isoDateError = (v?: string) =>
@@ -20,9 +18,8 @@ const isoDateError = (v?: string) =>
 const groupError = (db: Db, groupId?: string | null) =>
   groupId == null || db.productGroups.some((g) => g.id === groupId) ? null : "That group doesn't exist";
 
-export function createProduct(db: Db, me: Person, raw: ProductInput): Db {
-  check(me, raw.personal ? "product.createPersonal" : "product.create", {});
-  const input = raw.personal ? { ...raw, pmId: me.id, projectManagerId: me.id, groupId: undefined } : raw;
+export function createProduct(db: Db, me: Person, input: ProductInput): Db {
+  check(me, "product.create", {});
   fail(requiredError("Name", input.name));
   fail(productKeyError(input.key, db));
   if (input.type === "client") fail(requiredError("Client name", input.client));
@@ -39,7 +36,6 @@ export function createProduct(db: Db, me: Person, raw: ProductInput): Db {
     color: input.color ?? COLORS[db.products.length % COLORS.length],
     description: input.description?.trim() ?? "", memberIds: [],
     groupId: input.groupId, createdAt: input.createdAt ?? today(), icon: input.icon,
-    ...(raw.personal ? { ownerId: me.id } : {}),
   };
   return { ...db, products: [...db.products, product], statusesByProduct: { ...db.statusesByProduct, [input.key]: statuses } };
 }
@@ -47,9 +43,6 @@ export function createProduct(db: Db, me: Person, raw: ProductInput): Db {
 export function updateProduct(db: Db, me: Person, key: string, patch: Partial<Omit<ProductInput, "key">>): Db {
   const cur = productOf(db, key);
   check(me, "product.edit", { product: cur });
-  if (cur.ownerId && ((patch.pmId ?? cur.ownerId) !== cur.ownerId || (patch.projectManagerId ?? cur.ownerId) !== cur.ownerId || patch.groupId)) {
-    throw new ValidationError("A personal product is run by its owner, outside the company's groups");
-  }
   if (patch.name !== undefined) fail(requiredError("Name", patch.name));
   fail(isoDateError(patch.createdAt));
   fail(groupError(db, patch.groupId));
