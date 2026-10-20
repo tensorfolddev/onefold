@@ -25,7 +25,7 @@ All commands below are run on the server as the `onefold` user (`sudo -u onefold
 
 ## First-time setup
 
-You need: a VPS with Ubuntu 22.04 or 24.04 (2 vCPU / 4 GB RAM / 40 GB disk is plenty to start), SSH access as root,
+You need: a VPS with Ubuntu 22.04, 24.04 or 26.04 (2 vCPU / 4 GB RAM / 40 GB disk is plenty to start), SSH access as root,
 and the DNS for `tensorfold.ai`.
 
 1. **On the server**, as root:

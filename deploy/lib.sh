@@ -46,8 +46,10 @@ release() { [ -f "$ENV_DIR/release.env" ] && sed -n "s/^$1=//p" "$ENV_DIR/releas
 compose() {
   local release_file="$ENV_DIR/release.env"
   [ -f "$release_file" ] || release_file=/dev/null
-  docker compose -p "$PROJECT" --project-directory "$ENV_DIR" -f "$HERE/compose.yml" \
-    --env-file "$ENV_DIR/.env" --env-file "$release_file" "$@"
+  # From the environment's folder: docker compose reads the folder it's started in, which may be one $RUN_AS can't
+  # open (e.g. /root, after "sudo -u onefold …").
+  (cd "$ENV_DIR" && docker compose -p "$PROJECT" --project-directory "$ENV_DIR" -f "$HERE/compose.yml" \
+    --env-file "$ENV_DIR/.env" --env-file "$release_file" "$@")
 }
 
 db_running() { [ -n "$(compose ps --status running --quiet postgres 2>/dev/null)" ]; }

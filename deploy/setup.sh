@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh — prepares a fresh Ubuntu VPS (22.04 / 24.04) for 1Fold, once, as root, from a clone of the repo:
+# setup.sh — prepares a fresh Ubuntu VPS (22.04 / 24.04 / 26.04) for 1Fold, once, as root, from a clone of the repo:
 #   git clone https://github.com/tensorfolddev/onefold.git && sudo bash onefold/deploy/setup.sh
 # Safe to run again: settings that exist are kept; only what's missing is added. It
 #   - installs Docker, a firewall (SSH, HTTP, HTTPS only), automatic security updates and a swap file
