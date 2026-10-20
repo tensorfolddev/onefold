@@ -24,6 +24,12 @@ export function usePriorityLook(productKey: string) {
 export const requirementById = (list: Requirement[], id?: string) => list.find((r) => r.id === id);
 export const isOverdue = (t: Ticket, done: boolean) => !!t.due && !done && t.due < today();
 
+/** What a ticket is, in the words people use — a task is a feature. On cards and the ticket's header. */
+export const KIND_LABEL: Record<TicketType, string> = { task: "Feature", bug: "Bug", epic: "Epic" };
+export function TypeTag({ type, title }: { type: TicketType; title?: string }) {
+  return <span className="type-tag" data-type={type} title={title}>{KIND_LABEL[type]}</span>;
+}
+
 export function TypeIcon({ type }: { type: TicketType }) {
   const Icon = type === "epic" ? Layers : type === "bug" ? Bug : SquareCheck;
   return <Icon className="type-icon" data-type={type} aria-label={TYPE_LABEL[type]} />;

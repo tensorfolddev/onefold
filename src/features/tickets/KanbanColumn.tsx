@@ -8,7 +8,7 @@ import { useDb } from "@/data/StoreProvider";
 import { heldUp, openBlockers } from "@/domain/selectors/blocked";
 import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
-import { Assignees, DueDate, EpicChip, PriorityChip, TypeIcon } from "./TicketBits";
+import { Assignees, DueDate, EpicChip, PriorityChip, TypeIcon, TypeTag } from "./TicketBits";
 import { ListHeader, TaskComposer } from "./KanbanLists";
 import { AssigneeField, CardDueField, PriorityField } from "./TicketFields";
 import { useIsDone } from "./TemplateRelations";
@@ -108,7 +108,8 @@ export const CardView = memo(function CardView({ ticket, editable = false }: { t
   if (ticket.type === "epic") return <EpicCardView ticket={ticket} editable={editable} />;
   return (
     <>
-      <span className="kanban-card-key"><TypeIcon type={ticket.type} /><span className="key">{ticket.key}</span><EpicChip ticket={ticket} /></span>
+      {/* What it is, not its number (the number shows on hover, and in the ticket itself) */}
+      <span className="kanban-card-key"><TypeIcon type={ticket.type} /><TypeTag type={ticket.type} title={ticket.key} /><EpicChip ticket={ticket} /></span>
       <span className="kanban-card-title">{ticket.title}</span>
       <span className="kanban-card-meta">
         <CardFoot ticket={ticket} done={status?.category === "done"} editable={editable}><BlockedChip ticket={ticket} /></CardFoot>

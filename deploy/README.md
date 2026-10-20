@@ -124,7 +124,7 @@ version before them. If a release ever did damage data, restore its restore poin
 |---|---|
 | What's running | `status.sh` |
 | Logs | `compose.sh prod logs -f --tail 100 web` (or `worker`, `postgres`) |
-| Stop / start staging | `stop.sh stg` · `start.sh stg` (data stays; its domain shows 502 while stopped) |
+| Stop / start staging | `stop.sh stg` · `start.sh stg` (data stays; its domain shows 502 while stopped). To skip staging releases too, set the repository variable `STG_ENABLED` = `false` |
 | Change settings | edit `/opt/onefold/prod/app.env`, then `start.sh prod` |
 | A database shell | `compose.sh prod exec postgres psql -U onefold_admin onefold` |
 | Back up now | `backup.sh prod` |

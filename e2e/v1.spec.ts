@@ -168,7 +168,7 @@ test("a ticket made in one browser appears live in another, and survives a reloa
   await page.getByRole("button", { name: "New ticket" }).click();
   await page.getByLabel("New ticket title").fill("Build the cart");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await expect(page.getByText("CH-1").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Build the cart" }).first()).toContainText("Feature"); // its type, not its number
 
   await expect(other.getByRole("button", { name: "Build the cart" }).first()).toBeVisible({ timeout: 15_000 }); // live, no reload
   await page.reload();
