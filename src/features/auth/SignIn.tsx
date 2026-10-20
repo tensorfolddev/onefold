@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Building2, LogIn, Mail } from "lucide-react";
+import { ArrowRight, Building2 } from "lucide-react";
 import { EMAIL_RE } from "@/data/commands";
 import { panelFromSlug, safeNext } from "@/data/session";
 import { useAuth } from "@/data/StoreProvider";
@@ -44,7 +44,6 @@ export function SignIn() {
         {companies ? (
           <div className="auth-form">
             <div className="auth-heading">
-              <span className="auth-badge-icon" aria-hidden><Building2 /></span>
               <h1 className="auth-title">Which company?</h1>
               <p className="auth-sub">{email.trim()} belongs to more than one.</p>
             </div>
@@ -64,13 +63,11 @@ export function SignIn() {
         ) : (
           <form className="auth-form" onSubmit={(e) => { e.preventDefault(); void signIn(); }} noValidate aria-busy={busy}>
             <div className="auth-heading">
-              <span className="auth-badge-icon" aria-hidden><LogIn /></span>
               <h1 className="auth-title">Welcome back</h1>
               <p className="auth-sub">Sign in to your company on 1Fold.</p>
             </div>
             <AuthField id={`${uid}-email`} label="Email">
               <span className="auth-input">
-                <Mail aria-hidden className="auth-input-icon" />
                 <input id={`${uid}-email`} type="email" inputMode="email" value={email} autoComplete="username" spellCheck={false} autoFocus
                   aria-invalid={!!error || undefined} onChange={(e) => { setEmail(e.target.value); setError(null); }} />
               </span>
