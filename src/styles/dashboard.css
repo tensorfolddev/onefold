@@ -162,11 +162,14 @@
 .get-started-text strong { font-size: 15px; font-weight: 500; color: var(--primary-text-color); }
 .get-started-step[data-state="done"] .get-started-text strong { text-decoration: line-through; color: var(--secondary-text-color); }
 .get-started-later { width: 16px; height: 16px; margin-top: auto; color: var(--secondary-text-color); }
-@media (max-width: 1023px) { .get-started-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.get-started-sub { margin: 20px 0 10px; font-size: 14px; font-weight: 600; color: var(--secondary-text-color); }
+.get-started-steps.is-own { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.get-started-step .btn { align-self: flex-start; margin-top: auto; }
+@media (max-width: 1023px) { .get-started-steps, .get-started-steps.is-own { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 767px) {
   .get-started { padding: 16px; }
   .get-started-head { flex-wrap: wrap; gap: 12px; }
   .get-started-bar { max-width: none; flex-basis: 100%; margin-left: 0; }
-  .get-started-steps { grid-template-columns: 1fr; }
+  .get-started-steps, .get-started-steps.is-own { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .get-started-bar span { transition: none; } }
