@@ -99,26 +99,22 @@ test("using one reset link kills the others; an expired link is refused", async 
   await assert.rejects(resetPassword(old, NEW_PASSWORD), /expired or was already used/);
 });
 
-test("how email is set up here, for Integrations → Email: Resend (from which address), a test inbox, or not at all — never the key", async () => {
+test("how a company's email is set up, for Integrations → Email: its own Resend, a test inbox, or not at all — never the server's", async () => {
   const { emailStatus } = await import("./email.ts");
   const saved = { key: process.env.RESEND_API_KEY, outbox: process.env.EMAIL_OUTBOX_DIR, from: process.env.EMAIL_FROM };
   try {
-    process.env.RESEND_API_KEY = "re_secret";
-    process.env.EMAIL_FROM = "Acme <hello@acme.example>";
-    assert.deepEqual(await emailStatus(), { mode: "server", from: "Acme <hello@acme.example>", hint: null });
-    assert.equal(JSON.stringify(await emailStatus()).includes("re_secret"), false);
-    delete process.env.RESEND_API_KEY;
-    process.env.EMAIL_OUTBOX_DIR = "/tmp/outbox";
-    assert.equal((await emailStatus()).mode, "outbox");
+    process.env.RESEND_API_KEY = "re_secret"; // the platform's — for login emails only, never a company's
+    process.env.EMAIL_FROM = "1Fold <hello@1fold.example>";
     delete process.env.EMAIL_OUTBOX_DIR;
-    delete process.env.EMAIL_FROM;
-    assert.deepEqual(await emailStatus(), { mode: "off", from: "1Fold <onboarding@resend.dev>", hint: null });
+    assert.deepEqual(await emailStatus(admin.orgId), { mode: "off", from: "", hint: null });
+    process.env.EMAIL_OUTBOX_DIR = "/tmp/outbox";
+    assert.equal((await emailStatus(admin.orgId)).mode, "outbox");
   } finally {
     restore(saved);
   }
 });
 
-test("a company's own Resend (Integrations → Email): kept encrypted, used before the server's, shown only as its last 4", async () => {
+test("a company's own Resend (Integrations → Email): kept encrypted, the only one its emails use, shown only as its last 4", async () => {
   process.env.SESSION_SECRET ??= "a-test-session-secret-of-32-chars-or-more";
   const { deliverEmail, emailStatus, removeCompanyResend, saveCompanyResend, sendEmail, typedResend } = await import("./email.ts");
   const { seal, unseal } = await import("./auth/secrets.ts");
@@ -161,11 +157,14 @@ test("a company's own Resend (Integrations → Email): kept encrypted, used befo
     await saveCompanyResend(orgId, "m", (await typedResend(orgId, { from: "Acme Ops <ops@acme.example>" }))!);
     sentWith.length = 0;
     await sendEmail({ to: "x@acme.example", subject: "s", text: "t", html: "h" }, { orgId });
-    await sendEmail({ to: "x@other.example", subject: "s", text: "t", html: "h" }); // no company: the server's
+    await sendEmail({ to: "x@other.example", subject: "s", text: "t", html: "h" }); // no company: a login email, the platform's
     assert.deepEqual(sentWith, ["Bearer re_company_key_1234 Acme Ops <ops@acme.example>", "Bearer re_server_key 1Fold <onboarding@resend.dev>"]);
 
     await removeCompanyResend(orgId);
-    assert.equal((await emailStatus(orgId)).mode, "server");
+    assert.equal((await emailStatus(orgId)).mode, "off"); // never falls back to the platform's
+    sentWith.length = 0;
+    assert.equal(await sendEmail({ to: "x@acme.example", subject: "s", text: "t", html: "h" }, { orgId }), false);
+    assert.deepEqual(sentWith, []); // a company without its own email sends nothing
   } finally {
     globalThis.fetch = realFetch;
     restore(saved);

@@ -12,7 +12,7 @@ export interface Sender { send: (jid: string, text: string) => Promise<void> }
 
 /**
  * Sends what's waiting, oldest first; a failure is retried on the next run, up to 5 times. `whatsapp`: one sender, or
- * the sender for each message's company (its own number, or 1FOLD's) — null while that one is down: the message waits.
+ * the sender for each message's company — its own number; null while it's down (or it has none): the message waits.
  */
 export async function sendOutbox(whatsapp: Sender | ((orgId: string | null) => Sender | null)): Promise<{ sent: number; failed: number } | undefined> {
   const senderFor = typeof whatsapp === "function" ? whatsapp : () => whatsapp;

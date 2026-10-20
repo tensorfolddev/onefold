@@ -257,30 +257,19 @@ test("a forgotten password is reset from the emailed link, which then stops work
   await expect(page.getByRole("heading", { name: "This link can't be used" })).toBeVisible();
 });
 
-test("WhatsApp: a teammate is told when the bot isn't connected; only a platform admin can ask it to connect", async ({ page, browser }) => {
-  await signUp(page, "Eta", "platform-admin@onefold.example"); // a fixed login: each run adds another company to it
+test("WhatsApp: every company has its own number — until it's connected, a teammate is told there's nothing to link to; no shared bot", async ({ page }) => {
+  await signUp(page, "Eta", email("eta"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("button", { name: "WhatsApp" }).click();
   await expect(page.getByRole("dialog", { name: "WhatsApp" })).toBeVisible();
-  await expect(page.getByText(/isn't connected right now/)).toBeVisible();
+  await expect(page.getByText(/hasn't connected its WhatsApp number yet/)).toBeVisible();
+  await expect(page.getByText("Integrations → Team Bot")).toBeVisible(); // where an admin connects it
   await page.getByRole("button", { name: "Close" }).click();
 
-  await confirmEmail(page, "platform-admin@onefold.example"); // a platform admin must have proven the address
   await page.goto("/admin/integrations/whatsapp");
-  await expect(page.getByRole("heading", { name: "1FOLD's bot" })).toBeVisible();
-  const connect = page.getByRole("button", { name: "Connect the bot" });
-  if (await connect.isVisible()) await connect.click(); // (a request left waiting by an earlier run needs no new one)
-  await expect(page.getByText("Waiting for the worker to start pairing…")).toBeVisible(); // no worker runs in these tests
-
-  const other = await freshPage(browser);
-  await signUp(other, "Theta", email("th"));
-  await other.goto("/admin/integrations/whatsapp");
-  await expect(other.getByRole("heading", { name: "WhatsApp", level: 1 })).toBeVisible();
-  await expect(other.getByRole("heading", { name: "1FOLD's bot" })).toHaveCount(0); // an ordinary admin doesn't manage the bot
-  await other.goto("/admin/settings");
-  await expect(other.getByRole("heading", { name: "Company" })).toBeVisible();
-  await expect(other.getByRole("heading", { name: /WhatsApp/ })).toHaveCount(0); // and Settings has no bot at all
+  await expect(page.getByRole("heading", { name: "WhatsApp", level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect the bot" })).toHaveCount(0); // nothing shared to pair here
 });
 
 test("Claude connects with a personal token: an MCP tool makes a ticket that shows up in the app; revoked, it's refused", async ({ page, request }) => {
@@ -1343,7 +1332,8 @@ test("Integrations → Email: an admin tests email, saves their company's Resend
   await page.locator(".int-grid").getByRole("link", { name: /^Email/ }).click();
   await expect(page.getByRole("heading", { name: "Email", level: 1 })).toBeVisible();
   await expect(page.locator(".int-app-cta").getByRole("status")).toContainText("Test inbox (development)"); // e2e: no Resend key, a test inbox
-  await expect(page.locator(".int-recipes")).toContainText("forgets their password");
+  await expect(page.locator(".int-recipes")).toContainText("their invite link");
+  await expect(page.locator(".int-recipes")).not.toContainText("password"); // resets always come from 1Fold, never a company
   await page.getByRole("button", { name: "Send a test email" }).click();
   await expect(page.locator(".toast-message", { hasText: `Test email sent to ${email("postman")}` })).toBeVisible();
   await expect.poll(async () => {

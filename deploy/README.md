@@ -39,8 +39,10 @@ and the DNS for `tensorfold.ai`.
    — it's pinned to `deploy/ssh-entry.sh`, so it can release a commit and nothing else — and, only if the image
    package stays private, a GitHub token with `read:packages`.
 2. **DNS**: an `A` record for `1fold.tensorfold.ai` and for `teamfold.tensorfold.ai`, both to the server's IP.
-3. **Email**: in each Resend account, verify the sending domain, then put the key in `/opt/onefold/<env>/app.env`
-   (`RESEND_API_KEY=`, `EMAIL_FROM=`). Production sends from `tensorfold.ai`, staging from `teamfold.tensorfold.ai`.
+3. **Email**: 1Fold's own Resend sends only sign-up confirmations and password resets (so nobody is ever locked out);
+   every company sends its invites and briefs through its own Resend, set in **Integrations → Email**. In 1Fold's
+   Resend account, verify the sending domain, then put the key in `/opt/onefold/<env>/app.env` (`RESEND_API_KEY=`,
+   `EMAIL_FROM=`). Production sends from `tensorfold.ai`, staging from `teamfold.tensorfold.ai`.
 4. **Backups**: see [Backups](#backups) below — about five minutes.
 5. **GitHub** (Settings → Environments → New environment, `prod` and `stg`). On each:
    - **Deployment branches and tags** → *Selected branches* → only its own branch (`prod` / `stg`), and on `prod`
@@ -56,17 +58,18 @@ and the DNS for `tensorfold.ai`.
 
 ## WhatsApp
 
-Each environment sends daily briefs from its **own WhatsApp number** — use a dedicated SIM in a spare phone, never a
-personal number. To connect it (once; the session is kept in the `whatsapp` volume and backed up hourly):
+There's no shared number: **every company connects its own** WhatsApp number — a dedicated SIM in a spare phone,
+never a personal number. Until it does, that company has no WhatsApp (briefs go by its email, if it set one up). An
+admin of the company connects it once (the session is kept in the `whatsapp` volume and backed up hourly):
 
-1. Make sure your email is in `PLATFORM_ADMIN_EMAILS` in `/opt/onefold/<env>/app.env` (then `start.sh <env>`).
-2. Sign in, open **Integrations → WhatsApp**, and in **1FOLD's bot** press **Connect the bot**. A QR code appears within a few seconds.
-3. On the bot's phone: WhatsApp → **Settings → Linked devices → Link a device**, and scan it.
+1. Sign in, open **Integrations → Team Bot**, and press **Set up bot**. A QR code appears within a few seconds.
+2. On the bot's phone: WhatsApp → **Settings → Linked devices → Link a device**, and scan it.
 
 Teammates then link their own numbers from their name (top right) → **WhatsApp**: 1Fold gives them a code to send the
-bot, which proves the number is theirs. Briefs go out at 9:00 (the company's time zone) on working days. If WhatsApp
-ever logs the bot out, the platform admins get an email, briefs go by email meanwhile, and Integrations → WhatsApp shows
-*Disconnected — scan again*. The worker's log: `compose.sh prod logs -f worker`.
+company's number, which proves the number is theirs. Each person has their own private chat with it. Briefs go out at
+the time the company set (9:00 by default, in its time zone) on working days. If WhatsApp ever logs a company's number
+out, its admins get an email (through the company's own email), briefs go by email meanwhile, and Team Bot shows it.
+The worker's log: `compose.sh prod logs -f worker`.
 
 ## Releasing
 

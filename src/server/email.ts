@@ -1,5 +1,7 @@
-// Email, through Resend: a company's own account (its admins set it in Integrations → Email — the key encrypted), or
-// else the server's (RESEND_API_KEY, from EMAIL_FROM). With EMAIL_OUTBOX_DIR set nothing leaves the machine: each
+// Email, through Resend. A company's emails (invites, the brief, tests) go only through its own account — its admins
+// set it in Integrations → Email, the key encrypted; without one, they aren't sent. The platform's own account
+// (RESEND_API_KEY, from EMAIL_FROM) sends just the two emails that keep logins safe: "confirm your email" and "reset
+// your password" — so nobody is ever locked out. With EMAIL_OUTBOX_DIR set nothing leaves the machine: each
 // message is written there as JSON (tests and e2e read them back). With no Resend, development prints it to the
 // server log. Sending never throws — a failed email is logged and reported, with Resend's reason.
 import { mkdir, writeFile } from "node:fs/promises";
@@ -81,23 +83,22 @@ export async function removeCompanyResend(orgId: string): Promise<void> {
   await inScope({ orgId }, (tx) => tx.delete(s.companyEmail).where(eq(s.companyEmail.orgId, orgId)));
 }
 
-/** Which Resend a company's emails go through: its own, else the server's; null when neither is set. */
+/** Which Resend an email goes through: a company's own (`orgId`) — never another's — or, with none, the platform's. */
 export async function resendFor(orgId?: string): Promise<Resend | null> {
-  return (orgId ? await companyResend(orgId).catch(() => null) : null) ?? serverResend();
+  return orgId ? companyResend(orgId).catch(() => null) : serverResend();
 }
 
-/** Whether this company's emails reach people (its Resend or the server's), or a test inbox. Gates "confirm your email". */
-export async function emailOn(orgId?: string): Promise<boolean> {
-  return !!process.env.EMAIL_OUTBOX_DIR || !!(await resendFor(orgId));
+/** Whether the platform can send its login emails (or tests read them) — then a new login confirms its address. */
+export async function emailOn(): Promise<boolean> {
+  return !!process.env.EMAIL_OUTBOX_DIR || !!serverResend();
 }
 
-export interface EmailStatus { mode: "own" | "server" | "outbox" | "off"; from: string; hint: string | null }
-/** How email is set up for a company, for Integrations → Email — never its key, only the key's last 4. */
-export async function emailStatus(orgId?: string): Promise<EmailStatus> {
-  const own = orgId ? await companyResend(orgId).catch(() => null) : null;
+export interface EmailStatus { mode: "own" | "outbox" | "off"; from: string; hint: string | null }
+/** How a company's email is set up, for Integrations → Email — never its key, only the key's last 4. */
+export async function emailStatus(orgId: string): Promise<EmailStatus> {
+  const own = await companyResend(orgId).catch(() => null);
   if (own) return { mode: "own", from: own.from, hint: own.hint };
-  const server = serverResend();
-  return { mode: server ? "server" : process.env.EMAIL_OUTBOX_DIR ? "outbox" : "off", from: server?.from ?? DEFAULT_FROM, hint: null };
+  return { mode: process.env.EMAIL_OUTBOX_DIR ? "outbox" : "off", from: "", hint: null };
 }
 
 export type Sent = { ok: true } | { ok: false; reason: string };
@@ -118,8 +119,8 @@ export async function deliverEmail(msg: Email, opts: { orgId?: string; via?: Res
     const resend = opts.via ?? (await resendFor(opts.orgId));
     if (!resend) {
       if (process.env.NEXT_PUBLIC_APP_ENV === "dev") console.info(`[email] (not sent — no Resend set up) to ${msg.to}: ${msg.subject}\n${msg.text}`);
-      else console.warn(`[email] not sent — no Resend set up (Integrations → Email, or RESEND_API_KEY): "${msg.subject}" to ${msg.to}`);
-      return { ok: false, reason: "Email isn't set up yet — add a Resend API key in Integrations → Email" };
+      else console.warn(`[email] not sent — no Resend set up (${opts.orgId ? "the company's, in Integrations → Email" : "RESEND_API_KEY"}): "${msg.subject}" to ${msg.to}`);
+      return { ok: false, reason: opts.orgId ? "Your company's email isn't set up yet — add a Resend API key in Integrations → Email" : "Email isn't set up on this server yet" };
     }
     const res = await fetch(RESEND_URL, {
       method: "POST",
@@ -202,12 +203,13 @@ export const briefEmail = (p: { to: string; orgName: string; text: string; myWor
   "WhatsApp couldn't be reached this morning, so your 1Fold brief came by email instead.",
 );
 
-export const botDownEmail = (p: { to: string; settingsUrl: string }) => message(
-  p.to, "1Fold's WhatsApp bot was disconnected",
-  ["The WhatsApp number 1Fold sends daily briefs from was logged out (or WhatsApp stopped it).",
-    "Until it's connected again, briefs go out by email. To reconnect: Settings → WhatsApp → Connect the bot, then scan the code from the bot's phone (Linked devices → Link a device)."],
-  { label: "Open Settings", url: p.settingsUrl },
-  "You get this because you can manage 1Fold's WhatsApp bot (PLATFORM_ADMIN_EMAILS).",
+/** To a company's admins, through its own email: WhatsApp logged its number out. */
+export const numberDownEmail = (p: { to: string; orgName: string; teamBotUrl: string }) => message(
+  p.to, `${p.orgName}'s WhatsApp number was disconnected`,
+  [`WhatsApp logged out the number ${p.orgName}'s team bot sends from (or stopped it).`,
+    "Until it's connected again, briefs go by email and nobody can link a new number. To reconnect: Integrations → Team Bot → Set up bot, then scan the code from the bot's phone (Linked devices → Link a device)."],
+  { label: "Open Team Bot", url: p.teamBotUrl },
+  `You get this because you're an admin of ${p.orgName} on 1Fold.`,
 );
 
 /** Integrations → Email: a test, to the admin who asked for it. */

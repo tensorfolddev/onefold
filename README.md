@@ -54,11 +54,12 @@ The worker (`npm run worker` locally) runs scheduled jobs next to the website.
 
 ## WhatsApp brief
 
-The worker runs a WhatsApp bot (Baileys, the way Hermes Agent does: bot mode on its own number, deny by default,
-never writes first). People link their number by sending it a one-time code (their name → WhatsApp); every working
-day at 9:00 in the company's time zone they get all their pending tickets, project by project, with due dates and
-links. Replying 1FOLD sends it again anytime; it can't be switched off. When WhatsApp is down the brief goes by email. Platform admins (`PLATFORM_ADMIN_EMAILS`) pair the
-bot in Settings → WhatsApp. Locally: `npm run worker` next to `npm run dev`.
+The worker runs each company's own WhatsApp bot (Baileys, the way Hermes Agent does: bot mode on the company's own
+number, deny by default, never writes first) — there's no shared number; a company's admins connect theirs in
+Integrations → Team Bot. People link their number by sending it a one-time code (their name → WhatsApp); every working
+day at the company's brief time they get all their pending tickets, project by project, with due dates and links —
+each in their own private chat. Replying 1FOLD sends it again anytime; it can't be switched off. When WhatsApp is down
+the brief goes by the company's email. Locally: `npm run worker` next to `npm run dev`.
 
 ## Claude & MCP
 

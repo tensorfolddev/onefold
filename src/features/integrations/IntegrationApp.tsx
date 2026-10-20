@@ -14,7 +14,7 @@ import { McpDialog } from "@/features/mcp/McpDialog";
 import {
   BriefTab, DeliveriesTab, MembersTab, TemplatesTab, useCompanyWhatsApp, type Company, type CompanyBot,
 } from "@/features/whatsapp/CompanyWhatsApp";
-import { PairingQr, PlatformBot, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
+import { PairingQr, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { Tabs } from "@/ui/primitives";
 import { appOf, emailLabel, RecipeText, useAppStatuses, useEmailStatus, type App, type AppStatus, type EmailStatus } from "./catalog";
@@ -183,7 +183,7 @@ function ResendSetup({ status, onSaved }: { status: EmailStatus; onSaved: (s: Em
       </form>
       {removing && (
         <ConfirmDialog title="Remove your Resend?" confirmLabel="Remove"
-          body={<p>Invites, password resets and email briefs go back to 1FOLD&apos;s email — or, where this server has none, aren&apos;t sent.</p>}
+          body={<p>1Fold stops emailing your team: invite links are shown to copy instead, and briefs go only on WhatsApp.</p>}
           onCancel={() => setRemoving(false)} onConfirm={() => { setRemoving(false); void remove(); }} />
       )}
     </section>
@@ -202,7 +202,6 @@ function PersonalApp({ app, status }: { app: App; status: AppStatus }) {
           <button type="button" className={`btn btn-lg ${status.connected ? "btn-secondary" : "btn-primary"}`} onClick={() => setOpen(true)}>{label}</button>
         </>
       )} />
-      {app.id === "whatsapp" && <PlatformBot />}
       <Overview app={app} />
       {open && (app.id === "claude" ? <McpDialog onClose={() => setOpen(false)} /> : <WhatsAppDialog onClose={() => setOpen(false)} />)}
     </div>
@@ -263,7 +262,7 @@ function TeamBotApp({ app }: { app: App }) {
 
       {disconnecting && (
         <ConfirmDialog title="Disconnect your team bot?" confirmLabel="Disconnect"
-          body={<p>Briefs, alerts and replies go back to coming from 1FOLD&apos;s bot. You can set yours up again any time.</p>}
+          body={<p>Your team stops getting briefs, alerts and replies on WhatsApp until you connect a number again — briefs go by email meanwhile, if you&apos;ve set it up.</p>}
           onCancel={() => setDisconnecting(false)} onConfirm={() => { setDisconnecting(false); void ask("logout"); }} />
       )}
     </div>
@@ -295,7 +294,7 @@ function BotSetup({ own, busy, onRegenerate, onCancel }: { own: CompanyBot; busy
           <li><span className="int-step-n" aria-hidden>3</span><span>Scan this code. It refreshes about every 20 seconds — this page keeps up.</span></li>
         </ol>
         {own.state === "logged_out" && <p className="auth-error">WhatsApp logged this number out — scan a fresh code to connect it again.</p>}
-        <p className="muted tb-setup-note">Until it&apos;s connected, your team gets messages from 1FOLD&apos;s bot.</p>
+        <p className="muted tb-setup-note">Until it&apos;s connected, your team has no WhatsApp: no briefs, alerts or replies there.</p>
         <div className="tb-setup-actions">
           <button type="button" className={`btn ${expired ? "btn-primary" : "btn-secondary"}`} disabled={busy || waiting} onClick={onRegenerate}><RefreshCw aria-hidden /> Regenerate QR</button>
           <button type="button" className="btn btn-tertiary" disabled={busy} onClick={onCancel}>Cancel pairing</button>

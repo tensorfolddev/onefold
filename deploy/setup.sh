@@ -100,17 +100,15 @@ SETTINGS
   if [ ! -f "$dir/app.env" ]; then
     local key_var="${up}_RESEND_API_KEY" from_var="${up}_EMAIL_FROM" default_from
     if [ "$env" = prod ]; then default_from="1Fold <no-reply@tensorfold.ai>"; else default_from="1Fold Staging <no-reply@$STG_DOMAIN>"; fi
-    ask "$key_var" "$env: Resend API key (empty to add later in $dir/app.env)" ""
+    ask "$key_var" "$env: 1Fold's own Resend API key — only for sign-up confirmations and password resets; each company sets its own email in Integrations (empty to add later in $dir/app.env)" ""
     ask "$from_var" "$env: send emails from" "$default_from"
-    ask PLATFORM_ADMIN_EMAILS "Who may connect the WhatsApp bot (comma-separated emails)" "tensorfold@gmail.com"
     (umask 077 && cat >"$dir/app.env" <<SETTINGS
 # 1Fold $env — what the website and worker read. Private. After changing it: deploy/start.sh $env
 APP_URL=https://$domain
 SESSION_SECRET=$(openssl rand -base64 36 | tr -d '\n')
+# 1Fold's own email — only "confirm your email" and "reset your password"; companies send through their own.
 RESEND_API_KEY=${!key_var}
 EMAIL_FROM=${!from_var}
-# Who may pair and unpair this environment's WhatsApp bot (Settings → WhatsApp).
-PLATFORM_ADMIN_EMAILS=$PLATFORM_ADMIN_EMAILS
 SETTINGS
     )
   fi
