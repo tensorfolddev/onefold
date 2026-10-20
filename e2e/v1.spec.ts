@@ -1384,6 +1384,25 @@ test("Integrations → Email: an admin tests email, saves their company's Resend
   await expect(page.locator(".int-app-cta").getByRole("status")).toContainText("Test inbox (development)");
 });
 
+test("signed out, / is the home page — with Privacy and Terms anyone can read; signed in, / is your workspace", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /Every product, from intake to release/, level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create your company" }).first()).toHaveAttribute("href", "/signup");
+
+  await page.getByRole("contentinfo").getByRole("link", { name: "Privacy" }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole("heading", { name: "Privacy Policy", level: 1 })).toBeVisible();
+  await expect(page.getByText(/adheres to the Google API Services User Data Policy, including the Limited Use requirements/)).toBeVisible();
+  await page.getByRole("contentinfo").getByRole("link", { name: "Terms" }).click();
+  await expect(page.getByRole("heading", { name: "Terms of Service", level: 1 })).toBeVisible();
+
+  await page.goto("/signin");
+  await expect(page.locator(".auth-foot").getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
+  await signUp(page, "Homefold", email("homefold"));
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/admin$/);
+});
+
 test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/signup");

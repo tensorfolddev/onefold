@@ -6,7 +6,8 @@ const SLUGS = new Set<string>(Object.values(PANEL_SLUG));
 const SIGNED_OUT_ONLY = new Set(["/signin", "/signup", "/forgot"]);
 
 /**
- * Runs before every page: signed-out → /signin, wrong panel → own panel, panel-less links (/t/AP-12) → own panel.
+ * Runs before every page: signed-out → the home page or /signin, wrong panel → own panel, panel-less links (/t/AP-12)
+ * → own panel.
  * It reads only the signed route cookie, so routing needs no database. The API checks the real session on every call.
  */
 export async function proxy(req: NextRequest) {
@@ -15,7 +16,7 @@ export async function proxy(req: NextRequest) {
   const to = (path: string) => NextResponse.redirect(new URL(path, req.url));
 
   if (isPublicPath(pathname)) return session && SIGNED_OUT_ONLY.has(pathname) ? to(panelHome(session.panel)) : NextResponse.next();
-  if (!session) return to(pathname === "/" ? "/signin" : `/signin?next=${encodeURIComponent(pathname + search)}`);
+  if (!session) return pathname === "/" ? NextResponse.next() : to(`/signin?next=${encodeURIComponent(pathname + search)}`); // "/": the home page
 
   const home = panelHome(session.panel);
   const first = pathname.split("/")[1];
