@@ -11,10 +11,24 @@ import { shortDate } from "@/domain/status";
 import type { Product, Ticket } from "@/domain/types";
 import { TypeIcon } from "@/features/tickets/TicketBits";
 import { useAppState } from "@/features/shell/state";
+import { ArchiveBucket } from "@/ui/ArchiveBucket";
 import { BulkHead, usePicked } from "@/ui/BulkSelect";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 
-export function ArchivedTickets({ product }: { product: Product }) {
+/** Product Settings → Archived: the archived tickets as a bucket that opens into the full list. */
+export function ArchivedTicketsBucket({ product }: { product: Product }) {
+  const { archivedTickets } = useMe();
+  const mine = archivedTickets.filter((t) => t.productKey === product.key);
+  const latest = mine.reduce<Ticket | undefined>((a, t) => (!a || (t.archivedAt ?? "") > (a.archivedAt ?? "") ? t : a), undefined);
+  return (
+    <ArchiveBucket icon={Archive} title="Archived tickets" count={mine.length} latest={latest && { name: `${latest.key} ${latest.title}`, at: latest.archivedAt }}>
+      {(close) => <ArchivedTickets product={product} bare onOpen={close} />}
+    </ArchiveBucket>
+  );
+}
+
+/** The archived tickets to bring back or delete for good. `bare`: just the list, in a bucket's window (`onOpen` closes it). */
+export function ArchivedTickets({ product, bare = false, onOpen }: { product: Product; bare?: boolean; onOpen?: () => void }) {
   const { archivedTickets, personById, can, act } = useMe();
   const { openTicket } = useAppState();
   const [query, setQuery] = useState("");
@@ -35,13 +49,13 @@ export function ArchivedTickets({ product }: { product: Product }) {
   };
 
   return (
-    <section className="card admin-card archived-tickets" aria-labelledby="archived-title">
+    <section className={`${bare ? "" : "card admin-card "}archived-tickets`} aria-label={bare ? "Archived tickets" : undefined} aria-labelledby={bare ? undefined : "archived-title"}>
       <div className="archived-head">
-        <h2 id="archived-title" className="section-title"><Archive aria-hidden /> Archived <span className="muted">{all.length}</span></h2>
+        {!bare && <h2 id="archived-title" className="section-title"><Archive aria-hidden /> Archived <span className="muted">{all.length}</span></h2>}
         {all.length > 0 && (
           <label className="input archived-search">
             <Search aria-hidden />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search archived tickets" aria-label="Search archived tickets" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search archived tickets" aria-label="Search archived tickets" autoFocus={bare} />
           </label>
         )}
       </div>
@@ -66,7 +80,7 @@ export function ArchivedTickets({ product }: { product: Product }) {
                 <input type="checkbox" className="checkbox" checked={selected.includes(t.key)} aria-label={`Select ${t.key}`}
                   onChange={(e) => pick([t.key], e.target.checked)} />
               )}
-              <button type="button" className="archived-open" onClick={() => openTicket(t.key)} title={`Open ${t.key}`}>
+              <button type="button" className="archived-open" onClick={() => { onOpen?.(); openTicket(t.key); }} title={`Open ${t.key}`}>
                 <TypeIcon type={t.type} /><span className="key">{t.key}</span><span className="archived-title">{t.title}</span>
               </button>
               <span className="archived-meta">

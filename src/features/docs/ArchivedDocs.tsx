@@ -6,29 +6,54 @@
 // tick them (or Select all), then Restore or Delete forever.
 import Link from "next/link";
 import { useState } from "react";
-import { ArchiveRestore, FileText, Trash2 } from "lucide-react";
+import { ArchiveRestore, FileText, Search, Trash2 } from "lucide-react";
 import { deleteDocs, docDeletePhrase, restoreDocs, withSubpages } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
-import type { Doc } from "@/domain/types";
+import type { Db } from "@/data/db";
+import type { Doc, Person } from "@/domain/types";
+import { ArchiveBucket } from "@/ui/ArchiveBucket";
 import { BulkHead, usePicked } from "@/ui/BulkSelect";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { docPath, MY_DOCS, spaceKeyOf } from "./tree";
 
-export function ArchivedDocs({ productKey }: { productKey: string }) {
+/** A space's archived pages, and the ones archived on their own (a subpage archived with its parent goes back with it). */
+function archivedIn(db: Db, me: Person, productKey: string) {
+  const personal = productKey === MY_DOCS;
+  const archived = db.docs.filter((d) => spaceKeyOf(d) === productKey && d.archivedAt && (!personal || d.ownerId === me.id));
+  const archivedIds = new Set(archived.map((d) => d.id));
+  const roots = archived.filter((d) => !d.parentId || !archivedIds.has(d.parentId) || db.docs.find((p) => p.id === d.parentId)?.archivedAt !== d.archivedAt)
+    .sort((a, b) => (b.archivedAt ?? "").localeCompare(a.archivedAt ?? "")); // most recently archived first
+  return { archived, roots };
+}
+
+/** Settings → Archived: the archived docs as a bucket that opens into the full list. */
+export function ArchivedDocsBucket({ productKey }: { productKey: string }) {
+  const { db, me, can, productByKey } = useMe();
+  const product = productKey ? productByKey(productKey) : undefined;
+  if (!can("doc.archive", { product })) return null;
+  const { roots } = archivedIn(db, me, productKey);
+  return (
+    <ArchiveBucket icon={FileText} title="Archived docs" count={roots.length} latest={roots[0] && { name: roots[0].title, at: roots[0].archivedAt }}>
+      {() => <ArchivedDocs productKey={productKey} bare />}
+    </ArchiveBucket>
+  );
+}
+
+/** The archived pages to bring back or delete for good. `bare`: just the list, inside a bucket's window. */
+export function ArchivedDocs({ productKey, bare = false }: { productKey: string; bare?: boolean }) {
   const { db, can, act, href, personById, productByKey, me } = useMe();
   const personal = productKey === MY_DOCS;
   const product = productKey && !personal ? productByKey(productKey) : undefined;
   const [deleting, setDeleting] = useState<Doc[] | null>(null);
-  const archived = db.docs.filter((d) => spaceKeyOf(d) === productKey && d.archivedAt && (!personal || d.ownerId === me.id));
-  const archivedIds = new Set(archived.map((d) => d.id));
-  // The pages archived on their own (a subpage archived with its parent goes back with it).
-  const roots = archived.filter((d) => !d.parentId || !archivedIds.has(d.parentId) || db.docs.find((p) => p.id === d.parentId)?.archivedAt !== d.archivedAt)
-    .sort((a, b) => (b.archivedAt ?? "").localeCompare(a.archivedAt ?? ""));
+  const [query, setQuery] = useState("");
+  const { archived, roots: all } = archivedIn(db, me, productKey);
+  const q = query.trim().toLowerCase();
+  const roots = q ? all.filter((d) => d.title.toLowerCase().includes(q)) : all;
   const subpages = (d: Doc) => withSubpages(archived, [d.id]).size - 1;
   const { selected, pick, clear } = usePicked(roots.map((d) => d.id));
   if (!personal && !can("doc.archive", { product })) return null;
-  if (personal && !roots.length) return null; // My docs: shown only when there's something to bring back
+  if (personal && !all.length) return null; // My docs: shown only when there's something to bring back
   const picked = roots.filter((d) => selected.includes(d.id));
   const restore = (docs: Doc[]) => {
     const ids = docs.map((d) => d.id);
@@ -36,10 +61,18 @@ export function ArchivedDocs({ productKey }: { productKey: string }) {
   };
 
   return (
-    <section className="card admin-card archived-docs" aria-labelledby="archived-docs-title">
-      <h2 id="archived-docs-title" className="section-title">Archived docs <span className="muted">{roots.length}</span></h2>
+    <section className={`${bare ? "" : "card admin-card "}archived-docs`} aria-label={bare ? "Archived docs" : undefined} aria-labelledby={bare ? undefined : "archived-docs-title"}>
+      <div className="archived-head">
+        {!bare && <h2 id="archived-docs-title" className="section-title">Archived docs <span className="muted">{all.length}</span></h2>}
+        {all.length > 0 && (
+          <label className="input archived-search">
+            <Search aria-hidden />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search archived docs" aria-label="Search archived docs" autoFocus={bare} />
+          </label>
+        )}
+      </div>
       <p className="muted">{personal ? "Only you can see your archived pages." : "Archived pages are hidden from everyone else and read-only."} Restore one, or delete it for good.</p>
-      {roots.length === 0 ? <p className="archived-empty">Nothing archived. Archive a page from its ⋯ menu.</p> : (
+      {all.length === 0 ? <p className="archived-empty">Nothing archived. Archive a page from its ⋯ menu.</p> : roots.length === 0 ? <p className="archived-empty">No archived doc matches “{query}”.</p> : (
         <>
         <BulkHead total={roots.length} picked={picked.length} noun="archived docs" onAll={(on) => pick(roots.map((d) => d.id), on)} onClear={clear}>
           <button type="button" className="btn btn-secondary" onClick={() => restore(picked)}><ArchiveRestore aria-hidden /> Restore</button>
