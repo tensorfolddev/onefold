@@ -908,7 +908,7 @@ test("members: leads up top, the team as cards with what they carry; add someone
   await expect(page.getByText("Only the leads so far")).toBeVisible();
 });
 
-test("personal workspace: a developer makes their own product and adds a teammate by email; nobody else sees it", async ({ page, browser }) => {
+test("workspaces: a developer makes a product in My workspace and adds a teammate by email; there, nothing of the company's shows", async ({ page, browser }) => {
   await signUp(page, "Phi", email("pwfounder"));
   await page.getByLabel("Email 1", { exact: true }).fill(email("pwdev"));
   await confirmEmail(page, email("pwfounder"));
@@ -924,15 +924,18 @@ test("personal workspace: a developer makes their own product and adds a teammat
   await expect(dev).toHaveURL(/\/dev$/, { timeout: 20_000 });
 
   await dev.goto("/dev/products");
-  await dev.locator(".page-header").getByRole("link", { name: "New personal product" }).click();
-  const form = dev.getByRole("dialog", { name: "New personal product" });
+  await dev.getByRole("button", { name: "Workspace: Phi" }).click();
+  await expect(dev.getByRole("button", { name: "New product in Phi" })).toHaveCount(0); // the company's products are its admins' to make
+  await dev.getByRole("button", { name: "New product in My workspace" }).click();
+  const form = dev.getByRole("dialog", { name: "New product in My workspace" });
   await form.getByPlaceholder("Product name").fill("Side Quest");
   await form.getByText("Our own product").click();
   await expect(form.getByText("Product manager")).toHaveCount(0); // its owner runs it
   await form.getByRole("button", { name: "Create product" }).click();
   await expect(dev).toHaveURL(/\/dev\/products\/SQ$/);
   await expect(dev.locator(".product-header")).toContainText("Personal");
-  await expect(dev.locator(".sidebar-personal")).toContainText("Side Quest");
+  await expect(dev.getByRole("button", { name: "Workspace: My workspace" })).toBeVisible();
+  await expect(dev.getByRole("complementary", { name: "Products" })).toContainText("Side Quest");
   await expect(dev.getByRole("link", { name: "Settings" })).toBeVisible(); // a developer, running their own
 
   await page.goto("/admin/products/SQ"); // the admin doesn't see it
@@ -948,10 +951,18 @@ test("personal workspace: a developer makes their own product and adds a teammat
   await dev.getByRole("menuitem", { name: `Add ${email("pwfounder")}` }).click();
   await expect(dev.locator(".toast-message", { hasText: "Added Ayla Khan" })).toBeVisible();
 
-  await page.goto("/admin/products/SQ");
+  await page.goto("/admin/products/SQ"); // a link into someone's personal product opens My workspace
   await expect(page.getByRole("heading", { name: "Side Quest", level: 1 })).toBeVisible();
-  await expect(page.locator(".sidebar-personal")).toContainText("Side Quest");
+  await expect(page.getByRole("button", { name: "Workspace: My workspace" })).toBeVisible();
   await expect(page.locator(".product-header").getByRole("link", { name: "Settings" })).toHaveCount(0); // added, not running it
+  const rail = page.getByRole("navigation", { name: "Main" });
+  for (const company of ["People", "Teams", "Settings"]) await expect(rail.getByRole("link", { name: company })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Workspace: My workspace" }).click();
+  await page.getByRole("menuitemradio", { name: "Phi" }).click(); // back to the company's
+  await expect(page).toHaveURL(/\/admin\/products$/);
+  await expect(rail.getByRole("link", { name: "People" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Products" })).not.toContainText("Side Quest");
 });
 
 test("notifications: an @mention in an update reaches them live; @@ is urgent; being assigned tells them; read stays read", async ({ page, browser }) => {

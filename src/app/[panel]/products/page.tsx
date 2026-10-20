@@ -2,47 +2,43 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, Plus } from "lucide-react";
-import { companyProducts, personalProducts } from "@/domain/permissions";
+import { FolderOpen, Plus } from "lucide-react";
+import { visibleProducts } from "@/domain/permissions";
 import { useMe } from "@/data/StoreProvider";
 import { ProductCards, ProductsView } from "@/features/products/ProductsView";
 import { NewProductDialog } from "@/features/products/ProductForm";
+import { EmptyState } from "@/ui/primitives";
 
-/** The company's products (a table for admins and managers, cards for developers), then your Personal workspace. */
+/** The workspace's products: the company's (a table for admins and managers, cards for developers), or your own. */
 export default function ProductsPage() {
-  const { me, db, can, href, panel } = useMe();
-  const company = companyProducts(me, db.products);
-  const personal = personalProducts(me, db.products);
+  const { me, db, can, href, panel, workspace } = useMe();
+  const products = visibleProducts(me, db.products); // the screens' copy holds only this workspace
   const router = useRouter();
   const asked = useSearchParams().get("new");
-  const canCompany = can("product.create");
+  const personal = workspace === "personal";
+  const canNew = personal || can("product.create");
   return (
     <div className="page">
       <header className="page-header">
         <div>
-          <h1 className="page-title">Products</h1>
+          <h1 className="page-title">{personal ? "My products" : "Products"}</h1>
           <span className="page-subtitle">
-            {company.length} {company.length === 1 ? "product" : "products"} · {panel === "developer" ? "you work on" : "intake to release"}
+            {products.length} {products.length === 1 ? "product" : "products"} · {personal ? "only you and the people you add see them" : panel === "developer" ? "you work on" : "intake to release"}
           </span>
         </div>
         <span className="spacer" />
-        <Link href={href(canCompany ? "/products?new=1" : "/products?new=personal")} scroll={false} className="btn btn-primary">
-          <Plus aria-hidden /> {canCompany ? "New product" : "New personal product"}
-        </Link>
+        {canNew && (
+          <Link href={href(personal ? "/products?new=personal" : "/products?new=1")} scroll={false} className="btn btn-primary"><Plus aria-hidden /> New product</Link>
+        )}
       </header>
-      {panel === "developer" ? <ProductCards products={company} /> : <ProductsView products={company} />}
-      <section className="products-personal" aria-labelledby="personal-title">
-        <header className="products-personal-head">
-          <h2 id="personal-title" className="section-title"><Lock aria-hidden /> Personal</h2>
-          <span className="muted">Products of yours, and ones you were added to — only the people on each see them</span>
-        </header>
-        <ProductCards products={personal} empty={(
-          <Link href={href("/products?new=personal")} scroll={false} className="products-personal-empty">
-            <Plus aria-hidden /> <span><strong>Start a personal product</strong> — a side project, an experiment, your own board</span>
-          </Link>
+      {personal ? (
+        <ProductCards products={products} empty={(
+          <EmptyState icon={<FolderOpen aria-hidden />} title="Nothing in your workspace yet">
+            A side project, an experiment, your own board — <Link href={href("/products?new=personal")} scroll={false}>make your first product</Link>.
+          </EmptyState>
         )} />
-      </section>
-      {asked && <NewProductDialog personal={asked === "personal"} onClose={() => router.replace(href("/products"), { scroll: false })} />}
+      ) : panel === "developer" ? <ProductCards products={products} /> : <ProductsView products={products} />}
+      {asked && <NewProductDialog personal={asked === "personal" || !can("product.create")} onClose={() => router.replace(href("/products"), { scroll: false })} />}
     </div>
   );
 }

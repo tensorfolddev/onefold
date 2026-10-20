@@ -4,7 +4,7 @@
 // page on the right. The page stays put; the sidebar and the doc scroll on their own. The sidebar folds away (and
 // remembers that in this browser); a doc's top bar brings it back.
 import Link from "next/link";
-import { BookOpen, ChevronRight, ChevronsLeft, ChevronsRight, FileText, Lock, Plus, Search } from "lucide-react";
+import { ChevronRight, ChevronsLeft, ChevronsRight, FileText, Lock, Plus, Search } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useDb } from "@/data/StoreProvider";
 import { searchDocs, type DocHit } from "./api";
@@ -100,12 +100,6 @@ export function DocsSpace({ productKey, activeId, children }: { productKey: stri
               </Link>
               <button type="button" className="doc-row-btn" aria-label="Hide the sidebar" data-tip="Hide sidebar" onClick={() => setFolded(true)}><ChevronsLeft aria-hidden /></button>
             </div>
-            {!product && ( // the company's pages, or your own
-              <nav className="docs-spaces" aria-label="Docs spaces">
-                <Link href={href("/docs")} aria-current={personal ? undefined : "page"}><BookOpen aria-hidden /> Company</Link>
-                <Link href={href(spacePath(MY_DOCS))} aria-current={personal ? "page" : undefined}><Lock aria-hidden /> My docs</Link>
-              </nav>
-            )}
             <label className="docs-search">
               <Search aria-hidden />
               <input type="search" placeholder="Search docs" aria-label="Search docs" value={q} onChange={(e) => setQ(e.target.value)} />

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { Building2, Check, Lock, Pencil, Sparkles, X } from "lucide-react";
+import { Building2, Check, Pencil, Sparkles, X } from "lucide-react";
 import { today } from "@/domain/clock";
 import { addGroup, createProduct, setProductLook, updateProduct, type ProductInput } from "@/data/commands";
 import { PRODUCT_COLORS, type Db } from "@/data/db";
@@ -189,14 +189,9 @@ export function ProductForm({ product, personal = false, onCancel, inDialog }: {
   );
 }
 
-/**
- * "New product" as a popup over the Products page. Native <dialog>: focus stays inside, Escape closes. Admins choose
- * where it goes — the company, or their own workspace; everyone else makes personal ones.
- */
+/** "New product" as a popup over the Products page — in the company's workspace, or (`personal`) your own. */
 export function NewProductDialog({ onClose, personal = false }: { onClose: () => void; personal?: boolean }) {
-  const { can, db } = useMe();
-  const canCompany = can("product.create");
-  const [mine, setMine] = useState(personal || !canCompany);
+  const { db } = useMe();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -211,21 +206,12 @@ export function NewProductDialog({ onClose, personal = false }: { onClose: () =>
     >
       <header className="pf-dialog-head">
         <div>
-          <h2 id="pf-dialog-title" className="pf-dialog-title">{mine ? "New personal product" : "New product"}</h2>
-          <p className="muted">{mine ? "In your own workspace — only you and the people you add see it" : "Starts at INTAKE with the standard ticket statuses"}</p>
+          <h2 id="pf-dialog-title" className="pf-dialog-title">{personal ? "New product in My workspace" : `New product in ${db.org.name}`}</h2>
+          <p className="muted">{personal ? "Only you and the people you add see it" : "Starts at INTAKE with the standard ticket statuses"}</p>
         </div>
         <IconButton label="Close" onClick={onClose}><X /></IconButton>
       </header>
-      {canCompany && (
-        <div className="pf-where" role="radiogroup" aria-label="Workspace">
-          {([[false, Building2, db.org.name], [true, Lock, "My workspace"]] as const).map(([own, Icon, label]) => (
-            <button key={label} type="button" role="radio" aria-checked={mine === own} className={`pf-where-option${mine === own ? " is-on" : ""}`} onClick={() => setMine(own)}>
-              <Icon aria-hidden /> {label}
-            </button>
-          ))}
-        </div>
-      )}
-      <ProductForm key={String(mine)} personal={mine} onCancel={onClose} inDialog />
+      <ProductForm personal={personal} onCancel={onClose} inDialog />
     </dialog>
   );
 }

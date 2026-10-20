@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Archive, ArchiveRestore, Check, ChevronDown, FolderInput, FolderMinus, LayoutGrid, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
-import { archivedProducts, companyProducts, personalProducts } from "@/domain/permissions";
+import { archivedProducts, visibleProducts } from "@/domain/permissions";
+import type { Workspace } from "@/domain/workspace";
 import { addGroup, deleteGroup, moveProduct, renameGroup } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Product, ProductGroup } from "@/domain/types";
@@ -37,13 +39,54 @@ export function InlineName({ initial = "", label, onSave, onCancel }: {
 
 const initialOf = (name: string) => name.trim()[0]?.toUpperCase() ?? "?";
 
-/** The company this sidebar belongs to (one company per sign-in). */
-function CompanyName() {
-  const { db } = useMe();
+/**
+ * The workspace you're in — the company's, or your own — and a + to make a product there. Open it to switch; each
+ * workspace has its own + too. In your own, nothing of the company's shows anywhere.
+ */
+export function WorkspaceSwitcher({ onNavigate = () => {}, compact = false }: { onNavigate?: () => void; compact?: boolean }) {
+  const { db, me, can, href, workspace, setWorkspace } = useMe();
+  const router = useRouter();
+  const spaces: { ws: Workspace; name: string; mark: React.ReactNode; add: string | null }[] = [
+    { ws: "company", name: db.org.name, mark: <span className="workspace-avatar" aria-hidden>{initialOf(db.org.name)}</span>, add: can("product.create") ? "/products?new=1" : null },
+    { ws: "personal", name: "My workspace", mark: <Avatar personId={me.id} size="sm" />, add: "/products?new=personal" },
+  ];
+  const cur = spaces.find((x) => x.ws === workspace)!;
+  const go = (ws: Workspace, path: string) => { setWorkspace(ws); onNavigate(); router.push(href(path)); };
   return (
-    <div className="sidebar-switcher">
-      <span className="workspace-avatar" aria-hidden>{initialOf(db.org.name)}</span>
-      <span className="workspace-name">{db.org.name}</span>
+    <div className={`sidebar-workspace${compact ? " is-compact" : ""}`}>
+      <Popover
+        width={264} className="workspace-menu"
+        trigger={({ open, toggle }) => (
+          <button type="button" className="sidebar-switcher is-button" aria-label={`Workspace: ${cur.name}`} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
+            {cur.mark}<span className="workspace-name">{cur.name}</span><ChevronDown aria-hidden className="workspace-chevron" />
+          </button>
+        )}
+      >
+        {(close) => (
+          <>
+            <div className="menu-section-label">Workspaces</div>
+            {spaces.map((x) => (
+              <div key={x.ws} className="workspace-option">
+                <button type="button" role="menuitemradio" aria-checked={x.ws === workspace} className={`menu-item${x.ws === workspace ? " is-selected" : ""}`}
+                  onClick={() => { close(); go(x.ws, compact ? "" : "/products"); }}>
+                  {x.mark}<span className="workspace-name">{x.name}</span>{x.ws === workspace && <Check className="menu-item-end" aria-hidden />}
+                </button>
+                {x.add && (
+                  <button type="button" className="workspace-add" aria-label={`New product in ${x.name}`} data-tip="New product"
+                    onClick={() => { close(); go(x.ws, x.add!); }}>
+                    <Plus aria-hidden />
+                  </button>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </Popover>
+      {cur.add && !compact && (
+        <button type="button" className="workspace-add is-side" aria-label={`New product in ${cur.name}`} data-tip="New product" onClick={() => go(cur.ws, cur.add!)}>
+          <Plus aria-hidden />
+        </button>
+      )}
     </div>
   );
 }
@@ -189,36 +232,18 @@ function ArchivedRow({ product, active, onNavigate }: { product: Product; active
 
 const ARCHIVED = "archived";
 
-/** Your own workspace, under the company's: you, then the personal products you're on. */
-function PersonalWorkspace({ products, item, onNavigate }: { products: Product[]; item: (p: Product) => React.ReactNode; onNavigate: () => void }) {
-  const { me, href } = useMe();
-  return (
-    <section className="sidebar-personal" aria-label="Personal">
-      <div className="sidebar-header"><span>Personal</span></div>
-      <div className="sidebar-switcher">
-        <Avatar personId={me.id} size="sm" />
-        <span className="workspace-name">My workspace</span>
-      </div>
-      {products.map(item)}
-      <Link href={href("/products?new=personal")} scroll={false} onClick={onNavigate} className="sidebar-add-group">
-        <Plus aria-hidden /> New personal product
-      </Link>
-    </section>
-  );
-}
-
 /**
- * Company → groups → products; then your Personal workspace; then the permanent Archived group (closed until opened;
- * a developer sees it only for personal products of their own). Groups are whatever the team wants.
+ * The workspace (switch it at the top), its products — the company's in groups, whatever the team wants — then the
+ * permanent Archived group (closed until opened; a developer sees it only for personal products of their own).
  */
 export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: () => void }) {
-  const { me, db, href, can, act } = useMe();
-  const products = companyProducts(me, db.products);
-  const personal = personalProducts(me, db.products);
+  const { me, db, href, can, act, workspace } = useMe();
+  const products = visibleProducts(me, db.products); // the workspace's: the screens' copy holds only that one
   const archived = archivedProducts(me, db.products);
+  const company = workspace === "company";
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set([ARCHIVED]));
   const [adding, setAdding] = useState(false);
-  const canGroups = can("groups.manage");
+  const canGroups = company && can("groups.manage");
   const toggle = (id: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const isActive = (p: Product) => rel === `/products/${p.key}` || rel.startsWith(`/products/${p.key}/`);
 
@@ -242,17 +267,19 @@ export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: 
 
   return (
     <aside className="app-sidebar" aria-label="Products">
-      <div className="sidebar-header"><span>Company</span></div>
-      <CompanyName />
+      <div className="sidebar-header"><span>Workspace</span></div>
+      <WorkspaceSwitcher onNavigate={onNavigate} />
       <Link href={href("/products")} onClick={onNavigate} className={`sidebar-item sidebar-all${rel === "/products" ? " is-active" : ""}`}>
         <LayoutGrid />
         All products
       </Link>
-      {groups.map((g) => (
+      {company && groups.map((g) => (
         <GroupSection key={g.id} group={g} products={products.filter((p) => p.groupId === g.id)}
           collapsed={collapsed.has(g.id)} onToggle={() => toggle(g.id)} item={item} />
       ))}
-      {ungrouped.length > 0 && (
+      {!company && <GroupSection group={null} label="Your products" empty="Nothing here yet — make one with +" products={products}
+        collapsed={collapsed.has("none")} onToggle={() => toggle("none")} item={item} />}
+      {company && ungrouped.length > 0 && (
         <GroupSection group={null} products={ungrouped} collapsed={collapsed.has("none")} onToggle={() => toggle("none")} item={item} />
       )}
       {canGroups && (adding ? (
@@ -261,7 +288,6 @@ export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: 
       ) : (
         <button type="button" className="sidebar-add-group" onClick={() => setAdding(true)}><Plus aria-hidden /> New group</button>
       ))}
-      <PersonalWorkspace products={personal} item={item} onNavigate={onNavigate} />
       {(me.panel !== "developer" || archived.length > 0) && (
         <GroupSection group={null} label="Archived" empty="Nothing archived" className="sidebar-archived" products={archived}
           collapsed={collapsed.has(ARCHIVED)} onToggle={() => toggle(ARCHIVED)}
