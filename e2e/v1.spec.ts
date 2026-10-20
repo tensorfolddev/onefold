@@ -904,9 +904,9 @@ test("members: leads up top, the team as cards with what they carry; add someone
 });
 
 test("personal workspace: a developer makes their own product and adds a teammate by email; nobody else sees it", async ({ page, browser }) => {
-  await signUp(page, "Phi", email("phi"));
-  await page.getByLabel("Email 1", { exact: true }).fill(email("phidev"));
-  await confirmEmail(page, email("phi"));
+  await signUp(page, "Phi", email("pwfounder"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("pwdev"));
+  await confirmEmail(page, email("pwfounder"));
   await page.getByRole("button", { name: "Create invite links" }).click();
   const link = (await page.locator(".inv-link-url").first().textContent())!;
   await page.getByRole("button", { name: "Go to Phi" }).click();
@@ -939,8 +939,8 @@ test("personal workspace: a developer makes their own product and adds a teammat
   await dev.getByRole("menuitem", { name: "Add someone@elsewhere.example" }).click();
   await expect(dev.locator(".toast-message", { hasText: /ask an admin to invite them first/ })).toBeVisible();
   await dev.getByRole("button", { name: "Add member" }).click();
-  await dev.getByLabel("Search people to add").fill(email("phi")); // she can't see emails: the server finds who it is
-  await dev.getByRole("menuitem", { name: `Add ${email("phi")}` }).click();
+  await dev.getByLabel("Search people to add").fill(email("pwfounder")); // she can't see emails: the server finds who it is
+  await dev.getByRole("menuitem", { name: `Add ${email("pwfounder")}` }).click();
   await expect(dev.locator(".toast-message", { hasText: "Added Ayla Khan" })).toBeVisible();
 
   await page.goto("/admin/products/SQ");
