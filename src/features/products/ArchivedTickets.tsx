@@ -11,14 +11,21 @@ import { shortDate } from "@/domain/status";
 import type { Product, Ticket } from "@/domain/types";
 import { TypeIcon } from "@/features/tickets/TicketBits";
 import { useAppState } from "@/features/shell/state";
+import { companyProducts } from "@/domain/permissions";
 import { ArchiveBucket } from "@/ui/ArchiveBucket";
 import { BulkHead, usePicked } from "@/ui/BulkSelect";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 
-/** Product Settings → Archived: the archived tickets as a bucket that opens into the full list. */
-export function ArchivedTicketsBucket({ product }: { product: Product }) {
-  const { archivedTickets } = useMe();
-  const mine = archivedTickets.filter((t) => t.productKey === product.key);
+/** Archived tickets in a project (`product`), or in every live company project (company Settings). */
+function useArchivedIn(product?: Product): Ticket[] {
+  const { archivedTickets, me, db } = useMe();
+  const keys = new Set(product ? [product.key] : companyProducts(me, db.products).map((p) => p.key));
+  return archivedTickets.filter((t) => keys.has(t.productKey));
+}
+
+/** Settings → Archived: the archived tickets as a bucket that opens into the full list. */
+export function ArchivedTicketsBucket({ product }: { product?: Product }) {
+  const mine = useArchivedIn(product);
   const latest = mine.reduce<Ticket | undefined>((a, t) => (!a || (t.archivedAt ?? "") > (a.archivedAt ?? "") ? t : a), undefined);
   return (
     <ArchiveBucket icon={Archive} title="Archived tickets" count={mine.length} latest={latest && { name: `${latest.key} ${latest.title}`, at: latest.archivedAt }}>
@@ -28,17 +35,18 @@ export function ArchivedTicketsBucket({ product }: { product: Product }) {
 }
 
 /** The archived tickets to bring back or delete for good. `bare`: just the list, in a bucket's window (`onOpen` closes it). */
-export function ArchivedTickets({ product, bare = false, onOpen }: { product: Product; bare?: boolean; onOpen?: () => void }) {
-  const { archivedTickets, personById, can, act } = useMe();
+export function ArchivedTickets({ product, bare = false, onOpen }: { product?: Product; bare?: boolean; onOpen?: () => void }) {
+  const { personById, productByKey, can, act } = useMe();
   const { openTicket } = useAppState();
   const [query, setQuery] = useState("");
   const [deleting, setDeleting] = useState<Ticket[] | null>(null);
-  const all = archivedTickets.filter((t) => t.productKey === product.key)
-    .sort((a, b) => (b.archivedAt ?? "").localeCompare(a.archivedAt ?? "")); // most recently archived first
+  const all = [...useArchivedIn(product)].sort((a, b) => (b.archivedAt ?? "").localeCompare(a.archivedAt ?? "")); // most recently archived first
   const q = query.trim().toLowerCase();
   const shown = q ? all.filter((t) => `${t.key} ${t.title}`.toLowerCase().includes(q)) : all;
-  const canRestore = can("ticket.archive", { product });
-  const canDelete = can("ticket.delete", { product });
+  // Whether you may do it to every one of them (company-wide, they're in several projects).
+  const mayAll = (action: "ticket.archive" | "ticket.delete") => (product ? can(action, { product }) : all.every((t) => can(action, { product: productByKey(t.productKey) })));
+  const canRestore = mayAll("ticket.archive");
+  const canDelete = mayAll("ticket.delete");
   const { selected, pick, clear } = usePicked(shown.map((t) => t.key));
   const picked = shown.filter((t) => selected.includes(t.key));
   const restore = (ts: Ticket[]) => {

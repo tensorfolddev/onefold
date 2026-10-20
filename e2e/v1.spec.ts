@@ -33,8 +33,8 @@ async function signUp(page: Page, company: string, founderEmail: string) {
   await expect(page.getByRole("heading", { name: "Invite your team" })).toBeVisible({ timeout: 20_000 });
 }
 
-/** Settings → Archived: opens a bucket ("tickets" or "docs") into its window, and gives that window. */
-async function openArchive(page: Page, what: "tickets" | "docs") {
+/** Settings → Archived: opens a bucket ("products", "tickets" or "docs") into its window, and gives that window. */
+async function openArchive(page: Page, what: "products" | "tickets" | "docs") {
   await page.getByRole("button", { name: new RegExp(`^Archived ${what}`) }).click();
   return page.getByRole("dialog", { name: new RegExp(`^Archived ${what}`) });
 }
@@ -348,6 +348,11 @@ test("an admin archives a project: it moves to the closed Archived group, read-o
   // Deleting for good: archived first, then type "Delete Legacy" and agree — until then the button stays off.
   await sidebar.getByRole("button", { name: "Legacy options" }).click();
   await page.getByRole("button", { name: "Archive project" }).click();
+  const legacy = page.url();
+  await page.goto("/admin/settings"); // and in Settings → Archived, with everything else archived
+  await expect(page.getByRole("button", { name: /^Archived products/ })).toContainText("Legacy");
+  await expect((await openArchive(page, "products")).getByRole("button", { name: "Restore Legacy" })).toBeVisible();
+  await page.goto(legacy);
   await page.locator(".archived-banner").getByRole("button", { name: "Delete forever…" }).click();
   const dialog = page.getByRole("dialog", { name: "Delete Legacy for good?" });
   const confirm = dialog.getByRole("button", { name: "Delete forever" });
@@ -1139,6 +1144,8 @@ test("Settings → Archived: tick several (or Select all), then restore or delet
     await expect(page.locator(".ticket-panel")).toHaveCount(0);
   }
 
+  await page.goto("/admin/settings"); // company Settings: every project's archived tickets
+  await expect(page.getByRole("button", { name: /^Archived tickets/ })).toContainText("3");
   await page.goto(`${productUrl}/settings`);
   await expect(page.getByRole("button", { name: /^Archived tickets/ })).toContainText("3");
   const archived = await openArchive(page, "tickets");
