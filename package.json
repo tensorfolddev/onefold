@@ -40,6 +40,7 @@
     "@whiskeysockets/baileys": "7.0.0-rc14",
     "drizzle-orm": "0.45.3",
     "emojibase-data": "^17.0.0",
+    "jszip": "3.10.2",
     "lowlight": "3.3.0",
     "lucide-react": "^1.49.0",
     "mammoth": "1.13.0",

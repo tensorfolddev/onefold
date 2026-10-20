@@ -17,7 +17,7 @@ export default defineConfig({
     command: `npx next start -p ${PORT}`,
     url: `http://localhost:${PORT}/signin`,
     // Never send real email from tests, even if .env.local has a key. One fixed login may manage the WhatsApp bot.
-    env: { RESEND_API_KEY: "" },
+    env: { RESEND_API_KEY: "", GOOGLE_CLIENT_ID: "e2e-client.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "e2e-secret" },
     reuseExistingServer: true,
     timeout: 120_000,
   },
