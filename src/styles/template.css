@@ -11,6 +11,15 @@
 .tp-crumb-sep { width: 14px; height: 14px; flex: none; color: var(--ui-border-color); }
 .tp-crumb-key { display: inline-flex; align-items: center; gap: 5px; padding: 0 4px; white-space: nowrap; }
 .tp-crumb-key .key { font-variant-numeric: tabular-nums; }
+/* Its type in words, tinted like the type icon: Feature blue, Bug red, Epic purple. */
+.tp-crumb-type {
+  --t: var(--color-bright-blue);
+  height: 20px; padding: 0 7px; margin-left: 2px; border-radius: var(--border-radius-small); font-size: 12px; font-weight: 600; line-height: 20px;
+  color: color-mix(in srgb, var(--t) 72%, var(--primary-text-color));
+  background: color-mix(in srgb, var(--t) 13%, var(--primary-background-color));
+}
+.tp-crumb-type[data-type="bug"] { --t: var(--color-stuck-red); }
+.tp-crumb-type[data-type="epic"] { --t: var(--color-purple); }
 .tp-head .ticket-panel-heading { padding-right: 12px; }
 .tp-head .board-title { font-size: 28px; line-height: 36px; font-weight: 600; letter-spacing: -0.01em; }
 .tp-head .title-input { font-size: 28px; line-height: 36px; font-weight: 600; }

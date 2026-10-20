@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Archive, ArchiveRestore, ChevronRight, Ellipsis, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
 import { archiveTickets, restoreTickets } from "@/data/commands";
-import type { Product, Ticket } from "@/domain/types";
+import type { Product, Ticket, TicketType } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { StatusCell } from "@/ui/StatusCell";
 import { IconButton, ProductTile, StatusPill } from "@/ui/primitives";
@@ -18,6 +18,9 @@ import { OVERVIEW, TicketPanelTabs } from "./TicketPanelTabs";
 import { useDb } from "@/data/StoreProvider";
 import { formatHours, shortDate } from "@/domain/status";
 import { LinkedDocs } from "@/features/docs/LinkedDocs";
+
+// The header says what the ticket is the way people say it: a task is a feature.
+const CRUMB_TYPE: Record<TicketType, string> = { task: "Feature", bug: "Bug", epic: "Epic" };
 
 /** Global ticket panel (mounted once by AppShell; opened via openTicket(key)). */
 export function TicketPanelHost() {
@@ -105,7 +108,10 @@ function PanelHeader({ ticket, product, editable, onClose }: PanelProps & { onCl
             <ProductTile product={product} /> {product.name}
           </Link>
           <ChevronRight className="tp-crumb-sep" aria-hidden />
-          <span className="tp-crumb-key"><TypeIcon type={ticket.type} /> <span className="key">{ticket.key}</span></span>
+          <span className="tp-crumb-key">
+            <TypeIcon type={ticket.type} /> <span className="key">{ticket.key}</span>
+            <span className="tp-crumb-type" data-type={ticket.type}>{CRUMB_TYPE[ticket.type]}</span>
+          </span>
           {ticket.epicKey && (
             <>
               <ChevronRight className="tp-crumb-sep" aria-hidden />
