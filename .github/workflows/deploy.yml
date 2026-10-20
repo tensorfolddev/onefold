@@ -8,6 +8,8 @@ name: deploy
 # and on each environment, "Deployment branches" limited to its own branch (prod → prod, stg → stg), with a required
 # reviewer on prod, so a workflow edited on another branch can never reach those secrets.
 # Until the repository variable DEPLOY_ENABLED is "true" (no server yet), images are built but nothing is deployed.
+# With the repository variable STG_ENABLED = "false", staging is switched off: moving stg builds and releases nothing
+# (the release path still goes dev → stg → prod; only production is installed).
 on:
   push:
     branches: [stg, prod]
@@ -33,6 +35,7 @@ permissions:
 jobs:
   image:
     name: image
+    if: (inputs.environment || github.ref_name) != 'stg' || vars.STG_ENABLED != 'false'
     runs-on: ubuntu-latest
     permissions:
       contents: read

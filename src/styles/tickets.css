@@ -171,6 +171,15 @@ button.priority-cell:hover { filter: brightness(0.94); }
 }
 .kanban-card:hover { border-color: var(--ui-border-color); }
 .kanban-card-key { display: inline-flex; align-items: center; gap: 6px; }
+/* A ticket's type in words (TypeTag), tinted like its icon: Feature blue, Bug red, Epic purple. */
+.type-tag {
+  --t: var(--color-bright-blue);
+  height: 20px; padding: 0 7px; border-radius: var(--border-radius-small); font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap;
+  color: color-mix(in srgb, var(--t) 72%, var(--primary-text-color));
+  background: color-mix(in srgb, var(--t) 13%, var(--primary-background-color));
+}
+.type-tag[data-type="bug"] { --t: var(--color-stuck-red); }
+.type-tag[data-type="epic"] { --t: var(--color-purple); }
 .kanban-card-title { padding: 0 8px 0 2px; font-size: 14px; line-height: 18px; }
 .kanban-card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; margin-top: auto; }
 .kanban-card-meta > * { flex-shrink: 0; }
