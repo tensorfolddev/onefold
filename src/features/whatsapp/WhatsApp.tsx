@@ -159,10 +159,29 @@ export const BOT_STATE: Record<BotState, string> = {
 /** While the bot is being paired, connected or asked to do something: worth checking every couple of seconds. */
 export const botBusy = (bot: BotStatus | null) => !!bot && (!!bot.request || bot.state === "pairing" || bot.state === "connecting");
 
-/**
- * Settings → WhatsApp bot (platform admins, PLATFORM_ADMIN_EMAILS): pair the environment's bot by scanning a QR from
- * its own phone, or disconnect it. The page keeps the status fresh; `onAsked` runs after each request.
- */
+/** 1FOLD's own bot on Integrations → WhatsApp — only for platform admins (PLATFORM_ADMIN_EMAILS); nothing for others. */
+export function PlatformBot() {
+  const [fast, setFast] = useState(false);
+  const { status, reload } = useWhatsApp(fast ? 2000 : 60_000); // while it's being paired: every couple of seconds
+  const bot = status?.bot ?? null;
+  const busy = botBusy(bot);
+  useEffect(() => { setFast(busy); }, [busy]); // eslint-disable-line react-hooks/set-state-in-effect -- polling speed follows the server's state
+  if (!bot) return null;
+  return (
+    <section className="int-setup" aria-labelledby="platform-bot">
+      <header className="int-setup-head">
+        <div>
+          <h2 id="platform-bot" className="int-h2">1FOLD&apos;s bot</h2>
+          <p className="muted">The number this server sends daily briefs from — for platform admins. Use a dedicated SIM, not a personal number.</p>
+        </div>
+        <span className="chip sm wa-state" data-state={bot.state}>{BOT_STATE[bot.state]}</span>
+      </header>
+      <WhatsAppBotSettings bot={bot} onAsked={async () => { setFast(true); await reload(); }} />
+    </section>
+  );
+}
+
+/** Pairing 1FOLD's bot by scanning a QR from its own phone, or disconnecting it. `onAsked` runs after each request. */
 export function WhatsAppBotSettings({ bot, onAsked }: { bot: BotStatus; onAsked: () => Promise<void> }) {
   const { toast } = useMe();
   const ask = async (request: "pair" | "logout") => {
