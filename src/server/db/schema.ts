@@ -5,7 +5,7 @@
 // Rules (docs/specs/2026-10-15-backend-v1-design.md §12): migrations only ADD things; never drop or rename a column
 // the running release uses. Times are timestamptz (UTC), dates are plain dates, ordered lists keep a `position`.
 import { sql } from "drizzle-orm";
-import { bigserial, boolean, doublePrecision, index, integer, jsonb, pgPolicy, pgTable, primaryKey, text, timestamp, date, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, doublePrecision, index, integer, jsonb, pgPolicy, pgTable, primaryKey, text, timestamp, date, uniqueIndex } from "drizzle-orm/pg-core";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "string" });
 const day = (name: string) => date(name, { mode: "string" });
@@ -446,6 +446,23 @@ export const companyBots = pgTable("company_bots", {
   phone: text("phone"), // its number, once connected
   request: text("request"), // pair | logout — set by an admin, taken by the worker
   updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * A company's own Google Drive (Integrations → Google Drive), where a backup of only that company goes every day. A
+ * platform table like company_bots (the worker backs up every company); the Google token is sealed (auth/secrets).
+ */
+export const companyDrive = pgTable("company_drive", {
+  orgId: text("org_id").primaryKey(),
+  refreshToken: text("refresh_token").notNull(), // sealed
+  accountEmail: text("account_email").notNull(), // the Google account it's connected to
+  folderId: text("folder_id"), // "1Fold backups" in that Drive, made on the first backup
+  connectedBy: text("connected_by"), // member id
+  connectedAt: ts("connected_at").notNull().defaultNow(),
+  runningSince: ts("running_since"), // a backup in progress (so two never run at once)
+  lastOkAt: ts("last_ok_at"),
+  lastError: text("last_error"), // why the last try failed, for its admins
+  lastBytes: bigint("last_bytes", { mode: "number" }),
 });
 
 /** A teammate's WhatsApp chat, per company they're in. Only ever made by them messaging the bot first. */

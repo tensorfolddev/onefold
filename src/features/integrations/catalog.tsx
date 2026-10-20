@@ -2,13 +2,13 @@
 
 // The integrations 1Fold has — what each is, who it's for, what it does (as monday-style recipes) — and whether each
 // is connected right now, for the person looking.
-import { Bot, Mail, MessageCircle, Sparkles, type LucideIcon } from "lucide-react";
+import { Bot, HardDrive, Mail, MessageCircle, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/data/api";
 import { useMe } from "@/data/StoreProvider";
 import { useWhatsApp } from "@/features/whatsapp/WhatsApp";
 
-export type AppId = "claude" | "whatsapp" | "team-bot" | "email";
+export type AppId = "claude" | "whatsapp" | "team-bot" | "email" | "drive";
 export type Category = "AI" | "Communication" | "For your company";
 
 /** A recipe: a sentence with its moving parts in bold — what the integration does, said the way a person would. */
@@ -81,6 +81,22 @@ export const APPS: App[] = [
     ],
     worksWith: "Resend",
   },
+  {
+    id: "drive", name: "Google Drive", category: "For your company", icon: HardDrive, tile: "is-drive", adminOnly: true,
+    tagline: "A backup of your company in your own Google Drive, every day.",
+    about: "Connect your company's Google Drive and 1Fold saves a backup of everything there every day — products, tickets, docs with every version, decisions, people and files — keeping the newest 30. Only your company's data, never anyone else's, and never a password or secret. 1Fold can only see the files it makes in that Drive.",
+    recipes: [
+      ["Every ", { b: "day" }, ", save ", { b: "a backup of the company" }, " to our Drive"],
+      ["Keep ", { b: "the newest 30" }, ", and remove ", { b: "older ones" }],
+      ["When we press ", { b: "Back up now" }, ", save ", { b: "one right away" }],
+    ],
+    steps: [
+      "Connect with the Google account that should hold the backups.",
+      "1Fold makes a “1Fold backups” folder there and saves one every day.",
+      "To put one back, ask the 1Fold team — they restore only your company.",
+    ],
+    worksWith: "Google Drive",
+  },
 ];
 
 export const CATEGORIES: Category[] = ["AI", "Communication", "For your company"];
@@ -106,11 +122,35 @@ export function useEmailStatus(): [EmailStatus | null, (s: EmailStatus) => void]
   return [status, setStatus];
 }
 
+/** The company's Google Drive, as Integrations shows it (admins only); the backups only on its own page. */
+export interface DriveStatus {
+  available: boolean; // the server can connect to Google at all
+  keep: number;
+  connected: { email: string; connectedAt: string; lastOkAt: string | null; lastError: string | null; lastBytes: number | null; running: boolean } | null;
+  backups: { id: string; name: string; createdAt: string; bytes: number; link: string }[];
+}
+
+/** How the company's Drive is set up (admins only) — null while it's being asked — and a way to show a newer answer. */
+export function useDriveStatus(withBackups = false): [DriveStatus | null, (s: DriveStatus) => void] {
+  const { panel } = useMe();
+  const [status, setStatus] = useState<DriveStatus | null>(null);
+  useEffect(() => {
+    if (panel !== "admin") return;
+    let live = true;
+    api<DriveStatus>(`/api/drive/status${withBackups ? "?backups=1" : ""}`)
+      .then((s) => { if (live) setStatus(s); })
+      .catch(() => { if (live) setStatus({ available: false, keep: 30, connected: null, backups: [] }); });
+    return () => { live = false; };
+  }, [panel, withBackups]);
+  return [status, setStatus];
+}
+
 export const emailLabel = (e: EmailStatus) => (e.mode === "own" ? `Sending as ${e.from}` : e.mode === "outbox" ? "Test inbox (development)" : "Not set up");
 
 export function useAppStatuses(): Record<AppId, AppStatus> {
   const { status } = useWhatsApp(30_000);
   const [email] = useEmailStatus();
+  const [drive] = useDriveStatus();
   const [tokens, setTokens] = useState<number | null>(null);
   useEffect(() => {
     let live = true;
@@ -125,6 +165,7 @@ export function useAppStatuses(): Record<AppId, AppStatus> {
     // Connected once the company's own number is — until then the team has no WhatsApp, and there's something to set up.
     "team-bot": bot?.state === "connected" && bot.phone ? { connected: true, label: `Connected · +${bot.phone}` } : { connected: false, label: "" },
     email: !email ? checking : { connected: email.mode === "own", label: emailLabel(email) },
+    drive: !drive ? checking : drive.connected ? { connected: true, label: `Connected · ${drive.connected.email}` } : { connected: false, label: "Not connected" },
   };
 }
 

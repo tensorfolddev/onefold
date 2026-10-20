@@ -71,6 +71,35 @@ the time the company set (9:00 by default, in its time zone) on working days. If
 out, its admins get an email (through the company's own email), briefs go by email meanwhile, and Team Bot shows it.
 The worker's log: `compose.sh prod logs -f worker`.
 
+## Each company's own Google Drive
+
+Every company can connect **its own** Google Drive (Integrations → Google Drive): once a day the worker saves a
+backup of only that company there — a `.zip` its admins can open, with all its data and files and no passwords or
+secrets — and keeps the newest 30. This is on top of the hourly server backups above, which stay yours.
+
+**Set it up once** (a Google login for 1Fold, about 10 minutes, free):
+
+1. [console.cloud.google.com](https://console.cloud.google.com) → new project **1Fold**.
+2. **APIs & Services → Library** → enable **Google Drive API**.
+3. **Google Auth Platform → Branding**: app name 1Fold, your support email, authorised domain `tensorfold.ai`.
+   **Audience**: External, then **Publish app**. **Data access**: add `…/auth/drive.file` (1Fold sees only the files
+   it makes), `openid` and `email` — none of them needs Google's review.
+4. **Clients → Create client → Web application**, with these authorised redirect URIs:
+   `https://1fold.tensorfold.ai/api/drive/callback`, `https://teamfold.tensorfold.ai/api/drive/callback`
+   (and `http://localhost:3000/api/drive/callback` for development).
+5. Put its id and secret in each `/opt/onefold/<env>/app.env` (`GOOGLE_CLIENT_ID=`, `GOOGLE_CLIENT_SECRET=`), then
+   `start.sh <env>`. The Google Drive card now offers **Connect Google Drive**.
+
+**Restoring one company** (you only — its admins can see and download their backups, not restore them): they send
+you the `.zip` from their Drive (Open in Drive → Download). Copy it to the server, then
+
+```bash
+restore-company.sh prod ~/acme-backup.zip   # shows what's in it, asks you to type the company's name
+```
+
+It backs up the whole environment first (so `restore.sh` can undo it), then replaces that company's data and files
+with the backup's, in one go — no other company is touched, and its people stay signed in.
+
 ## Releasing
 
 Releases go out by themselves: when the promote bot moves `stg` or `prod` (see the main README), the **deploy**

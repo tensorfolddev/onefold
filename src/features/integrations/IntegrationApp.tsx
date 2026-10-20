@@ -6,7 +6,7 @@
 // Members, Daily brief, Templates, Deliveries.
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, Mail, RefreshCw, Smartphone, Unlink, Zap } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, CloudUpload, ExternalLink, HardDrive, Mail, RefreshCw, Smartphone, Unlink, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, message as problemOf } from "@/data/api";
 import { useMe } from "@/data/StoreProvider";
@@ -17,7 +17,8 @@ import {
 import { PairingQr, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { Tabs } from "@/ui/primitives";
-import { appOf, emailLabel, RecipeText, useAppStatuses, useEmailStatus, type App, type AppStatus, type EmailStatus } from "./catalog";
+import { relativeTime } from "@/domain/status";
+import { appOf, emailLabel, RecipeText, useAppStatuses, useDriveStatus, useEmailStatus, type App, type AppStatus, type DriveStatus, type EmailStatus } from "./catalog";
 
 const TEAM_TABS = ["Members", "Daily brief", "Templates", "Deliveries"] as const;
 const POLL_MS = 2000; // while the bot is being set up: the QR changes every ~20 s
@@ -36,6 +37,7 @@ export function IntegrationApp({ id }: { id: string }) {
   }
   if (app.id === "team-bot") return <TeamBotApp app={app} />;
   if (app.id === "email") return <EmailApp app={app} />;
+  if (app.id === "drive") return <DriveApp app={app} />;
   return <PersonalApp app={app} status={statuses[app.id]} />;
 }
 
@@ -187,6 +189,93 @@ function ResendSetup({ status, onSaved }: { status: EmailStatus; onSaved: (s: Em
           onCancel={() => setRemoving(false)} onConfirm={() => { setRemoving(false); void remove(); }} />
       )}
     </section>
+  );
+}
+
+const size = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+const DRIVE_RESULT: Record<string, string> = {
+  connected: "Google Drive connected — the first backup goes within the hour",
+  cancelled: "Google Drive wasn't connected",
+};
+
+/** Google Drive, for admins: connect the company's own Drive; its daily backups, a backup now, and disconnecting. */
+function DriveApp({ app }: { app: App }) {
+  const { toast } = useMe();
+  const params = useSearchParams();
+  const router = useRouter();
+  const [status, setStatus] = useDriveStatus(true);
+  const [busy, setBusy] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  // Back from Google's sign-in: say how it went, once, then tidy the address.
+  const result = params.get("drive");
+  useEffect(() => {
+    if (!result) return;
+    toast(DRIVE_RESULT[result] ?? `Google Drive wasn't connected${params.get("why") ? ` — ${params.get("why")}` : ""}`, undefined, result === "connected" ? "success" : "error");
+    router.replace("?", { scroll: false });
+  }, [result]); // eslint-disable-line react-hooks/exhaustive-deps -- once per answer from Google
+
+  const run = async (path: "backup" | "disconnect", done: string) => {
+    setBusy(true);
+    try {
+      setStatus(await api<DriveStatus>(`/api/drive/${path}`, {}));
+      toast(done, undefined, "success");
+    } catch (e) {
+      toast(problemOf(e), undefined, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const on = status?.connected ?? null;
+
+  return (
+    <div className="page int-app">
+      <Banner app={app} action={status && (on ? (
+        <>
+          <Connected label={`Connected · ${on.email}`} />
+          <button type="button" className="btn btn-lg btn-primary" disabled={busy || on.running} onClick={() => void run("backup", "Backed up to your Google Drive")}>
+            <CloudUpload aria-hidden /> {busy || on.running ? "Backing up…" : "Back up now"}
+          </button>
+        </>
+      ) : status.available ? (
+        // A full page load, off to Google's sign-in (it comes back to this page) — an API route, not a page.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        <button type="button" className="btn btn-lg btn-primary" onClick={() => window.location.assign("/api/drive/connect")}><HardDrive aria-hidden /> Connect Google Drive</button>
+      ) : (
+        <span className="int-status" role="status"><span className="int-dot" aria-hidden />Not available on this server yet</span>
+      ))} />
+      {on && (
+        <section className="int-setup" aria-labelledby="int-backups">
+          <header className="int-setup-head">
+            <div>
+              <h2 id="int-backups" className="int-h2">Your backups</h2>
+              <p className="muted">
+                {on.lastOkAt ? <>Last one {relativeTime(on.lastOkAt)} ago{on.lastBytes ? ` · ${size(on.lastBytes)}` : ""}</> : "The first one goes within the hour"}
+                {" "}· one a day, the newest {status!.keep} kept, in “1Fold backups” in {on.email}&apos;s Drive.
+              </p>
+            </div>
+            <button type="button" className="btn btn-tertiary is-danger" disabled={busy} onClick={() => setDisconnecting(true)}><Unlink aria-hidden /> Disconnect</button>
+          </header>
+          {on.lastError && <p className="admin-error" role="alert">The last backup didn&apos;t work: {on.lastError}</p>}
+          {status!.backups.length > 0 ? (
+            <ul className="int-backups" aria-label="Backups in Google Drive">
+              {status!.backups.map((b) => (
+                <li key={b.id}>
+                  <span className="int-backup-name">{b.name}</span>
+                  <span className="muted">{relativeTime(b.createdAt)} ago · {size(b.bytes)}</span>
+                  {b.link && <a href={b.link} target="_blank" rel="noreferrer noopener" className="btn btn-tertiary"><ExternalLink aria-hidden /> Open in Drive</a>}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="muted">No backups in it yet.</p>}
+          {disconnecting && (
+            <ConfirmDialog title="Disconnect Google Drive?" confirmLabel="Disconnect"
+              body={<p>1Fold stops backing up to {on.email}&apos;s Drive. The backups already there stay — they&apos;re yours.</p>}
+              onCancel={() => setDisconnecting(false)} onConfirm={() => { setDisconnecting(false); void run("disconnect", "Google Drive disconnected"); }} />
+          )}
+        </section>
+      )}
+      <Overview app={app} />
+    </div>
   );
 }
 

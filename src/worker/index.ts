@@ -2,6 +2,7 @@
 // runs each company's own WhatsApp number and the scheduled jobs. Stops cleanly on SIGTERM (docker stop).
 import { closeDatabase } from "../server/db/client.ts";
 import { cleanupFiles } from "../server/files.ts";
+import { backUpDue } from "../server/backup/drive.ts";
 import { cleanupLinkCodes, handleMessage } from "../server/whatsapp/bot.ts";
 import { sendDueBriefs } from "../server/whatsapp/brief.ts";
 import { sendOutbox } from "../server/whatsapp/outbox.ts";
@@ -37,6 +38,8 @@ export function every(name: string, ms: number, job: () => Promise<unknown>) {
 
 every("clean up unused images", HOUR, async () => ({ removed: await cleanupFiles() }));
 every("clean up old WhatsApp codes", HOUR, async () => { await cleanupLinkCodes(); return undefined; });
+// Each company with its own Google Drive connected: a backup of only that company there, once a day.
+every("company Drive backups", HOUR, backUpDue);
 
 // WhatsApp: every company has its own number — its own linked device (its own session folder), answering only for
 // that company. Made when an admin asks for it, and for every company that had one when the worker starts; with a

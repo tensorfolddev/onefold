@@ -1246,7 +1246,7 @@ test("Integrations center: Claude and WhatsApp for everyone; Team Bot for admins
   await expect(page).toHaveURL(/\/admin\/integrations$/);
   await expect(page.getByRole("heading", { name: "Your work, wherever you are" })).toBeVisible();
   const cards = page.locator(".int-grid");
-  await expect(cards.locator(".int-card")).toHaveCount(4); // Claude, WhatsApp — and for admins, Team Bot and Email
+  await expect(cards.locator(".int-card")).toHaveCount(5); // Claude, WhatsApp — and for admins, Team Bot, Email and Google Drive
   await expect(cards.getByText("Connected", { exact: true })).toHaveCount(0); // said on a card only once it's connected
   await page.getByLabel("Search integrations").fill("claude");
   await expect(cards.locator(".int-card")).toHaveCount(1);
@@ -1323,6 +1323,27 @@ test("Notifications & sounds: anyone picks the sound a notification makes — an
   dialog = await open();
   await expect(dialog.getByRole("radiogroup", { name: "New notification" }).getByRole("radio", { name: "Bell" })).toHaveAttribute("aria-checked", "true");
   await expect(dialog.getByRole("radiogroup", { name: "Urgent (@@)" }).getByRole("radio", { name: "Siren" })).toHaveAttribute("aria-checked", "true");
+});
+
+test("Integrations → Google Drive: an admin connects the company's own Drive through Google's sign-in, asking only for its own files", async ({ page }) => {
+  await signUp(page, "Drivefold", email("drivefold"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/integrations");
+  await page.locator(".int-grid").getByRole("link", { name: /^Google Drive/ }).click();
+  await expect(page.getByRole("heading", { name: "Google Drive", level: 1 })).toBeVisible();
+  await expect(page.locator(".int-recipes")).toContainText("a backup of the company");
+  await expect(page.getByRole("button", { name: "Connect Google Drive" })).toBeVisible();
+
+  const res = await page.request.get("/api/drive/connect", { maxRedirects: 0 });
+  expect(res.status()).toBe(303);
+  const google = new URL(res.headers().location);
+  expect(google.origin + google.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+  expect(google.searchParams.get("scope")).toContain("auth/drive.file"); // only the files 1Fold makes
+  expect(google.searchParams.get("redirect_uri")).toMatch(/\/api\/drive\/callback$/);
+
+  await page.goto("/admin/integrations/drive?drive=cancelled"); // they said no on Google's page
+  await expect(page.locator(".toast-message", { hasText: "Google Drive wasn't connected" })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/integrations\/drive\??$/);
 });
 
 test("Integrations → Email: an admin tests email, saves their company's Resend (shown only as its last 4), and removes it", async ({ page }) => {
