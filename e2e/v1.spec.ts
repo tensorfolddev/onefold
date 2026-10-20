@@ -261,17 +261,20 @@ test("WhatsApp: a teammate is told when the bot isn't connected; only a platform
   await page.getByRole("button", { name: "Close" }).click();
 
   await confirmEmail(page, "platform-admin@onefold.example"); // a platform admin must have proven the address
-  await page.goto("/admin/settings");
-  await expect(page.getByRole("heading", { name: "WhatsApp" })).toBeVisible();
+  await page.goto("/admin/integrations/whatsapp");
+  await expect(page.getByRole("heading", { name: "1FOLD's bot" })).toBeVisible();
   const connect = page.getByRole("button", { name: "Connect the bot" });
   if (await connect.isVisible()) await connect.click(); // (a request left waiting by an earlier run needs no new one)
   await expect(page.getByText("Waiting for the worker to start pairing…")).toBeVisible(); // no worker runs in these tests
 
   const other = await freshPage(browser);
   await signUp(other, "Theta", email("th"));
+  await other.goto("/admin/integrations/whatsapp");
+  await expect(other.getByRole("heading", { name: "WhatsApp", level: 1 })).toBeVisible();
+  await expect(other.getByRole("heading", { name: "1FOLD's bot" })).toHaveCount(0); // an ordinary admin doesn't manage the bot
   await other.goto("/admin/settings");
   await expect(other.getByRole("heading", { name: "Company" })).toBeVisible();
-  await expect(other.getByRole("heading", { name: "WhatsApp" })).toHaveCount(0); // an ordinary admin doesn't manage the bot
+  await expect(other.getByRole("heading", { name: /WhatsApp/ })).toHaveCount(0); // and Settings has no bot at all
 });
 
 test("Claude connects with a personal token: an MCP tool makes a ticket that shows up in the app; revoked, it's refused", async ({ page, request }) => {

@@ -14,7 +14,7 @@ import { McpDialog } from "@/features/mcp/McpDialog";
 import {
   BriefTab, DeliveriesTab, MembersTab, TemplatesTab, useCompanyWhatsApp, type Company, type CompanyBot,
 } from "@/features/whatsapp/CompanyWhatsApp";
-import { PairingQr, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
+import { PairingQr, PlatformBot, WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { Tabs } from "@/ui/primitives";
 import { appOf, emailLabel, RecipeText, useAppStatuses, useEmailStatus, type App, type AppStatus, type EmailStatus } from "./catalog";
@@ -202,6 +202,7 @@ function PersonalApp({ app, status }: { app: App; status: AppStatus }) {
           <button type="button" className={`btn btn-lg ${status.connected ? "btn-secondary" : "btn-primary"}`} onClick={() => setOpen(true)}>{label}</button>
         </>
       )} />
+      {app.id === "whatsapp" && <PlatformBot />}
       <Overview app={app} />
       {open && (app.id === "claude" ? <McpDialog onClose={() => setOpen(false)} /> : <WhatsAppDialog onClose={() => setOpen(false)} />)}
     </div>

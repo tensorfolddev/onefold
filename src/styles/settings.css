@@ -4,6 +4,7 @@
 .product-space:has(.settings) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 0; }
 .product-space:has(.settings) > .product-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 48px; }
 .settings { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; align-items: start; max-width: 1080px; }
+.settings-page { max-width: 1080px; margin: 0 auto; } /* company Settings: centred in the work area */
 .settings-nav { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 2px; }
 .settings-nav-item {
   display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border-radius: 8px;
