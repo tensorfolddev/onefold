@@ -45,7 +45,7 @@ export const APPS: App[] = [
   {
     id: "whatsapp", name: "WhatsApp", category: "Communication", icon: MessageCircle, tile: "is-whatsapp",
     tagline: "Your tasks every morning, and an alert when you're needed.",
-    about: "Link your WhatsApp and 1Fold's bot sends you your pending tasks every working morning, project by project — and messages you the moment someone @@mentions you. Reply anytime to get your tasks again.",
+    about: "Link your WhatsApp and your company's bot sends you your pending tasks every working morning, project by project — and messages you the moment someone @@mentions you. Reply anytime to get your tasks again. Your chat with it is yours alone.",
     recipes: [
       ["Every ", { b: "working morning" }, ", send me ", { b: "my pending tasks" }],
       ["When someone ", { b: "@@mentions me" }, ", send me ", { b: "an alert" }, " right away"],
@@ -69,10 +69,9 @@ export const APPS: App[] = [
   {
     id: "email", name: "Email", category: "Communication", icon: Mail, tile: "is-email", adminOnly: true,
     tagline: "Invites, password resets and the brief by email — from your own address, through Resend.",
-    about: "1Fold sends your company's email through your own Resend account: invite links, password resets, email confirmations and the daily brief when WhatsApp is down. The API key is kept encrypted and never shown again — only its last 4 characters. Until you add one, 1FOLD's own email is used, if this server has it.",
+    about: "1Fold sends your company's email through your own Resend account: invite links and the daily brief when WhatsApp is down. The API key is kept encrypted and never shown again — only its last 4 characters. Until you add one, 1Fold doesn't email your team: invite links are shown to copy instead. (Sign-up confirmations and password resets always come from 1Fold, so nobody's locked out.)",
     recipes: [
       ["When someone's ", { b: "invited" }, ", email them ", { b: "their invite link" }],
-      ["When someone ", { b: "forgets their password" }, ", email ", { b: "a reset link" }],
       ["When WhatsApp is down, send the daily brief ", { b: "by email" }],
     ],
     steps: [
@@ -91,8 +90,8 @@ export interface AppStatus { connected: boolean; label: string }
 
 /** Whether each integration is connected for the person looking: Claude (a token of theirs), their WhatsApp (linked),
  * the bot (connected). Statuses not known yet read "Checking…". */
-/** How email is set up for the company: its own Resend (`hint`: the key's last 4), the server's, a test inbox, or none. */
-export interface EmailStatus { mode: "own" | "server" | "outbox" | "off"; from: string; hint: string | null }
+/** How email is set up for the company: its own Resend (`hint`: the key's last 4), a test inbox, or none. */
+export interface EmailStatus { mode: "own" | "outbox" | "off"; from: string; hint: string | null }
 
 /** How email is set up here (admins only) — null while it's being asked — and a way to show a newer answer. */
 export function useEmailStatus(): [EmailStatus | null, (s: EmailStatus) => void] {
@@ -107,8 +106,7 @@ export function useEmailStatus(): [EmailStatus | null, (s: EmailStatus) => void]
   return [status, setStatus];
 }
 
-export const emailLabel = (e: EmailStatus) =>
-  e.mode === "own" ? `Sending as ${e.from}` : e.mode === "server" ? "Using 1FOLD's email" : e.mode === "outbox" ? "Test inbox (development)" : "Not set up";
+export const emailLabel = (e: EmailStatus) => (e.mode === "own" ? `Sending as ${e.from}` : e.mode === "outbox" ? "Test inbox (development)" : "Not set up");
 
 export function useAppStatuses(): Record<AppId, AppStatus> {
   const { status } = useWhatsApp(30_000);
@@ -124,8 +122,8 @@ export function useAppStatuses(): Record<AppId, AppStatus> {
   return {
     claude: tokens === null ? checking : tokens ? { connected: true, label: `Connected · ${tokens} token${tokens > 1 ? "s" : ""}` } : { connected: false, label: "Not connected" },
     whatsapp: !status ? checking : status.me.linked ? { connected: true, label: `Linked · +${status.me.linked.phone}` } : { connected: false, label: "Not linked" },
-    // Connected once the company's own number is: until then it's 1FOLD's bot, and there's something to set up.
-    "team-bot": bot?.own && bot.state === "connected" ? { connected: true, label: `Connected · +${bot.phone ?? ""}` } : { connected: false, label: "" },
+    // Connected once the company's own number is — until then the team has no WhatsApp, and there's something to set up.
+    "team-bot": bot?.state === "connected" && bot.phone ? { connected: true, label: `Connected · +${bot.phone}` } : { connected: false, label: "" },
     email: !email ? checking : { connected: email.mode === "own", label: emailLabel(email) },
   };
 }

@@ -45,7 +45,7 @@ export async function viewFor(who: SessionRow): Promise<View> {
     const me = personFor(loaded, who.userId);
     return { db: snapshotFor(loaded.db, me), version: loaded.version, meId: me.id, panel: me.panel!, orgSlug: loaded.db.org.slug };
   });
-  return { ...view, emailUnverified: (await emailOn(who.orgId)) && !(await emailVerified(who.userId)) };
+  return { ...view, emailUnverified: (await emailOn()) && !(await emailVerified(who.userId)) };
 }
 
 export interface Applied { version: number; key?: unknown }
@@ -156,7 +156,7 @@ export interface CreatedInvite { id: string; email: string; panel: Panel; role: 
  */
 export async function createInvites(who: SessionRow, invites: InviteInput[], appUrl: string): Promise<{ version: number; invites: CreatedInvite[] }> {
   if (!Array.isArray(invites)) throw new ValidationError("Add at least one email");
-  if ((await emailOn(who.orgId)) && !(await emailVerified(who.userId))) throw new ValidationError("Confirm your email first — open the link we emailed you");
+  if ((await emailOn()) && !(await emailVerified(who.userId))) throw new ValidationError("Confirm your email first — open the link we emailed you");
   for (const inv of invites) {
     const email = String(inv?.email ?? "").trim().toLowerCase();
     if (email && await emailInACompany(email)) throw new ValidationError(`${email} ${ONE_COMPANY}`);

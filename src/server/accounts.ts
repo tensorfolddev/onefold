@@ -33,7 +33,7 @@ export const ONE_COMPANY = "already belongs to a company on 1Fold — one email,
 
 const inACompany = async (userId: string) => !!(await companyOf(userId));
 
-/** The company this login is in (the first, for logins from before one-company-each) — whose Resend its emails use. */
+/** The company this login is in (the first, for logins from before one-company-each). */
 const companyOf = async (userId: string): Promise<string | undefined> =>
   (await inScope({ userId }, (tx) => tx.select({ orgId: s.members.orgId }).from(s.members).where(eq(s.members.userId, userId)).limit(1)))[0]?.orgId;
 
@@ -241,7 +241,7 @@ export async function requestPasswordReset(emailInput: string, appUrl: string): 
   const user = await findUser(emailInput);
   if (!user) return;
   const token = await issueLink(user.id, "reset", RESET_MINUTES * 60_000);
-  await sendEmail(resetEmail({ to: user.email, link: `${appUrl}/reset/${token}`, minutes: RESET_MINUTES }), { orgId: await companyOf(user.id) });
+  await sendEmail(resetEmail({ to: user.email, link: `${appUrl}/reset/${token}`, minutes: RESET_MINUTES })); // the platform's: nobody's ever locked out
 }
 
 /** Why a reset link can't be used, or null — so the page can say so before anyone types a new password. */
@@ -284,7 +284,7 @@ export async function sendVerification(userId: string, appUrl: string): Promise<
   const [user] = await database().select().from(s.users).where(eq(s.users.id, userId));
   if (!user || user.emailVerifiedAt) return { ok: true };
   const token = await issueLink(user.id, "verify", VERIFY_MS);
-  return deliverEmail(verifyEmail({ to: user.email, link: `${appUrl}/verify/${token}` }), { orgId: await companyOf(user.id) });
+  return deliverEmail(verifyEmail({ to: user.email, link: `${appUrl}/verify/${token}` })); // the platform's, like a reset
 }
 
 /** Confirms the email a link was sent to. Opening the link twice is fine (it only ever confirms). */

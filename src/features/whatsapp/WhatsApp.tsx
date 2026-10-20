@@ -1,18 +1,17 @@
 "use client";
 
 // WhatsApp in the app. Each person links their own number for the daily brief (account menu → WhatsApp): 1Fold
-// gives them a one-time code, they send it to the bot, done. Platform admins pair the environment's bot in Settings,
-// by scanning a QR from the bot's own phone.
+// gives them a one-time code, they send it to their company's own number, done. The company's admins connect that
+// number in Integrations → Team Bot.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ExternalLink, MessageCircle, Smartphone, Unlink, X } from "lucide-react";
+import { Check, MessageCircle, Smartphone, Unlink, X } from "lucide-react";
 import { api, ApiError } from "@/data/api";
 import { useMe } from "@/data/StoreProvider";
 import { IconButton } from "@/ui/primitives";
 
 type BotState = "off" | "pairing" | "connecting" | "connected" | "logged_out";
 interface MyWhatsApp { available: boolean; linked: { phone: string; briefs: boolean; linkedAt: string } | null }
-interface BotStatus { state: BotState; qr: string | null; phone: string | null; request: string | null; updatedAt: string }
-interface Status { me: MyWhatsApp; botInfo: Pick<BotStatus, "state" | "phone"> & { own: boolean }; bot: BotStatus | null }
+interface Status { me: MyWhatsApp; botInfo: { state: BotState; phone: string | null } }
 interface LinkCode { code: string; url: string; botPhone: string; expiresAt: string }
 
 const problemOf = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong — please try again");
@@ -87,7 +86,7 @@ export function WhatsAppDialog({ onClose }: { onClose: () => void }) {
   } else if (!status.me.available) {
     body = (
       <p className="auth-note"><Smartphone aria-hidden />
-        <span>1Fold&apos;s WhatsApp isn&apos;t connected right now, so there&apos;s nothing to link to yet. Your admin can connect it in <strong>Settings → WhatsApp</strong>.</span>
+        <span>Your company hasn&apos;t connected its WhatsApp number yet, so there&apos;s nothing to link to. An admin can set it up in <strong>Integrations → Team Bot</strong>.</span>
       </p>
     );
   } else if (code) {
@@ -155,67 +154,3 @@ export const BOT_STATE: Record<BotState, string> = {
   connected: "Connected",
   logged_out: "Disconnected — scan again",
 };
-
-/** While the bot is being paired, connected or asked to do something: worth checking every couple of seconds. */
-export const botBusy = (bot: BotStatus | null) => !!bot && (!!bot.request || bot.state === "pairing" || bot.state === "connecting");
-
-/** 1FOLD's own bot on Integrations → WhatsApp — only for platform admins (PLATFORM_ADMIN_EMAILS); nothing for others. */
-export function PlatformBot() {
-  const [fast, setFast] = useState(false);
-  const { status, reload } = useWhatsApp(fast ? 2000 : 60_000); // while it's being paired: every couple of seconds
-  const bot = status?.bot ?? null;
-  const busy = botBusy(bot);
-  useEffect(() => { setFast(busy); }, [busy]); // eslint-disable-line react-hooks/set-state-in-effect -- polling speed follows the server's state
-  if (!bot) return null;
-  return (
-    <section className="int-setup" aria-labelledby="platform-bot">
-      <header className="int-setup-head">
-        <div>
-          <h2 id="platform-bot" className="int-h2">1FOLD&apos;s bot</h2>
-          <p className="muted">The number this server sends daily briefs from — for platform admins. Use a dedicated SIM, not a personal number.</p>
-        </div>
-        <span className="chip sm wa-state" data-state={bot.state}>{BOT_STATE[bot.state]}</span>
-      </header>
-      <WhatsAppBotSettings bot={bot} onAsked={async () => { setFast(true); await reload(); }} />
-    </section>
-  );
-}
-
-/** Pairing 1FOLD's bot by scanning a QR from its own phone, or disconnecting it. `onAsked` runs after each request. */
-export function WhatsAppBotSettings({ bot, onAsked }: { bot: BotStatus; onAsked: () => Promise<void> }) {
-  const { toast } = useMe();
-  const ask = async (request: "pair" | "logout") => {
-    try {
-      await api(`/api/whatsapp/${request}`, {});
-      await onAsked();
-    } catch (e) {
-      toast(problemOf(e));
-    }
-  };
-
-  return (
-    <div className="wa-bot-bare">
-      {bot.request ? (
-        <p className="auth-loading"><span className="auth-spinner" aria-hidden /> Waiting for the worker to {bot.request === "pair" ? "start pairing" : "log out"}…</p>
-      ) : bot.state === "pairing" && bot.qr ? (
-        <div className="wa-pairing">
-          <PairingQr text={bot.qr} />
-          <ol className="wa-steps">
-            <li>On the bot&apos;s phone, open WhatsApp → <strong>Settings → Linked devices → Link a device</strong>.</li>
-            <li>Scan this code. It changes about every 20 seconds — this page keeps up.</li>
-          </ol>
-        </div>
-      ) : bot.state === "connected" ? (
-        <div className="inv-foot wa-foot">
-          <span className="wa-linked"><Check aria-hidden /> Sending from <strong>{shownPhone(bot.phone)}</strong></span>
-          <button type="button" className="btn btn-tertiary is-danger" onClick={() => void ask("logout")}><Unlink aria-hidden /> Disconnect</button>
-        </div>
-      ) : bot.state === "connecting" ? <p className="auth-loading"><span className="auth-spinner" aria-hidden /> {BOT_STATE.connecting}</p> : (
-        <div className="inv-foot wa-foot">
-          {bot.state === "logged_out" && <span className="auth-error">WhatsApp logged the bot out. Until it&apos;s scanned again, briefs go by email.</span>}
-          <button type="button" className="btn btn-primary" onClick={() => void ask("pair")}><ExternalLink aria-hidden /> Connect the bot</button>
-        </div>
-      )}
-    </div>
-  );
-}

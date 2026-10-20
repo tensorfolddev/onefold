@@ -1,8 +1,8 @@
 // The worker: one per environment, next to the website (`node src/worker/index.ts`, the image's second process). It
-// runs the WhatsApp bot and the scheduled jobs. Stops cleanly on SIGTERM (docker stop).
+// runs each company's own WhatsApp number and the scheduled jobs. Stops cleanly on SIGTERM (docker stop).
 import { closeDatabase } from "../server/db/client.ts";
 import { cleanupFiles } from "../server/files.ts";
-import { botStatus, cleanupLinkCodes, handleMessage, setBotState, takeBotRequest } from "../server/whatsapp/bot.ts";
+import { cleanupLinkCodes, handleMessage } from "../server/whatsapp/bot.ts";
 import { sendDueBriefs } from "../server/whatsapp/brief.ts";
 import { sendOutbox } from "../server/whatsapp/outbox.ts";
 import { whatsappLinkBase } from "../server/whatsapp/appLink.ts";
@@ -38,26 +38,11 @@ export function every(name: string, ms: number, job: () => Promise<unknown>) {
 every("clean up unused images", HOUR, async () => ({ removed: await cleanupFiles() }));
 every("clean up old WhatsApp codes", HOUR, async () => { await cleanupLinkCodes(); return undefined; });
 
-// WhatsApp: with a saved session the bot connects by itself; without one it waits until an admin asks for a QR.
+// WhatsApp: every company has its own number — its own linked device (its own session folder), answering only for
+// that company. Made when an admin asks for it, and for every company that had one when the worker starts; with a
+// saved session it connects by itself. There's no shared number: a company without its own has no WhatsApp.
 const WHATSAPP_DIR = process.env.WHATSAPP_DIR ?? "data/whatsapp";
-const COMPANIES_DIR = "companies"; // companies' own numbers, beside 1FOLD's session — never forgotten with it
-const bridge = createBridge(WHATSAPP_DIR, {
-  onState: (state, extra) => setBotState(state, extra, APP_URL),
-  onMessage: (msg) => handleMessage(msg, bridge, LINK_URL),
-}, { keep: [COMPANIES_DIR] });
-if (bridge.hasSession()) {
-  bridge.start().catch((e: unknown) => console.error("[worker] WhatsApp didn't start", e));
-} else if ((await botStatus()).state !== "logged_out") { // a logged-out bot stays flagged until someone scans again
-  await setBotState("off", { phone: null });
-}
-every("WhatsApp requests", 3000, async () => {
-  const request = await takeBotRequest();
-  if (request === "pair" && !bridge.running()) await bridge.start();
-  if (request === "logout") { await bridge.logout(); await setBotState("off", { phone: null }); }
-  return request ?? undefined;
-});
-// Companies with their own number: each its own linked device (its own session folder), answering only for that
-// company. Made when an admin asks for it, and for every company that had one when the worker starts.
+const COMPANIES_DIR = "companies";
 const ORG_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const companies = new Map<string, Bridge>();
 function companyBridge(orgId: string): Bridge {
@@ -86,7 +71,7 @@ every("company WhatsApp requests", 3000, async () => {
       if (own.running() && !own.connected()) await own.stop();
       if (!own.running()) await own.start();
     }
-    if (request === "logout") { // back on 1FOLD's bot
+    if (request === "logout") { // no number until its admins set one up again
       await own.logout();
       companies.delete(orgId);
       await dropCompanyBot(orgId);
@@ -99,38 +84,33 @@ every("company WhatsApp requests", 3000, async () => {
   }
   return requests.length ? requests : undefined;
 });
-/** A company's own number, once it's paired (a session saved — connected, or reconnecting); else none: 1FOLD's bot. */
+/** A company's own number, once it's paired (a session saved — connected, or reconnecting); else none. */
 const ownFor = (orgId: string | null) => {
   const own = orgId ? companies.get(orgId) : undefined;
-  return own?.hasSession() ? own : undefined;
+  return own?.hasSession() ? own : null;
 };
-/** Who sends for a company: its own number once paired (while it's reconnecting, nothing goes), else 1FOLD's. */
+/** Who sends for a company: its own number, while it's connected — else nothing goes (alerts wait). */
 const senderFor = (orgId: string | null) => {
   const own = ownFor(orgId);
-  if (own) return own.connected() ? own : null;
-  return bridge.connected() ? bridge : null;
+  return own?.connected() ? own : null;
 };
 
 // Alerts like "Ayla mentioned you in Design spec": within seconds, while the right bot is connected.
 every("whatsapp alerts", 5_000, async () => sendOutbox(senderFor));
 
 every("daily briefs", MINUTE, async () => {
-  const run = await sendDueBriefs({ whatsapp: bridge, appUrl: LINK_URL, whatsappFor: (orgId) => ownFor(orgId) ?? null });
+  const run = await sendDueBriefs({ appUrl: LINK_URL, whatsappFor: ownFor });
   return run.whatsapp + run.email + run.none + run.failed > 0 ? run : undefined;
 });
 
 async function stop(signal: string) {
   console.log(`[worker] ${signal}: stopping`);
   timers.forEach(clearInterval);
-  const hadSession = bridge.hasSession();
-  await bridge.stop();
   for (const [orgId, own] of companies) {
     const had = own.hasSession();
     await own.stop();
     await setCompanyBotState(orgId, had ? "connecting" : "off").catch(() => {});
   }
-  // Not "connected" while nobody's listening (so no one is handed a code to send into the void).
-  await setBotState(hadSession ? "connecting" : "off").catch(() => {});
   await closeDatabase();
   process.exit(0);
 }

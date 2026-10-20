@@ -44,7 +44,7 @@ export interface Bridge extends Sender {
 export function createBridge(dir: string, events: {
   onState: (state: BotState, extra: { qr?: string | null; phone?: string | null }) => Promise<void>;
   onMessage: (msg: Inbound) => Promise<void>;
-}, opts: { keep?: string[] } = {}): Bridge { // keep: entries in `dir` that aren't this session's (other sessions)
+}): Bridge {
   const logger = pino({ level: process.env.WHATSAPP_LOG_LEVEL ?? "warn" });
   let sock: WASocket | null = null;
   let open = false;
@@ -57,7 +57,7 @@ export function createBridge(dir: string, events: {
   const forget = async () => {
     await mkdir(/*turbopackIgnore: true*/ dir, { recursive: true, mode: 0o700 });
     for (const f of await readdir(/*turbopackIgnore: true*/ dir)) {
-      if (!opts.keep?.includes(f)) await rm(/*turbopackIgnore: true*/ join(dir, f), { recursive: true, force: true });
+      await rm(/*turbopackIgnore: true*/ join(dir, f), { recursive: true, force: true });
     }
   };
   const report = (state: BotState, extra: { qr?: string | null; phone?: string | null } = {}) =>

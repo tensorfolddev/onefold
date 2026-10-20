@@ -1,6 +1,6 @@
-// The WhatsApp bot and the daily brief on a real Postgres, with a fake WhatsApp (the real one needs a phone) and
-// emails caught in an outbox: pairing rights, linking by code, deny-by-default, 1FOLD replies, the brief's template,
-// once a day at 9:00 on working days, the email fallback, and the logged-out alert.
+// Each company's own WhatsApp number and the daily brief on a real Postgres, with a fake WhatsApp (the real one needs a
+// phone) and emails caught in an outbox: who may set the number up, linking by code, deny-by-default, 1FOLD replies,
+// the brief's template, once a day at 9:00 on working days, the email fallback, and the logged-out alert.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
@@ -11,14 +11,14 @@ import { acceptInvitation, confirmEmail, readSession, sendVerification, signUpCo
 import { applySteps, createInvites } from "../changes.ts";
 import type { Email } from "../email.ts";
 import { freshDatabase } from "../testing/db.ts";
-import { botStatus, createLinkCode, handleMessage, isPlatformAdmin, myWhatsApp, requestBot, setBotState, takeBotRequest } from "./bot.ts";
+import { createLinkCode, handleMessage, myWhatsApp } from "./bot.ts";
+import { companyBot, requestCompanyBot, setCompanyBotState, takeCompanyBotRequests } from "./companyBot.ts";
 import { localClock, sendDueBriefs } from "./brief.ts";
 import { textOf } from "./bridge.ts";
 import { companyWhatsApp, saveSettings } from "./settings.ts";
 
 const outbox = await mkdtemp(join(tmpdir(), "onefold-wa-outbox-"));
 process.env.EMAIL_OUTBOX_DIR = outbox;
-process.env.PLATFORM_ADMIN_EMAILS = "ayla@acme.example";
 
 let pg: Awaited<ReturnType<typeof freshDatabase>>;
 before(async () => { pg = await freshDatabase(); });
@@ -43,8 +43,8 @@ const whatsapp = {
   },
 };
 const lastSent = () => whatsapp.sent.at(-1)?.text ?? "";
-const fromSam = (text: string) => handleMessage({ jid: SAM, phone: "923001112222", text }, whatsapp, APP);
-const briefsAt = (iso: string) => sendDueBriefs({ whatsapp, appUrl: APP, at: new Date(iso), gapMs: 0 });
+const fromSam = (text: string) => handleMessage({ jid: SAM, phone: "923001112222", text }, whatsapp, APP, admin.orgId);
+const briefsAt = (iso: string) => sendDueBriefs({ whatsappFor: () => whatsapp, appUrl: APP, at: new Date(iso), gapMs: 0 });
 async function emailsTo(to: string): Promise<Email[]> {
   const all = await Promise.all((await readdir(outbox)).sort().map(async (f) => JSON.parse(await readFile(join(outbox, f), "utf8")) as Email));
   return all.filter((m) => m.to === to);
@@ -69,7 +69,7 @@ test("the time of day is the company's: 04:00 UTC is 9:00 on a Friday in Pakista
   assert.deepEqual(localClock("Not/A_Zone", new Date("2026-10-16T04:35:00Z")), { day: "2026-10-16", weekday: 5, hour: 9, minute: 35 });
 });
 
-test("only platform admins can pair the bot, and the worker takes each request once", async () => {
+test("only the company's admins set up its own number, and the worker takes each request once", async () => {
   const founder = await signUpCompany({ name: "Ayla Khan", email: "ayla@acme.example", password: PASSWORD, company: "Acme", slug: "acme-wa" });
   admin = (await readSession(founder.token))!;
   aylaId = founder.personId;
@@ -80,15 +80,15 @@ test("only platform admins can pair the bot, and the worker takes each request o
   dev = (await readSession(joined.token))!;
   samId = joined.personId;
 
-  await assert.rejects(requestBot(dev, "pair"), AccessError);
-  await requestBot(admin, "pair");
-  assert.equal((await botStatus()).request, "pair");
-  assert.equal(await takeBotRequest(), "pair");
-  assert.equal(await takeBotRequest(), null);
-  await assert.rejects(createLinkCode(dev), /isn't connected/); // nothing to link to until the bot is up
-  await setBotState("connected", { phone: "923000000001" });
-  const bot = await botStatus();
-  assert.deepEqual([bot.state, bot.phone, bot.request], ["connected", "923000000001", null]);
+  await assert.rejects(requestCompanyBot(dev, "pair"), AccessError);
+  await assert.rejects(createLinkCode(dev), /isn't connected/); // no shared number: nothing to link to until Acme's is up
+  await requestCompanyBot(admin, "pair");
+  assert.deepEqual(await takeCompanyBotRequests(), [{ orgId: admin.orgId, request: "pair" }]);
+  assert.deepEqual(await takeCompanyBotRequests(), []);
+  await assert.rejects(createLinkCode(dev), /isn't connected/); // being set up, not paired yet
+  await setCompanyBotState(admin.orgId, "connected", { phone: "923000000001" });
+  const bot = await companyBot(admin.orgId);
+  assert.deepEqual([bot?.state, bot?.phone, bot?.request], ["connected", "923000000001", null]);
 });
 
 test("a teammate links their number by sending the code; strangers are ignored", async () => {
@@ -96,8 +96,8 @@ test("a teammate links their number by sending the code; strangers are ignored",
   assert.match(code, /^1FOLD-[A-HJ-NP-Z2-9]{6}$/);
   assert.equal(url, `https://wa.me/923000000001?text=${encodeURIComponent(code)}`);
 
-  await handleMessage({ jid: STRANGER, phone: "92399", text: "hello?" }, whatsapp, APP);
-  await handleMessage({ jid: STRANGER, phone: "92399", text: "TODAY" }, whatsapp, APP);
+  await handleMessage({ jid: STRANGER, phone: "92399", text: "hello?" }, whatsapp, APP, admin.orgId);
+  await handleMessage({ jid: STRANGER, phone: "92399", text: "TODAY" }, whatsapp, APP, admin.orgId);
   assert.equal(whatsapp.sent.length, 0); // deny by default: not a word to anyone who hasn't linked
 
   await fromSam(`hi! ${code.toLowerCase()}`);
@@ -106,7 +106,7 @@ test("a teammate links their number by sending the code; strangers are ignored",
   assert.deepEqual([mine.available, mine.linked?.phone, mine.linked?.briefs], [true, "923001112222", true]);
   assert.equal((await myWhatsApp(admin)).linked, null);
 
-  await handleMessage({ jid: STRANGER, phone: "92399", text: code }, whatsapp, APP);
+  await handleMessage({ jid: STRANGER, phone: "92399", text: code }, whatsapp, APP, admin.orgId);
   assert.match(lastSent(), /didn't work/); // a code works once
   await fromSam("what can you do?");
   assert.match(lastSent(), /Reply \*1FOLD\* anytime for your pending tasks/);
@@ -234,47 +234,42 @@ test("a brief waits for a reconnecting WhatsApp until 11:00, then goes by email;
 });
 
 test("the other form of a WhatsApp id is the same person; a recycled number moves to its new owner", async () => {
-  await handleMessage({ jid: "123456789@lid", phone: "923001112222", text: "help" }, whatsapp, APP);
+  await handleMessage({ jid: "123456789@lid", phone: "923001112222", text: "help" }, whatsapp, APP, admin.orgId);
   assert.equal(whatsapp.sent.at(-1)!.jid, "123456789@lid"); // recognised by the number behind the private id
   assert.match(lastSent(), /This is 1FOLD/);
 
   const { code } = await createLinkCode(admin); // Ayla now links the very same number
-  await handleMessage({ jid: SAM, phone: "923001112222", text: code }, whatsapp, APP);
+  await handleMessage({ jid: SAM, phone: "923001112222", text: code }, whatsapp, APP, admin.orgId);
   assert.match(lastSent(), /You're connected to 1FOLD\*\n_Acme_/);
   assert.equal((await myWhatsApp(dev)).linked, null); // Sam's briefs can never reach this phone again
   assert.equal((await myWhatsApp(admin)).linked!.phone, "923001112222");
 });
 
-test("a brief only shows what the person may see; an unconfirmed email can't manage the bot", async () => {
+test("a brief only shows what the person may see", async () => {
   const { code } = await createLinkCode(dev);
-  await handleMessage({ jid: "923005556666@s.whatsapp.net", phone: "923005556666", text: code }, whatsapp, APP);
+  await handleMessage({ jid: "923005556666@s.whatsapp.net", phone: "923005556666", text: code }, whatsapp, APP, admin.orgId);
   await applySteps(admin, [{ name: "setMember", args: ["CH", samId, false] }]); // Sam leaves Checkout; CH-3 is still his
-  await handleMessage({ jid: "923005556666@s.whatsapp.net", phone: "923005556666", text: "1fold" }, whatsapp, APP);
+  await handleMessage({ jid: "923005556666@s.whatsapp.net", phone: "923005556666", text: "1fold" }, whatsapp, APP, admin.orgId);
   assert.match(lastSent(), /You have no pending tasks 🎉/);
 
-  process.env.PLATFORM_ADMIN_EMAILS = "ayla@acme.example,eve@other.example";
-  const eve = await signUpCompany({ name: "Eve", email: "eve@other.example", password: PASSWORD, company: "Other", slug: "other-wa" });
-  const eveSession = (await readSession(eve.token))!;
-  assert.equal(await isPlatformAdmin(eveSession), false); // listed, but she hasn't proven the address is hers
-  await assert.rejects(requestBot(eveSession, "pair"), AccessError);
-  assert.equal(await isPlatformAdmin(admin), true);
 });
 
-test("when WhatsApp logs the bot out, platform admins get one email about it", async () => {
+test("when WhatsApp logs a company's number out, its admins get one email about it; until it's back, nobody can link", async () => {
   const before = (await emailsTo("ayla@acme.example")).length;
-  await setBotState("logged_out", {}, APP);
-  await setBotState("logged_out", {}, APP);
+  await setCompanyBotState(admin.orgId, "logged_out");
+  await setCompanyBotState(admin.orgId, "logged_out");
   const alerts = (await emailsTo("ayla@acme.example")).slice(before);
   assert.equal(alerts.length, 1);
-  assert.equal(alerts[0].subject, "1Fold's WhatsApp bot was disconnected");
-  assert.ok(alerts[0].text.includes(`${APP}/admin/settings`));
+  assert.equal(alerts[0].subject, "Acme's WhatsApp number was disconnected");
+  assert.ok(alerts[0].text.includes("/admin/integrations/team-bot"));
+  assert.equal((await emailsTo("sam@acme.example")).some((m) => m.subject.includes("disconnected")), false); // admins only
   await assert.rejects(createLinkCode(dev), /isn't connected/);
+  await setCompanyBotState(admin.orgId, "connected", { phone: "923000000001" }); // scanned again
 });
 
 test("admins set their company's WhatsApp — the brief's time and days (or off), the reply words, the messages — and see who's linked and what went out", async () => {
   const SAM2 = "923007778888@s.whatsapp.net"; // Sam's newest number (its own reply allowance)
-  const fromSam2 = (text: string) => handleMessage({ jid: SAM2, phone: "923007778888", text }, whatsapp, APP);
-  await setBotState("connected", { phone: "923000000001" }, APP); // back after the last test's logout
+  const fromSam2 = (text: string) => handleMessage({ jid: SAM2, phone: "923007778888", text }, whatsapp, APP, admin.orgId);
   await fromSam2((await createLinkCode(dev)).code);
   assert.match(lastSent(), /Every working day at \*09:00\* you'll get your pending tasks here/);
 
@@ -310,50 +305,49 @@ test("admins set their company's WhatsApp — the brief's time and days (or off)
   assert.equal((await companyWhatsApp(admin)).settings.templates.signOff, "🤍 *1FOLD By TensorFold* 🤍");
 });
 
-test("a company's own number: admins set it up; once paired, teammates link to it and hear from it; another company's code doesn't link through it; disconnected, it's 1FOLD's bot again", async () => {
-  const { botFor, dropCompanyBot, requestCompanyBot, setCompanyBotState, takeCompanyBotRequests } = await import("./companyBot.ts");
+test("a company's own number: teammates link to it and hear from it; another company's code doesn't link through it; disconnected, the company has no WhatsApp", async () => {
+  const { botFor, dropCompanyBot } = await import("./companyBot.ts");
   const { sendOutbox } = await import("./outbox.ts");
   const { queueAlerts } = await import("./urgent.ts");
   const fake = () => ({ sent: [] as { jid: string; text: string }[], async send(jid: string, text: string) { this.sent.push({ jid, text }); } });
   const own = fake();
-  const main = fake();
+  const other = fake(); // another company's number
 
-  await assert.rejects(requestCompanyBot(dev, "pair"), AccessError); // only admins
-  await requestCompanyBot(admin, "pair");
-  assert.deepEqual(await takeCompanyBotRequests(), [{ orgId: admin.orgId, request: "pair" }]);
-  assert.deepEqual(await takeCompanyBotRequests(), []); // each request runs once
-  assert.equal((await botFor(admin.orgId)).own, false); // being set up, not paired yet: still 1FOLD's bot
-  assert.match((await createLinkCode(dev)).url, /^https:\/\/wa\.me\/923000000001\?/);
-  await requestCompanyBot(admin, "logout"); // cancelled before it was paired: gone at once, no worker needed
-  assert.deepEqual(await takeCompanyBotRequests(), []);
-  await requestCompanyBot(admin, "pair"); // and set up again
-  assert.deepEqual(await takeCompanyBotRequests(), [{ orgId: admin.orgId, request: "pair" }]);
-
-  await setCompanyBotState(admin.orgId, "connected", { phone: "923009990000" });
+  await setCompanyBotState(admin.orgId, "connected", { phone: "923009990000" }); // Acme moved to a new number
   const { code, url } = await createLinkCode(dev);
   assert.match(url, /^https:\/\/wa\.me\/923009990000\?/); // teammates link to the company's number
   const SAM3 = "923001010101@s.whatsapp.net";
-  await handleMessage({ jid: SAM3, phone: "923001010101", text: code }, own, APP, "org-someone-else");
-  assert.match(own.sent.at(-1)?.text ?? "", /didn't work/); // another company's number links nothing
+  await handleMessage({ jid: SAM3, phone: "923001010101", text: code }, other, APP, "org-someone-else");
+  assert.match(other.sent.at(-1)?.text ?? "", /didn't work/); // another company's number links nothing
   await handleMessage({ jid: SAM3, phone: "923001010101", text: code }, own, APP, admin.orgId);
   assert.match(own.sent.at(-1)?.text ?? "", /You're connected to 1FOLD/); // still good on the right one
+  await handleMessage({ jid: SAM3, phone: "923001010101", text: "1FOLD" }, other, APP, "org-someone-else");
+  assert.equal(other.sent.length, 1); // Sam isn't linked there: that company's bot says nothing about him
 
   await queueAlerts(admin.orgId, [{ memberId: samId, text: "🚨 ping" }]);
-  await sendOutbox((orgId) => (orgId === admin.orgId ? null : main)); // its number is down: the alert waits
-  assert.equal([...own.sent, ...main.sent].some((m) => m.text === "🚨 ping"), false);
-  await sendOutbox((orgId) => (orgId === admin.orgId ? own : main)); // back up: sent from the company's number
-  assert.deepEqual([own.sent.at(-1)?.text, main.sent.length], ["🚨 ping", 0]);
+  await sendOutbox((orgId) => (orgId === admin.orgId ? null : other)); // its number is down: the alert waits
+  assert.equal([...own.sent, ...other.sent].some((m) => m.text === "🚨 ping"), false);
+  await sendOutbox((orgId) => (orgId === admin.orgId ? own : other)); // back up: sent from the company's number
+  assert.deepEqual([own.sent.at(-1)?.text, other.sent.length], ["🚨 ping", 1]);
 
   await setCompanyBotState(admin.orgId, "connecting"); // paired, briefly down: no other number meanwhile
   await assert.rejects(createLinkCode(dev), /isn't connected/);
-  await dropCompanyBot(admin.orgId); // disconnected
-  assert.deepEqual(await botFor(admin.orgId), { state: "connected", phone: "923000000001", own: false });
+  await dropCompanyBot(admin.orgId); // disconnected: no shared number to fall back on
+  assert.deepEqual(await botFor(admin.orgId), { state: "off", phone: null });
+  await assert.rejects(createLinkCode(dev), /isn't connected/);
+
+  await requestCompanyBot(admin, "pair");
+  await requestCompanyBot(admin, "logout"); // cancelled before it was paired: gone at once, no worker needed
+  assert.equal(await companyBot(admin.orgId), null);
+  await requestCompanyBot(admin, "pair"); // and set up again, for what follows
+  assert.deepEqual(await takeCompanyBotRequests(), [{ orgId: admin.orgId, request: "pair" }]);
+  await setCompanyBotState(admin.orgId, "connected", { phone: "923000000001" });
 });
 
 test("every reply to a linked teammate is in Deliveries — asking for their tasks too; one that can't go waits and goes with the next send", async () => {
   const { sendOutbox } = await import("./outbox.ts");
   const SAM4 = "923002020202@s.whatsapp.net";
-  const fromSam4 = (text: string) => handleMessage({ jid: SAM4, phone: "923002020202", text }, whatsapp, APP);
+  const fromSam4 = (text: string) => handleMessage({ jid: SAM4, phone: "923002020202", text }, whatsapp, APP, admin.orgId);
   await fromSam4((await createLinkCode(dev)).code);
   await fromSam4("1FOLD");
   let log = (await companyWhatsApp(admin)).log.filter((d) => d.personId === samId);

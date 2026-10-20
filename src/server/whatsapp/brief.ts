@@ -128,8 +128,8 @@ export interface BriefRun { whatsapp: number; email: number; none: number; faile
  * any number of times.
  */
 export async function sendDueBriefs(opts: {
-  whatsapp: Sender | null; appUrl: string; at?: Date; gapMs?: number;
-  whatsappFor?: (orgId: string) => Sender | null; // a company's own number, where it has one (else `whatsapp`)
+  appUrl: string; at?: Date; gapMs?: number;
+  whatsappFor: (orgId: string) => Sender | null; // the company's own number — none: the brief goes by its email
 }): Promise<BriefRun> {
   const at = opts.at ?? new Date();
   const run: BriefRun = { whatsapp: 0, email: 0, none: 0, failed: 0 };
@@ -142,7 +142,7 @@ export async function sendDueBriefs(opts: {
     const clock = localClock(company.timeZone, at);
     const since = clock.hour * 60 + clock.minute - minutesOf(settings.briefAt); // minutes since the brief's time today
     if (!settings.briefDays.includes(clock.weekday) || since < 0 || since >= SEND_WINDOW_MINUTES) continue;
-    const whatsapp = opts.whatsappFor?.(orgId) ?? opts.whatsapp;
+    const whatsapp = opts.whatsappFor(orgId);
     if (whatsapp?.waiting?.() && since < WAIT_FOR_WHATSAPP_MINUTES) continue; // (re)connecting: try next minute
     for (const link of links.filter((l) => l.orgId === orgId)) {
       const person = company.db.people.find((p) => p.id === link.memberId);
