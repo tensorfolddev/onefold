@@ -6,7 +6,7 @@ import { Archive, Building2, IdCard, Plus, Trash2, Users } from "lucide-react";
 import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { TeamsManager } from "@/features/people/TeamsManager";
-import { ArchivedDocs } from "@/features/docs/ArchivedDocs";
+import { ArchivedDocsBucket } from "@/features/docs/ArchivedDocs";
 import { errorOf, FormError } from "@/ui/fields";
 import { SettingsLayout, type SettingsSection } from "@/ui/SettingsLayout";
 
@@ -18,7 +18,7 @@ export default function SettingsPage() {
     { id: "company", label: "Company", icon: Building2, hint: "Its name, and who can join it.", body: <Company /> },
     { id: "job-titles", label: "Job titles", icon: IdCard, hint: "The titles people pick from. Renaming one updates everyone who has it.", body: <JobTitles /> },
     { id: "teams", label: "Teams", icon: Users, hint: "Your teams and their leads, and who's on which.", body: <TeamsManager /> },
-    { id: "archived", label: "Archived", icon: Archive, hint: "Company pages someone archived: bring them back, or delete them for good.", body: <ArchivedDocs productKey="" /> },
+    { id: "archived", label: "Archived", icon: Archive, hint: "Company pages someone archived: bring them back, or delete them for good.", body: <div className="buckets"><ArchivedDocsBucket productKey="" /></div> },
   ];
   return (
     <div className="page admin-page settings-page">

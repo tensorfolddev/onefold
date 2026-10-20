@@ -33,6 +33,12 @@ async function signUp(page: Page, company: string, founderEmail: string) {
   await expect(page.getByRole("heading", { name: "Invite your team" })).toBeVisible({ timeout: 20_000 });
 }
 
+/** Settings → Archived: opens a bucket ("tickets" or "docs") into its window, and gives that window. */
+async function openArchive(page: Page, what: "tickets" | "docs") {
+  await page.getByRole("button", { name: new RegExp(`^Archived ${what}`) }).click();
+  return page.getByRole("dialog", { name: new RegExp(`^Archived ${what}`) });
+}
+
 async function signIn(page: Page, address: string, password = PASSWORD) {
   await page.goto("/signin");
   await page.getByLabel("Email").fill(address);
@@ -442,7 +448,8 @@ test("tickets are archived, not deleted: off the board, in Settings → Archived
   await expect(page.locator(".products-view, .ticket-grid, .kanban").getByText("Old idea")).toHaveCount(0); // off the board
 
   await page.goto(`${productUrl}/settings`);
-  const archived = page.locator(".archived-tickets");
+  await expect(page.getByRole("button", { name: /^Archived tickets/ })).toContainText("Old idea"); // the latest, on the bucket
+  let archived = await openArchive(page, "tickets");
   await expect(archived).toContainText("Old idea");
   const saved = page.waitForResponse((r) => r.url().includes("/api/org/changes") && r.ok());
   await archived.getByRole("button", { name: `Restore ${key}` }).click(); // one click
@@ -454,6 +461,7 @@ test("tickets are archived, not deleted: off the board, in Settings → Archived
 
   // Deleting for good: only from here, only by typing it.
   await page.goto(`${productUrl}/settings`);
+  archived = await openArchive(page, "tickets");
   await archived.getByRole("button", { name: `Delete ${key} forever` }).click();
   const confirm = page.getByRole("dialog", { name: `Delete ${key} for good?` }).getByRole("button", { name: "Delete forever" });
   await expect(confirm).toBeDisabled();
@@ -570,7 +578,7 @@ test("docs: a teammate sees a save live and who's editing; only an admin archive
   await expect(page.locator(".doc-tree")).not.toContainText("Handbook page");
 
   await page.goto("/admin/settings");
-  const archived = page.locator(".archived-docs");
+  let archived = await openArchive(page, "docs");
   await expect(archived).toContainText("Handbook page");
   await archived.getByRole("button", { name: "Restore Handbook page" }).click();
   await expect(archived).toContainText("Nothing archived");
@@ -579,6 +587,7 @@ test("docs: a teammate sees a save live and who's editing; only an admin archive
   await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
   await expect(page.locator(".doc-tree")).not.toContainText("Handbook page");
   await page.goto("/admin/settings");
+  archived = await openArchive(page, "docs");
   await archived.getByRole("button", { name: "Delete Handbook page forever" }).click();
   const dialog = page.getByRole("dialog", { name: "Delete Handbook page for good?" });
   await expect(dialog.getByRole("button", { name: "Delete forever" })).toBeDisabled();
@@ -895,9 +904,9 @@ test("members: leads up top, the team as cards with what they carry; add someone
 });
 
 test("personal workspace: a developer makes their own product and adds a teammate by email; nobody else sees it", async ({ page, browser }) => {
-  await signUp(page, "Phi", email("phi"));
-  await page.getByLabel("Email 1", { exact: true }).fill(email("phidev"));
-  await confirmEmail(page, email("phi"));
+  await signUp(page, "Phi", email("pwfounder"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("pwdev"));
+  await confirmEmail(page, email("pwfounder"));
   await page.getByRole("button", { name: "Create invite links" }).click();
   const link = (await page.locator(".inv-link-url").first().textContent())!;
   await page.getByRole("button", { name: "Go to Phi" }).click();
@@ -930,8 +939,8 @@ test("personal workspace: a developer makes their own product and adds a teammat
   await dev.getByRole("menuitem", { name: "Add someone@elsewhere.example" }).click();
   await expect(dev.locator(".toast-message", { hasText: /ask an admin to invite them first/ })).toBeVisible();
   await dev.getByRole("button", { name: "Add member" }).click();
-  await dev.getByLabel("Search people to add").fill(email("phi")); // she can't see emails: the server finds who it is
-  await dev.getByRole("menuitem", { name: `Add ${email("phi")}` }).click();
+  await dev.getByLabel("Search people to add").fill(email("pwfounder")); // she can't see emails: the server finds who it is
+  await dev.getByRole("menuitem", { name: `Add ${email("pwfounder")}` }).click();
   await expect(dev.locator(".toast-message", { hasText: "Added Ayla Khan" })).toBeVisible();
 
   await page.goto("/admin/products/SQ");
@@ -1131,7 +1140,8 @@ test("Settings → Archived: tick several (or Select all), then restore or delet
   }
 
   await page.goto(`${productUrl}/settings`);
-  const archived = page.locator(".archived-tickets");
+  await expect(page.getByRole("button", { name: /^Archived tickets/ })).toContainText("3");
+  const archived = await openArchive(page, "tickets");
   await expect(archived.getByRole("checkbox", { name: /^Select / })).toHaveCount(4); // all, and one per ticket
   await archived.getByRole("checkbox", { name: "Select all archived tickets" }).check();
   await expect(archived.getByText("3 selected")).toBeVisible();
@@ -1161,7 +1171,10 @@ test("Settings → Archived: tick several (or Select all), then restore or delet
     await expect(page).toHaveURL(/\/admin\/docs$/);
   }
   await page.goto("/admin/settings");
-  const docs = page.locator(".archived-docs");
+  const docs = await openArchive(page, "docs");
+  await docs.getByLabel("Search archived docs").fill("zzz"); // hundreds of them: search
+  await expect(docs).toContainText("No archived doc matches");
+  await docs.getByLabel("Search archived docs").fill("");
   await docs.getByRole("checkbox", { name: "Select all archived docs" }).check();
   await expect(docs.getByText("2 selected")).toBeVisible();
   await docs.getByRole("region", { name: "Select archived docs" }).getByRole("button", { name: "Delete forever" }).click();

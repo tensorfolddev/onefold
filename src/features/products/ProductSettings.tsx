@@ -7,8 +7,8 @@ import { Archive, CircleDot, Flag, Settings2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { useMe } from "@/data/StoreProvider";
 import type { Product } from "@/domain/types";
-import { ArchivedDocs } from "@/features/docs/ArchivedDocs";
-import { ArchivedTickets } from "./ArchivedTickets";
+import { ArchivedDocsBucket } from "@/features/docs/ArchivedDocs";
+import { ArchivedTicketsBucket } from "./ArchivedTickets";
 import { PrioritySettings } from "./PrioritySettings";
 import { ProductForm } from "./ProductForm";
 import { StatusSettings } from "./StatusSettings";
@@ -28,7 +28,7 @@ export function ProductSettings({ productKey }: { productKey: string }) {
       { id: "priorities", label: "Priorities", icon: Flag, hint: "Rename and recolour the four levels for this project.",
         body: <PrioritySettings product={product} /> },
       { id: "archived", label: "Archived", icon: Archive, hint: "Archived tickets and docs: bring them back, or delete them for good.",
-        body: <div className="settings-stack"><ArchivedTickets product={product} /><ArchivedDocs productKey={product.key} /></div> },
+        body: <div className="buckets"><ArchivedTicketsBucket product={product} /><ArchivedDocsBucket productKey={product.key} /></div> },
     ]} />
   );
 }
