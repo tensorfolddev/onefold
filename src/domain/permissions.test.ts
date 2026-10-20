@@ -64,37 +64,3 @@ test("product icon: admins and the product's managers, not developers", () => {
   assert.equal(can(lead, "product.brand", { product: prod("NV") }), false);
   assert.equal(can(sara, "product.brand", { product: prod("AP") }), false);
 });
-
-test("anyone makes a personal product; its owner runs it, the people they add work in it, nobody else sees it", async () => {
-  const { createProduct, setMember, updateProduct } = await import("./commands/products.ts");
-  const { companyProducts, personalProducts, archivedProducts } = await import("./permissions.ts");
-  const made = createProduct(db, sara, { key: "SIDE", name: "Side quest", type: "internal", pmId: "", projectManagerId: "", groupId: "whatever", personal: true });
-  const side = made.products.find((x) => x.key === "SIDE")!;
-  assert.deepEqual([side.ownerId, side.pmId, side.projectManagerId, side.groupId], [sara.id, sara.id, sara.id, undefined]);
-  assert.throws(() => createProduct(db, sara, { key: "CO", name: "Company one", type: "internal", pmId: pm.id, projectManagerId: pm.id }), /access/i); // the company's are for admins
-
-  // The owner (a developer) runs all of it — but company groups aren't theirs to use.
-  for (const a of ["product.edit", "members.edit", "decision.add", "milestone.edit", "product.archive", "product.delete", "doc.archive"] as const) {
-    assert.equal(can(sara, a, { product: side }), true, a);
-  }
-  assert.equal(can(sara, "product.group", { product: side }), false);
-  assert.throws(() => updateProduct(made, sara, "SIDE", { pmId: pm.id }), /run by its owner/);
-
-  // Not even an admin sees it, until they're added — and then they work in it like a developer.
-  assert.equal(can(admin, "product.view", { product: side }), false);
-  assert.ok(!visibleProducts(admin, made.products).some((x) => x.key === "SIDE"));
-  const shared = setMember(made, sara, "SIDE", admin.id, true).products.find((x) => x.key === "SIDE")!;
-  assert.equal(can(admin, "product.view", { product: shared }), true);
-  assert.equal(can(admin, "ticket.create", { product: shared }), true);
-  assert.equal(can(admin, "product.edit", { product: shared }), false);
-  assert.equal(can(admin, "members.edit", { product: shared }), false);
-
-  // In the Personal workspace, not the company's lists; archived, only its owner still finds it.
-  assert.deepEqual(personalProducts(sara, made.products).map((x) => x.key), ["SIDE"]);
-  assert.ok(!companyProducts(sara, made.products).some((x) => x.key === "SIDE"));
-  const archived = { ...side, archivedAt: "2026-10-19T10:00:00Z" };
-  assert.deepEqual(archivedProducts(sara, [archived]).map((x) => x.key), ["SIDE"]);
-  assert.deepEqual(archivedProducts(admin, [archived]), []);
-  assert.equal(can(sara, "product.archive", { product: archived }), true); // restore it
-  assert.equal(can(sara, "ticket.create", { product: archived }), false);
-});

@@ -44,12 +44,3 @@ test("a developer gets everyone's name but only their own email and notification
   assert.deepEqual(view.people.filter((p) => p.email).map((p) => p.id), [dev.id]);
   assert.ok(view.notifications.every((n) => n.personId === dev.id));
 });
-
-test("a personal product reaches only its owner and the people they add — never an admin who isn't on it", async () => {
-  const { createProduct } = await import("./commands/products.ts");
-  const withSide = createProduct(db, dev, { key: "SIDE", name: "Side quest", type: "internal", pmId: "", projectManagerId: "", personal: true });
-  assert.ok(snapshotFor(withSide, dev).products.some((p) => p.key === "SIDE"));
-  const adminView = snapshotFor(withSide, admin);
-  assert.ok(!adminView.products.some((p) => p.key === "SIDE"));
-  assert.ok(!adminView.statusesByProduct.SIDE);
-});

@@ -79,27 +79,6 @@
   font-size: 14px; text-align: left;
 }
 .sidebar-switcher:hover { background: var(--primary-background-hover-color); }
-/* The workspace switcher: which workspace you're in, a + to make a product there; open it for the other one */
-.sidebar-workspace { display: flex; align-items: center; gap: 6px; }
-.sidebar-switcher.is-button { flex: 1; min-width: 0; background: var(--primary-background-color); color: var(--primary-text-color); cursor: pointer; }
-.sidebar-switcher.is-button[aria-expanded="true"] { border-color: var(--primary-color); }
-.sidebar-switcher.is-button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
-.workspace-chevron { flex: none; width: 16px; height: 16px; color: var(--secondary-text-color); }
-.workspace-add {
-  flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--secondary-text-color);
-  transition: background-color var(--motion-productive-short) var(--motion-timing-transition), color var(--motion-productive-short) var(--motion-timing-transition);
-}
-.workspace-add svg { width: 16px; height: 16px; }
-.workspace-add:hover { color: var(--primary-text-color); background: var(--primary-background-hover-color); }
-.workspace-add:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 0; }
-.workspace-add.is-side { width: 40px; height: 40px; border: 1px solid var(--ui-border-color); border-radius: var(--border-radius-small); }
-.workspace-add.is-side:hover { border-color: var(--primary-text-color); }
-.sidebar-workspace.is-compact { margin-left: 8px; }
-.sidebar-workspace.is-compact .sidebar-switcher { height: 32px; max-width: 240px; padding: 0 8px 0 4px; border-radius: 999px; }
-.sidebar-workspace.is-compact .workspace-avatar { width: 22px; height: 22px; font-size: 11px; border-radius: 50%; }
-@media (max-width: 767px) { .sidebar-workspace.is-compact .workspace-name { display: none; } }
-.workspace-option { display: flex; align-items: center; gap: 4px; padding-right: 4px; }
-.workspace-option .menu-item { flex: 1; min-width: 0; gap: 10px; }
 .sidebar-section { margin-top: 16px; padding: 0 8px 4px; font-size: 14px; font-weight: 500; }
 .sidebar-item {
   display: flex; align-items: center; gap: 10px;

@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, FolderOpen, ListTodo, UserRound } from "lucide-react";
 import { today } from "@/domain/clock";
+import { visibleProducts } from "@/domain/permissions";
 import { useMe } from "@/data/StoreProvider";
 import { donePct, isOpenTicket, nextMilestone } from "@/domain/selectors/product";
 import { shortDate } from "@/domain/status";
 import { Avatar, EmptyState, HealthDot, ProductTile } from "@/ui/primitives";
 import type { Product } from "@/domain/types";
 
-export function ProductsView({ products }: { products: Product[] }) {
-  return <div className="products-view"><ProductTable products={products} /></div>;
+export function ProductsView() {
+  return <div className="products-view"><ProductTable /></div>;
 }
 
-function ProductTable({ products }: { products: Product[] }) {
-  const { db, href } = useMe();
+
+function ProductTable() {
+  const { me, db, href } = useMe();
+  const products = visibleProducts(me, db.products);
   return (
     <table className="pd-table products-table">
       <thead>
@@ -49,10 +52,12 @@ function ProductTable({ products }: { products: Product[] }) {
   );
 }
 
-/** One big card per product, straight into its tickets: developers' "All products", and everyone's Personal products. */
-export function ProductCards({ products, empty }: { products: Product[]; empty?: React.ReactNode }) {
+/** Developer view of "All products": one big card per product they work on, straight into its tickets. */
+export function ProductCards() {
+  const { me, db } = useMe();
+  const products = visibleProducts(me, db.products);
   if (!products.length) {
-    return empty ?? (
+    return (
       <EmptyState icon={<FolderOpen aria-hidden />} title="You're not on any product yet">
         Ask your manager to add you to a product.
       </EmptyState>
