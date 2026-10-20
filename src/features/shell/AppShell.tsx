@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell, BookOpen, Bot, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, MessageCircle, Moon, Plug,
+  Bell, BookOpen, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, Moon, Plug,
   Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { isSoundOn } from "@/features/tickets/sounds";
@@ -17,8 +17,6 @@ import { Popover } from "@/ui/Popover";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { ProductsSidebar } from "./ProductsSidebar";
 import { TicketPanelHost } from "@/features/tickets/TicketPanel";
-import { WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
-import { McpDialog } from "@/features/mcp/McpDialog";
 import { GlobalSearch } from "@/features/shell/GlobalSearch";
 
 interface NavItem { path: string; label: string; icon: LucideIcon }
@@ -145,13 +143,9 @@ function UserMenu() {
   const { theme, setTheme } = useAppState();
   const { db, me, panel, signOut } = useMe();
   const [sounds, setSounds] = useState(false);
-  const [whatsApp, setWhatsApp] = useState(false);
-  const [mcp, setMcp] = useState(false);
   return (
     <>
     {sounds && <SoundSettings onClose={() => setSounds(false)} />}
-    {whatsApp && <WhatsAppDialog onClose={() => setWhatsApp(false)} />}
-    {mcp && <McpDialog onClose={() => setMcp(false)} />}
     <Popover
       align="right"
       width={260}
@@ -190,12 +184,6 @@ function UserMenu() {
           <div className="menu-divider" />
           <button type="button" className="menu-item" onClick={() => { close(); setSounds(true); }}>
             {isSoundOn() ? <Volume2 /> : <VolumeX />} Notifications &amp; sounds
-          </button>
-          <button type="button" className="menu-item" onClick={() => { close(); setWhatsApp(true); }}>
-            <MessageCircle /> WhatsApp
-          </button>
-          <button type="button" className="menu-item" onClick={() => { close(); setMcp(true); }}>
-            <Bot /> Claude &amp; MCP
           </button>
           <div className="menu-divider" />
           <button type="button" className="menu-item" onClick={() => { close(); signOut(); }}>

@@ -22,13 +22,13 @@ const NET = Math.floor(Math.random() * 250);
 async function signUp(page: Page, company: string, founderEmail: string) {
   await page.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
   await page.goto("/signup");
-  await page.getByLabel("Full name").fill("Ayla Khan");
-  await page.getByLabel("Work email").fill(founderEmail);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("Company name").fill(company);
   await page.getByLabel("Short name").fill(slug(company.toLowerCase().replace(/\s+/g, "-")));
   await expect(page.getByText("is free")).toBeVisible({ timeout: 15_000 }); // the name check can be slow on a busy CI runner
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Full name").fill("Ayla Khan");
+  await page.getByLabel("Work email").fill(founderEmail);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page.getByRole("heading", { name: "Invite your team" })).toBeVisible({ timeout: 20_000 });
 }
@@ -77,9 +77,18 @@ async function signOut(page: Page) {
 
 const freshPage = async (browser: Browser) => (await browser.newContext()).newPage();
 
-test("sign-up validates each step before moving on", async ({ page }) => {
+test("sign-up asks for the company first, then the admin account — and validates each step before moving on", async ({ page }) => {
   await page.goto("/signup");
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Enter your company's name")).toBeVisible();
+  await expect(page.getByLabel("Company name")).toBeFocused();
+  await page.getByLabel("Company name").fill("Checkers");
+  await page.getByLabel("Short name").fill(slug("checkers"));
+  await expect(page.getByText("is free")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Create your admin account" })).toBeVisible();
+  await page.getByRole("button", { name: "Create company" }).click();
   await expect(page.getByText("Enter your name")).toBeVisible();
   await expect(page.getByText("Enter a valid email address")).toBeVisible();
   await expect(page.getByText("Use at least 8 characters")).toBeVisible();
@@ -110,11 +119,8 @@ test("a founder confirms their email, invites a developer by email, who joins on
 
   await page.getByRole("button", { name: "Go to Acme Labs" }).click();
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByText("2 of 7 done")).toBeVisible(); // and then the company's own accounts:
-  const own = page.getByRole("list", { name: "Connect your company's own accounts" });
-  await expect(own.getByRole("link", { name: "Set up Team Bot" })).toHaveAttribute("href", "/admin/integrations/team-bot");
-  await expect(own.getByRole("link", { name: "Set up email" })).toHaveAttribute("href", "/admin/integrations/email");
-  await expect(own.getByRole("link", { name: "Connect Drive" })).toHaveAttribute("href", "/admin/integrations/drive");
+  await expect(page.getByRole("heading", { name: "No products yet" })).toBeVisible(); // no setup checklist, just a way in
+  await expect(page.getByRole("link", { name: "New product" })).toHaveAttribute("href", "/admin/products?new=1");
   await page.goto("/admin/people");
   await expect(page.getByRole("rowheader", { name: email("sam") })).toBeVisible();
   await signOut(page);
@@ -265,14 +271,16 @@ test("WhatsApp: every company has its own number — until it's connected, a tea
   await signUp(page, "Eta", email("eta"));
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("button", { name: "WhatsApp" }).click();
+  await expect(page.getByRole("button", { name: "WhatsApp" })).toHaveCount(0); // it lives in Integrations, not the menu
+  await page.keyboard.press("Escape");
+
+  await page.goto("/admin/integrations/whatsapp");
+  await expect(page.getByRole("heading", { name: "WhatsApp", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Connect WhatsApp" }).click();
   await expect(page.getByRole("dialog", { name: "WhatsApp" })).toBeVisible();
   await expect(page.getByText(/hasn't connected its WhatsApp number yet/)).toBeVisible();
   await expect(page.getByText("Integrations → Team Bot")).toBeVisible(); // where an admin connects it
   await page.getByRole("button", { name: "Close" }).click();
-
-  await page.goto("/admin/integrations/whatsapp");
-  await expect(page.getByRole("heading", { name: "WhatsApp", level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect the bot" })).toHaveCount(0); // nothing shared to pair here
 });
 
@@ -285,8 +293,8 @@ test("Claude connects with a personal token: an MCP tool makes a ticket that sho
   await page.getByRole("button", { name: "Create product" }).click();
   await expect(page).toHaveURL(/\/admin\/products\/MO$/);
 
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("button", { name: "Claude & MCP" }).click();
+  await page.goto("/admin/integrations/claude");
+  await page.getByRole("button", { name: "Connect Claude" }).click();
   await page.getByLabel("Token name").fill("Claude Code (e2e)");
   await page.getByRole("button", { name: "Create token" }).click();
   const command = (await page.locator(".mcp-command").textContent())!;
