@@ -110,7 +110,11 @@ test("a founder confirms their email, invites a developer by email, who joins on
 
   await page.getByRole("button", { name: "Go to Acme Labs" }).click();
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByText("2 of 4 done")).toBeVisible();
+  await expect(page.getByText("2 of 7 done")).toBeVisible(); // and then the company's own accounts:
+  const own = page.getByRole("list", { name: "Connect your company's own accounts" });
+  await expect(own.getByRole("link", { name: "Set up Team Bot" })).toHaveAttribute("href", "/admin/integrations/team-bot");
+  await expect(own.getByRole("link", { name: "Set up email" })).toHaveAttribute("href", "/admin/integrations/email");
+  await expect(own.getByRole("link", { name: "Connect Drive" })).toHaveAttribute("href", "/admin/integrations/drive");
   await page.goto("/admin/people");
   await expect(page.getByRole("rowheader", { name: email("sam") })).toBeVisible();
   await signOut(page);
