@@ -4,7 +4,7 @@
 // and the "confirm your email" link.
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
-import { ArrowRight, CircleAlert, KeyRound, Mail, MailCheck } from "lucide-react";
+import { ArrowRight, CircleAlert, KeyRound, MailCheck } from "lucide-react";
 import { api, ApiError } from "@/data/api";
 import { EMAIL_RE } from "@/data/commands";
 import { AuthField, AuthShell, PasswordField } from "./AuthShell";
@@ -62,13 +62,11 @@ export function Forgot() {
         ) : (
           <form className="auth-form" noValidate onSubmit={submit} aria-busy={busy}>
             <div className="auth-heading">
-              <span className="auth-badge-icon" aria-hidden><KeyRound /></span>
               <h1 className="auth-title">Forgot your password?</h1>
               <p className="auth-sub">Enter the email you sign in with and we&apos;ll email you a link to choose a new one.</p>
             </div>
             <AuthField id={`${uid}-email`} label="Email" error={error}>
               <span className="auth-input">
-                <Mail aria-hidden className="auth-input-icon" />
                 <input id={`${uid}-email`} type="email" inputMode="email" value={email} autoComplete="username" spellCheck={false} autoFocus
                   aria-invalid={!!error || undefined} aria-describedby={`${uid}-email-msg`}
                   onChange={(e) => { setEmail(e.target.value); setError(null); }} />

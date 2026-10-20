@@ -1,10 +1,10 @@
 "use client";
 
-// Company sign-up (your company → your admin account → your team) and joining by invite link.
+// Company sign-up (your company → you → your team) and joining by invite link.
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Building2, Check, LogOut, Mail, UserRound, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Info, LogOut } from "lucide-react";
 import { domainOf, EMAIL_RE, isFreeMail, MIN_PASSWORD, slugError, slugify } from "@/data/commands";
 import { passwordStrength } from "@/data/passwords";
 import { useAuth, type CreatedInvite, type InviteView } from "@/data/StoreProvider";
@@ -12,7 +12,7 @@ import { InviteForm, InviteLinks } from "@/features/people/Invites";
 import { PANEL_LABEL } from "@/features/shell/AppShell";
 import { AuthField, AuthShell, PasswordField, Steps } from "./AuthShell";
 
-const STEPS = ["Company", "Account", "Team"];
+const STEPS = ["Your company", "Your account", "Your team"];
 
 type Errors = Partial<Record<"name" | "email" | "password" | "company" | "slug" | "form", string | null>>;
 const hasErrors = (e: Errors) => Object.values(e).some(Boolean);
@@ -101,13 +101,11 @@ export function SignUp() {
         {step === 0 && (
           <form className="auth-form" onSubmit={toAccount} noValidate>
             <div className="auth-heading">
-              <span className="auth-badge-icon" aria-hidden><Building2 /></span>
               <h1 ref={heading} tabIndex={-1} className="auth-title">Create your company on 1Fold</h1>
-              <p className="auth-sub">Start with your company. Next you&apos;ll make your account — as its first admin.</p>
+              <p className="auth-sub">You&apos;ll be its first admin. Boards, tickets and your team — set up in a minute.</p>
             </div>
             <AuthField id={`${uid}-company`} label="Company name" error={errors.company}>
               <span className="auth-input">
-                <Building2 aria-hidden className="auth-input-icon" />
                 <input id={`${uid}-company`} value={company} autoComplete="organization" autoFocus placeholder="Acme Labs"
                   aria-invalid={!!errors.company || undefined} aria-describedby={`${uid}-company-msg`}
                   onChange={(e) => { setCompany(e.target.value); clear("company"); clear("slug"); }} />
@@ -132,30 +130,32 @@ export function SignUp() {
         {step === 1 && (
           <form className="auth-form" onSubmit={create} noValidate aria-busy={busy}>
             <div className="auth-heading">
-              <span className="auth-badge-icon" aria-hidden><UserRound /></span>
               <h1 ref={heading} tabIndex={-1} className="auth-title">Create your admin account</h1>
-              <p className="auth-sub">You&apos;ll sign in to <strong>{company.trim()}</strong> with this — as its first admin.</p>
+              <p className="auth-sub">You&apos;ll sign in to <strong>{company.trim()}</strong> with this.</p>
             </div>
             <AuthField id={`${uid}-name`} label="Full name" error={errors.name}>
               <span className="auth-input">
-                <UserRound aria-hidden className="auth-input-icon" />
                 <input id={`${uid}-name`} value={name} autoComplete="name" autoFocus placeholder="Ayla Khan"
                   aria-invalid={!!errors.name || undefined} aria-describedby={`${uid}-name-msg`}
                   onChange={(e) => { setName(e.target.value); clear("name"); }} />
               </span>
             </AuthField>
-            <AuthField id={`${uid}-email`} label="Work email" error={errors.email}
-              hint={!domain ? "Use your work email — teammates with the same domain can join."
-                : isFreeMail(domain) ? "A personal email: invites won't be limited to one domain."
-                : <span>Only <strong>@{domain}</strong> emails can join by invite. Admins can change this in Settings.</span>}>
+            <AuthField id={`${uid}-email`} label="Work email" error={errors.email} hint="Use your work email — teammates with the same domain can join.">
               <span className="auth-input">
-                <Mail aria-hidden className="auth-input-icon" />
                 <input id={`${uid}-email`} type="email" inputMode="email" value={email} autoComplete="email" spellCheck={false} placeholder="ayla@acme.io"
                   aria-invalid={!!errors.email || undefined} aria-describedby={`${uid}-email-msg`}
                   onChange={(e) => { setEmail(e.target.value); clear("email"); }} />
               </span>
             </AuthField>
             <PasswordField id={`${uid}-password`} value={password} error={errors.password} onChange={(v) => { setPassword(v); clear("password"); }} />
+            {domain && (
+              <p className="auth-note">
+                <Info aria-hidden />
+                {!isFreeMail(domain)
+                  ? <span>Only <strong>@{domain}</strong> emails can join by invite. Admins can change this in Settings.</span>
+                  : <span>You signed up with a personal email, so invites aren&apos;t limited to one domain.</span>}
+              </p>
+            )}
             {errors.form && <p className="auth-error auth-form-error" role="alert">{errors.form}</p>}
             <div className="auth-actions">
               <button type="button" className="btn btn-tertiary btn-lg" onClick={() => { setErrors({}); setStep(0); }} disabled={busy}>
@@ -165,16 +165,12 @@ export function SignUp() {
                 {busy ? <><span className="auth-spinner" aria-hidden /> Creating your company…</> : <>Create company <ArrowRight aria-hidden /></>}
               </button>
             </div>
-            <p className="auth-legal">
-              By creating your company you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
-            </p>
           </form>
         )}
 
         {step === 2 && (
           <div className="auth-form">
             <div className="auth-heading">
-              <span className="auth-badge-icon" aria-hidden><Users /></span>
               <h1 ref={heading} tabIndex={-1} className="auth-title">{invited ? "Send your invites" : "Invite your team"}</h1>
               <p className="auth-sub">
                 {invited ? "Copy each link and send it — they pick their own password." : `${company.trim()} is ready. Add the people you work with, or do it later from People.`}
@@ -268,7 +264,6 @@ export function AcceptInvite({ token }: { token: string }) {
         </div>
         <AuthField id={`${uid}-name`} label="Full name" error={errors.name}>
           <span className="auth-input">
-            <UserRound aria-hidden className="auth-input-icon" />
             <input id={`${uid}-name`} value={name} autoComplete="name" autoFocus
               aria-invalid={!!errors.name || undefined} aria-describedby={`${uid}-name-msg`}
               onChange={(e) => { setName(e.target.value); setErrors((x) => ({ ...x, name: null })); }} />
