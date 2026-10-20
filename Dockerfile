@@ -32,6 +32,7 @@ COPY --from=build /app/.next ./.next
 COPY package.json next.config.ts tsconfig.json ./
 COPY src ./src
 COPY drizzle ./drizzle
+COPY public ./public
 RUN mkdir -p /data/files /data/whatsapp && chown -R node:node /data && chmod 700 /data/whatsapp
 USER node
 EXPOSE 3000
