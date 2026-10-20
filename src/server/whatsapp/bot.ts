@@ -99,7 +99,7 @@ const sameChat = (msg: Inbound) => msg.phone
   : eq(s.whatsappLinks.jid, msg.jid);
 
 const CODE_FAILED = ["⚠️ *That code didn't work*", "", "It may have expired — codes last 15 minutes.",
-  "Get a new one in 1FOLD: your name → *WhatsApp* → *Connect WhatsApp*."].join("\n");
+  "Get a new one in 1FOLD: *Integrations* → *WhatsApp* → *Connect WhatsApp*."].join("\n");
 
 /**
  * A reply to a linked teammate, written down for their company's Deliveries (as `kind`). One that can't go right now

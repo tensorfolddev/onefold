@@ -541,7 +541,7 @@ export async function handleMcp(req: Request, appUrl: string): Promise<Response>
   const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const who = bearer ? await tokenSession(bearer) : null;
   if (!who) {
-    return rpcError(401, "Sign in with a 1Fold API token: Authorization: Bearer 1fold_… (make one from your name → Claude & MCP)",
+    return rpcError(401, "Sign in with a 1Fold API token: Authorization: Bearer 1fold_… (make one in Integrations → Claude)",
       { "WWW-Authenticate": 'Bearer realm="1Fold"' });
   }
   try {
