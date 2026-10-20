@@ -57,7 +57,9 @@ db_running() { [ -n "$(compose ps --status running --quiet postgres 2>/dev/null)
 # rclone …: rclone in Docker, with the shared config ($ONEFOLD_HOME/rclone) and this environment's backups folder.
 rclone() {
   local tty=()
-  [ -t 0 ] && tty=(-it)
+  # A terminal only when someone is at one on both ends (rclone.sh config). With one, rclone's lines end in \r\n, which
+  # breaks every script that reads its output (require_crypt, backup listings) when run by hand.
+  [ -t 0 ] && [ -t 1 ] && tty=(-it)
   docker run --rm "${tty[@]+"${tty[@]}"}" --user "$(id -u):$(id -g)" \
     -v "$ONEFOLD_HOME/rclone:/config/rclone" -v "${ENV_DIR:-$ONEFOLD_HOME}/backups:/backups" \
     "$RCLONE_IMAGE" "$@"
