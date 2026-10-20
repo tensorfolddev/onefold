@@ -65,7 +65,7 @@ admin of the company connects it once (the session is kept in the `whatsapp` vol
 1. Sign in, open **Integrations → Team Bot**, and press **Set up bot**. A QR code appears within a few seconds.
 2. On the bot's phone: WhatsApp → **Settings → Linked devices → Link a device**, and scan it.
 
-Teammates then link their own numbers from their name (top right) → **WhatsApp**: 1Fold gives them a code to send the
+Teammates then link their own numbers in **Integrations → WhatsApp**: 1Fold gives them a code to send the
 company's number, which proves the number is theirs. Each person has their own private chat with it. Briefs go out at
 the time the company set (9:00 by default, in its time zone) on working days. If WhatsApp ever logs a company's number
 out, its admins get an email (through the company's own email), briefs go by email meanwhile, and Team Bot shows it.
