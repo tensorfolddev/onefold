@@ -15,7 +15,7 @@ import type { Panel } from "@/domain/types";
 import { Avatar, EnvBadge, Tooltip } from "@/ui/primitives";
 import { Popover } from "@/ui/Popover";
 import { NotificationsPanel } from "./NotificationsPanel";
-import { ProductsSidebar } from "./ProductsSidebar";
+import { ProductsSidebar, WorkspaceSwitcher } from "./ProductsSidebar";
 import { TicketPanelHost } from "@/features/tickets/TicketPanel";
 import { WhatsAppDialog } from "@/features/whatsapp/WhatsApp";
 import { McpDialog } from "@/features/mcp/McpDialog";
@@ -47,6 +47,13 @@ const NAV: Record<Panel, NavItem[]> = {
   ],
 };
 
+/** In your own workspace, for everyone: your tasks, your products, your docs — nothing of the company's. */
+const PERSONAL_NAV: NavItem[] = [
+  { path: "", label: "Home", icon: Home },
+  { path: "/products", label: "Products", icon: LayoutGrid },
+  { path: "/docs/mine", label: "Docs", icon: BookOpen },
+];
+
 export const PANEL_LABEL: Record<Panel, string> = { admin: "Admin", manager: "Manager", developer: "Developer" };
 
 /** Path inside the panel: "/dev/products/AP" → "/products/AP", "/dev" → "". */
@@ -71,7 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`app${hasSidebar ? "" : " no-sidebar"}${sidebarOpen ? " sidebar-open" : ""}`}>
-      <Topbar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
+      <Topbar onToggleSidebar={() => setSidebarOpen((o) => !o)} hasSidebar={hasSidebar} />
       <Rail pathname={pathname} />
       {hasSidebar && <ProductsSidebar rel={panelPath(pathname)} onNavigate={() => setSidebarOpen(false)} />}
       <main className="work-area" id="main">{children}</main>
@@ -93,7 +100,7 @@ export function BrandMark() {
   );
 }
 
-function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
+function Topbar({ onToggleSidebar, hasSidebar }: { onToggleSidebar: () => void; hasSidebar: boolean }) {
   const { notificationsOpen, setNotificationsOpen } = useAppState();
   const pathname = usePathname();
   const { db, me, href } = useMe();
@@ -108,6 +115,7 @@ function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         <span>1Fold</span>
       </Link>
       <EnvBadge />
+      {!hasSidebar && <WorkspaceSwitcher compact />}{/* pages without the products sidebar: switch workspace from here */}
       <div className="topbar-center">
         <GlobalSearch />
       </div>
@@ -209,11 +217,11 @@ function UserMenu() {
 }
 
 function Rail({ pathname }: { pathname: string }) {
-  const { panel, href } = useMe();
+  const { panel, href, workspace } = useMe();
   const rel = panelPath(pathname);
   return (
     <nav className="app-rail" aria-label="Main">
-      {NAV[panel].map(({ path, label, icon: Icon }) => {
+      {(workspace === "personal" ? PERSONAL_NAV : NAV[panel]).map(({ path, label, icon: Icon }) => {
         const active = isActive(rel, path);
         return (
           <Link key={path} href={href(path)} className={`rail-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}>

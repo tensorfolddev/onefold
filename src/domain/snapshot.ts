@@ -6,7 +6,7 @@ import { archivedProducts, visibleProducts } from "./permissions.ts";
 import type { Person, Product, Ticket } from "./types.ts";
 
 /** The company cut down to some of its products, and only what belongs to them. */
-function onlyProducts(db: Db, keep: (p: Product) => boolean, keepTicket: (t: Ticket) => boolean = () => true): Db {
+export function onlyProducts(db: Db, keep: (p: Product) => boolean, keepTicket: (t: Ticket) => boolean = () => true): Db {
   const products = db.products.filter(keep);
   const keys = new Set(products.map((p) => p.key));
   const tickets = db.tickets.filter((t) => keys.has(t.productKey) && keepTicket(t));
