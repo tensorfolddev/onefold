@@ -3,7 +3,7 @@
 // The frame every signed-out page shares: the form on the left, a live board on the right that shows what you're setting up.
 import Link from "next/link";
 import { useId, useState } from "react";
-import { Check, Eye, EyeOff } from "lucide-react";
+import { Check, Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { passwordStrength } from "@/data/passwords";
 import { BrandMark } from "@/features/shell/AppShell";
 import { EnvBadge } from "@/ui/primitives";
@@ -63,6 +63,7 @@ export function PasswordField({ id, value, onChange, error, autoComplete = "new-
   return (
     <AuthField id={id} label={label} error={error} hint={meter && !value ? "At least 8 characters. A short sentence is easy to remember." : undefined}>
       <span className="auth-input has-action">
+        <LockKeyhole aria-hidden className="auth-input-icon" />
         <input
           id={id} type={shown ? "text" : "password"} value={value} autoComplete={autoComplete} spellCheck={false}
           aria-invalid={!!error || undefined} aria-describedby={`${id}-msg${meter && value ? ` ${meterId}` : ""}`}
