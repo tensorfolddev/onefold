@@ -19,7 +19,7 @@ export function AuthShell({ children, aside, company }: {
     <div className="auth">
       <main className="auth-main">
         <header className="auth-top">
-          <Link href="/signin" className="auth-brand" aria-label="1Fold">
+          <Link href="/" className="auth-brand" aria-label="1Fold">
             <BrandMark /><span>1Fold</span>
           </Link>
           <EnvBadge />
@@ -27,7 +27,9 @@ export function AuthShell({ children, aside, company }: {
           {aside && <span className="auth-top-aside">{aside}</span>}
         </header>
         <div className="auth-body">{children}</div>
-        <footer className="auth-foot">© {new Date().getFullYear()} 1Fold · Product &amp; ticket management</footer>
+        <footer className="auth-foot">
+          © {new Date().getFullYear()} 1Fold · Product &amp; ticket management · <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link>
+        </footer>
       </main>
       <BoardPreview company={company} />
     </div>
@@ -118,36 +120,43 @@ function BoardPreview({ company }: { company?: string }) {
           <li><Check /> Docs, decisions and roadmap next to the work</li>
         </ul>
       </div>
-      <div className="bp" role="presentation">
-        <div className="bp-head">
-          <span className="bp-tile">{name[0]?.toUpperCase()}</span>
-          <span className="bp-title"><strong>{name}</strong><span>Product board</span></span>
-          <span className="bp-avatars"><i style={{ background: "var(--color-purple)" }} /><i style={{ background: "var(--tone-working)" }} /><i style={{ background: "var(--tone-done)" }} /></span>
-        </div>
-        <div className="bp-board">
-          {COLUMNS.map((c) => (
-            <div key={c.name} className="bp-col">
-              <span className="bp-col-head"><i style={{ background: c.tone }} />{c.name}</span>
-              <span className="bp-card bp-slot" />
-              {c.cards.map(([title, tone]) => (
-                <span key={title} className="bp-card">
-                  <span className="bp-card-title">{title}</span>
-                  <span className="bp-card-meta"><i style={{ background: tone }} /><span className="bp-line" /></span>
-                </span>
-              ))}
-            </div>
-          ))}
-          <span className="bp-mover">
-            <span className="bp-card">
-              <span className="bp-card-title">Launch v1 board</span>
-              <span className="bp-card-meta">
-                <span className="bp-pill"><i className="is-todo">To do</i><i className="is-working">Working on it</i><i className="is-done">Done</i></span>
+      <BoardMock name={name} />
+    </aside>
+  );
+}
+
+/** The live board: a card moving To do → Working on it → Done (the sign-in side, and the home page). */
+export function BoardMock({ name }: { name: string }) {
+  return (
+    <div className="bp" role="presentation">
+      <div className="bp-head">
+        <span className="bp-tile">{name[0]?.toUpperCase()}</span>
+        <span className="bp-title"><strong>{name}</strong><span>Product board</span></span>
+        <span className="bp-avatars"><i style={{ background: "var(--color-purple)" }} /><i style={{ background: "var(--tone-working)" }} /><i style={{ background: "var(--tone-done)" }} /></span>
+      </div>
+      <div className="bp-board">
+        {COLUMNS.map((c) => (
+          <div key={c.name} className="bp-col">
+            <span className="bp-col-head"><i style={{ background: c.tone }} />{c.name}</span>
+            <span className="bp-card bp-slot" />
+            {c.cards.map(([title, tone]) => (
+              <span key={title} className="bp-card">
+                <span className="bp-card-title">{title}</span>
+                <span className="bp-card-meta"><i style={{ background: tone }} /><span className="bp-line" /></span>
               </span>
+            ))}
+          </div>
+        ))}
+        <span className="bp-mover">
+          <span className="bp-card">
+            <span className="bp-card-title">Launch v1 board</span>
+            <span className="bp-card-meta">
+              <span className="bp-pill"><i className="is-todo">To do</i><i className="is-working">Working on it</i><i className="is-done">Done</i></span>
             </span>
           </span>
-        </div>
-        <span className="bp-toast"><Check /> Ticket moved to Done</span>
+        </span>
       </div>
-    </aside>
+      <span className="bp-toast"><Check /> Ticket moved to Done</span>
+    </div>
   );
 }
