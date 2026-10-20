@@ -4,7 +4,11 @@
 .product-space:has(.settings) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 0; }
 .product-space:has(.settings) > .product-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 48px; }
 .settings { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; align-items: start; max-width: 1080px; }
-.settings-page { max-width: 1080px; margin: 0 auto; } /* company Settings: centred in the work area */
+/* Company Settings: centred in the work area, and only the settings scroll — the title stays put (as on Docs) */
+.settings-page { max-width: 1080px; margin: 0 auto; }
+.work-area:has(> .settings-page) { overflow: hidden; display: flex; flex-direction: column; }
+.work-area > .settings-page { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; padding-bottom: 0; }
+.settings-page > .settings { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 4px 48px; margin: 0 -4px; }
 .settings-nav { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 2px; }
 .settings-nav-item {
   display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border-radius: 8px;
@@ -78,15 +82,15 @@
 .settings-row.is-plain .settings-name, .settings-row.is-team .settings-name { margin-left: -8px; }
 
 /* Archived: a bucket per kind (how many, the latest), opening into a window with all of them */
-.buckets { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.buckets { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; } /* each as wide as the other sections */
 .bucket {
-  display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px 16px 16px 18px; text-align: left;
+  display: flex; align-items: center; gap: 16px; width: 100%; min-height: 76px; padding: 16px 20px; text-align: left;
   border: 1px solid var(--layout-border-color); border-radius: 12px; background: var(--primary-background-color);
   transition: border-color var(--motion-productive-short) var(--motion-timing-transition), box-shadow var(--motion-productive-short) var(--motion-timing-transition), transform var(--motion-productive-short) var(--motion-timing-transition);
 }
 .bucket:hover { border-color: var(--ui-border-color); box-shadow: 0 6px 18px -10px rgb(0 0 0 / 0.25); transform: translateY(-1px); }
 .bucket:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
-.bucket-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; color: var(--secondary-text-color); background: var(--allgrey-background-color); }
+.bucket-icon { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; color: var(--secondary-text-color); background: var(--allgrey-background-color); }
 .bucket-icon svg { width: 20px; height: 20px; }
 .bucket-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .bucket-main strong { font-size: 15px; font-weight: 600; color: var(--primary-text-color); }
@@ -125,7 +129,8 @@ button.settings-swatch:not(.is-pick):hover { box-shadow: 0 0 0 2px var(--primary
 .settings-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 900px) {
-  .work-area:has(.product-space .settings) { overflow: auto; display: block; }
+  .work-area:has(.product-space .settings), .work-area:has(> .settings-page) { overflow: auto; display: block; }
+  .settings-page > .settings { overflow: visible; }
   .product-space:has(.settings) > .product-body { overflow: visible; }
   .settings { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .settings-nav { position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none; }

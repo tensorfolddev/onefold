@@ -8,6 +8,11 @@
 .is-email { --app: #1d4ed8; --app-2: #60a5fa; }
 
 .int-center { max-width: 1280px; margin: 0 auto; padding: 24px 32px 64px; } /* centred in the work area */
+/* Only the integrations scroll; the banner and its search stay put */
+.work-area:has(> .int-center) { overflow: hidden; display: flex; flex-direction: column; }
+.work-area > .int-center { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; padding-bottom: 0; }
+.int-center > .int-hero { flex: none; }
+.int-center > .int-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 48px; }
 .int-hero {
   position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 280px; align-items: center; gap: 24px; overflow: hidden;
   padding: 36px 40px; border-radius: 20px;
@@ -53,7 +58,7 @@
 .int-logo.is-lg svg { width: 38px; height: 38px; }
 
 .int-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; margin-top: 28px; }
-.int-cats { display: grid; gap: 2px; align-content: start; position: sticky; top: 16px; }
+.int-cats { display: grid; gap: 2px; align-content: start; align-self: start; position: sticky; top: 16px; }
 .int-cats button {
   display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border-radius: 10px; text-align: left;
   font-size: 14px; color: var(--primary-text-color); transition: background var(--motion-productive-short);
@@ -145,6 +150,8 @@
 .int-about dd { margin: 0; font-weight: 500; }
 
 @media (max-width: 1000px) {
+  .work-area:has(> .int-center) { overflow: auto; display: block; } /* small screens: the whole page scrolls */
+  .int-center > .int-body { overflow: visible; }
   .int-hero { grid-template-columns: 1fr; padding: 28px 24px; }
   .int-hero-art { display: none; }
   .int-body, .int-overview { grid-template-columns: 1fr; }
