@@ -32,7 +32,8 @@ export async function sendOutbox(whatsapp: Sender | ((orgId: string | null) => S
       sent += 1;
     } catch (e) {
       console.error("[whatsapp] couldn't send an alert", e);
-      await db.update(s.whatsappOutbox).set({ attempts: sql`${s.whatsappOutbox.attempts} + 1` }).where(eq(s.whatsappOutbox.id, m.id));
+      const lastError = (e instanceof Error ? e.message : String(e)).replace(/\s+/g, " ").slice(0, 300);
+      await db.update(s.whatsappOutbox).set({ attempts: sql`${s.whatsappOutbox.attempts} + 1`, lastError }).where(eq(s.whatsappOutbox.id, m.id));
       failed += 1;
     }
   }

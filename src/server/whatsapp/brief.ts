@@ -124,8 +124,8 @@ export interface BriefRun { whatsapp: number; email: number; none: number; faile
 
 /**
  * Sends every brief that's due now: companies whose brief is on, on one of its days, from its time to 9 hours after;
- * people who linked WhatsApp and want briefs and haven't had today's. Runs every minute in the worker; safe to run
- * any number of times.
+ * people who linked WhatsApp and want briefs and haven't had today's at this time — moving the time later sends it
+ * again at the new time. Runs every minute in the worker; safe to run any number of times.
  */
 export async function sendDueBriefs(opts: {
   appUrl: string; at?: Date; gapMs?: number;
@@ -147,37 +147,49 @@ export async function sendDueBriefs(opts: {
     for (const link of links.filter((l) => l.orgId === orgId)) {
       const person = company.db.people.find((p) => p.id === link.memberId);
       if (!person?.active || !person.panel) continue;
-      // Claim today's brief first: if an earlier run already did, it's been sent — never send it twice. A claim left
-      // "pending" (the worker died mid-send) or "failed" is taken over after a while, so it's tried again.
-      const claimed = await database().insert(s.briefDeliveries)
-        .values({ orgId, memberId: link.memberId, day: clock.day, channel: "pending" })
+      // Claim today's brief at this time first: if an earlier run already did, it's been sent — never send it twice.
+      // A claim left "pending" (the worker died mid-send) or "failed" is taken over after a while, so it's tried again.
+      const slot = settings.briefAt;
+      const claimed = await database().insert(s.briefSends)
+        .values({ orgId, memberId: link.memberId, day: clock.day, slot, channel: "pending" })
         .onConflictDoUpdate({
-          target: [s.briefDeliveries.orgId, s.briefDeliveries.memberId, s.briefDeliveries.day],
+          target: [s.briefSends.orgId, s.briefSends.memberId, s.briefSends.day, s.briefSends.slot],
           set: { channel: "pending", at: sql`now()` },
-          setWhere: sql`${s.briefDeliveries.channel} in ('pending', 'failed') and ${s.briefDeliveries.at} < now() - ${RETRY_AFTER}::interval`,
+          setWhere: sql`${s.briefSends.channel} in ('pending', 'failed') and ${s.briefSends.at} < now() - ${RETRY_AFTER}::interval`,
         })
         .returning();
       if (!claimed.length) continue;
       const text = briefText(company.db, person, clock, opts.appUrl, { settings });
-      const channel = text === null ? "none" : await deliver({ ...opts, whatsapp }, link.jid, person, orgId, company.db.org.name, text);
+      const { channel, error } = text === null ? { channel: "none" as const, error: null }
+        : await deliver({ ...opts, whatsapp }, link.jid, person, orgId, company.db.org.name, text);
       run[channel] += 1;
-      await database().update(s.briefDeliveries).set({ channel })
-        .where(and(eq(s.briefDeliveries.orgId, orgId), eq(s.briefDeliveries.memberId, link.memberId), eq(s.briefDeliveries.day, clock.day)));
+      await database().update(s.briefSends).set({ channel, text, error })
+        .where(and(eq(s.briefSends.orgId, orgId), eq(s.briefSends.memberId, link.memberId), eq(s.briefSends.day, clock.day), eq(s.briefSends.slot, slot)));
+      // The day's row, for versions before brief_sends (so a rollback never sends today's brief twice).
+      await database().insert(s.briefDeliveries).values({ orgId, memberId: link.memberId, day: clock.day, channel })
+        .onConflictDoUpdate({ target: [s.briefDeliveries.orgId, s.briefDeliveries.memberId, s.briefDeliveries.day], set: { channel, at: sql`now()` } });
     }
   }
   return run;
 }
 
+/** Sends one brief: on WhatsApp, or by email when that can't. Says how it went — and, when it went wrong, why. */
 async function deliver(opts: { whatsapp: Sender | null; appUrl: string; gapMs?: number }, jid: string, person: Person, orgId: string, orgName: string, text: string) {
+  let why = opts.whatsapp ? "WhatsApp wasn't connected" : "The company has no WhatsApp number connected";
   if (opts.whatsapp?.connected()) {
     try {
       await opts.whatsapp.send(jid, text);
       await new Promise((resolve) => setTimeout(resolve, opts.gapMs ?? SEND_GAP_MS));
-      return "whatsapp" as const;
+      return { channel: "whatsapp" as const, error: null };
     } catch (e) {
       console.error(`[brief] WhatsApp send failed for ${person.id}; sending by email`, e);
+      why = `WhatsApp didn't send it: ${errorText(e)}`;
     }
   }
   const myWorkUrl = `${opts.appUrl}/${PANEL_SLUG[person.panel!]}/my-work`;
-  return (await sendEmail(briefEmail({ to: person.email, orgName, text, myWorkUrl }), { orgId })) ? "email" as const : "failed" as const;
+  const mailed = await sendEmail(briefEmail({ to: person.email, orgName, text, myWorkUrl }), { orgId });
+  return mailed ? { channel: "email" as const, error: `${why}, so it went by email` } : { channel: "failed" as const, error: `${why}, and the email didn't send either` };
 }
+
+/** An error as one short line, for the delivery log. */
+export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/\s+/g, " ").slice(0, 300);

@@ -489,6 +489,7 @@ export const whatsappOutbox = pgTable("whatsapp_outbox", {
   orgId: text("org_id"), // whose company, whom and why — for the delivery log (rows queued before these are NULL)
   memberId: text("member_id"),
   kind: text("kind"), // "urgent" (an @@mention), "brief", …
+  lastError: text("last_error"), // why the last try failed, for the delivery log
 }, (t) => [index("whatsapp_outbox_pending").on(t.sentAt, t.id), index("whatsapp_outbox_org").on(t.orgId, t.id)]);
 
 /** The one-time code a teammate sends the bot to link their number ("1FOLD-7K2QXM"). Only its hash is kept. */
@@ -522,6 +523,22 @@ export const briefDeliveries = pgTable("brief_deliveries", {
   channel: text("channel").notNull(), // pending | whatsapp | email | none (nothing to tell)
   at: ts("at").notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.memberId, t.day] })]);
+
+/**
+ * Each brief that went out: one per person, day and brief time — so moving the time later sends that day's brief again
+ * at the new time — with exactly what it said, and why it failed if it did. (brief_deliveries, one row a day, is kept
+ * up to date too, for versions before this one.)
+ */
+export const briefSends = pgTable("brief_sends", {
+  orgId: text("org_id").notNull(),
+  memberId: text("member_id").notNull(),
+  day: day("day").notNull(), // the company's local date
+  slot: text("slot").notNull(), // the brief's time it went out for, "09:00"
+  channel: text("channel").notNull(), // pending | whatsapp | email | none (nothing to tell) | failed
+  text: text("text"), // what it said
+  error: text("error"), // why it failed, or why it went by email
+  at: ts("at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.memberId, t.day, t.slot] })]);
 
 /** Every change, who made it and from where. Append-only: the app role can't update or delete rows. */
 export const auditLog = pgTable("audit_log", {

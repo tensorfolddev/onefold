@@ -1025,6 +1025,7 @@ test("notifications: an @mention in an update reaches them live; @@ is urgent; b
   await expect(dev.locator(".toast-message", { hasText: /^Urgent: Ayla Khan mentioned you/ })).toBeVisible({ timeout: 15_000 });
   await expect(page.locator(".update-body .mention.is-urgent")).toHaveText("@Kai Dev");
 
+  await page.waitForTimeout(1100); // times are kept to the second: the assignment comes in a later one, so it's the newest
   await page.locator(".ticket-panel").getByRole("button", { name: /^Assignees: Unassigned\. Change assignees$/ }).click();
   await page.getByRole("menuitemcheckbox", { name: "Kai Dev" }).click();
   await expect(dev.locator(".toast-message", { hasText: /Ayla Khan assigned you [A-Z]+-1 Launch page/ })).toBeVisible({ timeout: 15_000 });
@@ -1051,7 +1052,7 @@ test("notifications: an @mention in an update reaches them live; @@ is urgent; b
   await dev.reload();
   await dev.getByRole("button", { name: "Notifications, 0 unread" }).click();
   await expect(rows).toHaveCount(2);
-  await expect(rows.first()).toContainText("Urgent");
+  await expect(dev.getByRole("dialog", { name: "Notifications" })).not.toContainText("assigned you"); // the deleted one stays deleted
 });
 
 test("docs: @@ makes an urgent mention, kept as one after a reload", async ({ page }) => {
@@ -1368,12 +1369,16 @@ test("Integrations center: Claude and WhatsApp for everyone; Team Bot for admins
   const saved = () => page.waitForResponse((r) => r.ok() && r.url().endsWith("/api/whatsapp/company") && r.request().method() === "POST");
   await page.getByRole("tab", { name: "Daily brief", exact: true }).click();
   await expect(page).toHaveURL(/\?tab=Daily(%20|\+)brief$/); // the tab is in the address
-  await page.getByLabel("Time").fill("08:30");
+  await page.getByLabel("Time", { exact: true }).fill("08:32"); // any minute, not only every five
   await page.getByRole("group", { name: "Days" }).getByRole("button", { name: "Sat" }).click();
-  await expect(page.locator(".tb-told")).toContainText("Every Mon, Tue, Wed, Thu, Fri and Sat at 08:30");
+  await page.getByLabel("Time zone").selectOption("Asia/Dubai"); // the company's own time zone
+  await expect(page.locator(".tb-told")).toContainText("Every Mon, Tue, Wed, Thu, Fri and Sat at 08:32");
   let done = saved();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await done;
+  await page.reload();
+  await expect(page.getByLabel("Time", { exact: true })).toHaveValue("08:32");
+  await expect(page.getByLabel("Time zone")).toHaveValue("Asia/Dubai");
 
   await page.getByRole("tab", { name: "Templates", exact: true }).click(); // reply words and every template, one page
   await page.getByLabel("New reply word").fill("status");
@@ -1392,7 +1397,7 @@ test("Integrations center: Claude and WhatsApp for everyone; Team Bot for admins
   await expect(page.getByRole("navigation", { name: "Templates" }).getByRole("button", { name: /Sign-off/ })).toContainText("Edited");
   await expect(page.getByRole("list", { name: "Reply words" })).toContainText("STATUS");
   await page.getByRole("tab", { name: "Daily brief", exact: true }).click();
-  await expect(page.getByLabel("Time")).toHaveValue("08:30");
+  await expect(page.getByLabel("Time", { exact: true })).toHaveValue("08:32");
   await expect(page.getByRole("group", { name: "Days" }).getByRole("button", { name: "Sat" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("tab", { name: "Deliveries", exact: true }).click();
   await expect(page.getByRole("table", { name: "Deliveries" })).toContainText("Nothing sent yet.");
