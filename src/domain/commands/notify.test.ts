@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { fixClock } from "../clock.ts";
 import { SEED_TODAY } from "../seed.ts";
 import { demoDb } from "../../data/demo.ts";
-import { markNotificationsRead } from "./notify.ts";
+import { deleteNotifications, markNotificationsRead } from "./notify.ts";
 import { addComment, updateTicket } from "./tickets.ts";
 
 fixClock(`${SEED_TODAY}T10:00:00`);
@@ -40,4 +40,13 @@ test("read stays read: one notice, or all of yours — never someone else's", ()
   const all = markNotificationsRead(db, sara, "all");
   assert.ok(all.notifications.filter((n) => n.personId === sara.id).every((n) => n.read));
   assert.ok(fresh(all).filter((n) => n.personId === admin.id).every((n) => !n.read)); // not hers to mark
+});
+
+test("deleting a notice removes only your own — never someone else's", () => {
+  const db = addComment(db0, lead, ticket.key, `@${sara.name} @${admin.name}`);
+  const [saras, admins] = [sara, admin].map((p) => fresh(db).filter((n) => n.personId === p.id));
+  const gone = deleteNotifications(db, sara, [saras[0].id, admins[0].id, "no-such-id"]);
+  assert.equal(gone.notifications.some((n) => n.id === saras[0].id), false);
+  assert.equal(gone.notifications.some((n) => n.id === admins[0].id), true); // not hers to delete
+  assert.equal(gone.notifications.length, db.notifications.length - 1);
 });

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, BellOff, BellRing, CheckCheck, CircleCheck, MonitorOff, Share2, UserPlus, Users, X } from "lucide-react";
-import { markNotificationsRead } from "@/data/commands";
+import { AtSign, BellOff, BellRing, CheckCheck, CircleCheck, MonitorOff, Share2, Trash2, UserPlus, Users, X } from "lucide-react";
+import { deleteNotifications, markNotificationsRead } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { playNotice } from "./noticeSounds";
 import { alertDesktop, desktopOn, desktopSupported, setDesktop } from "./desktopAlerts";
@@ -29,9 +29,10 @@ export function NotificationsPanel() {
   const router = useRouter();
   const [desktop, setDesktopState] = useState(false);
   useEffect(() => setDesktopState(desktopOn()), []); // eslint-disable-line react-hooks/set-state-in-effect -- the browser's permission
-  // The list is live (new notices appear as they arrive); read stays read.
-  const items = db.notifications.filter((n) => n.personId === me.id);
+  // The list is live (new notices appear as they arrive), newest first; read stays read.
+  const items = db.notifications.filter((n) => n.personId === me.id).sort((a, b) => b.at.localeCompare(a.at));
   const markRead = (ids: string[] | "all") => act((d, m) => markNotificationsRead(d, m, ids));
+  const remove = (id: string) => act((d, m) => deleteNotifications(d, m, [id]));
 
   const open = (n: Notification) => {
     if (!n.read) markRead([n.id]);
@@ -105,7 +106,7 @@ export function NotificationsPanel() {
         ) : (
           <ul style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {visible.map((n) => (
-              <li key={n.id}>
+              <li key={n.id} className="notification-item">
                 <button type="button" className="notification-row" data-unread={!n.read} onClick={() => open(n)}>
                   <Avatar personId={n.actorId} />
                   <span style={{ flex: 1, textAlign: "left" }}>
@@ -117,6 +118,9 @@ export function NotificationsPanel() {
                   </span>
                   {!n.read && <span className="unread-dot" aria-label="Unread" />}
                 </button>
+                <IconButton label="Delete notification" className="btn btn-tertiary btn-icon notification-delete" onClick={() => remove(n.id)}>
+                  <Trash2 />
+                </IconButton>
               </li>
             ))}
           </ul>

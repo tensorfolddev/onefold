@@ -21,7 +21,7 @@
 }
 .product-team:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 .product-lead { color: var(--primary-text-color); font-weight: 500; }
-.product-space .chip svg, .products-view .chip svg { width: 14px; height: 14px; }
+.product-space .chip svg { width: 14px; height: 14px; }
 
 /* ---------- Stage stepper ---------- */
 .stage-stepper {
@@ -171,7 +171,6 @@
 .person-bar-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
 
 /* ---------- /products: pipeline ---------- */
-.products-view { padding-top: 16px; }
 .pipeline { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
 .pipeline-col { display: flex; flex-direction: column; min-width: 0; }
 .pipeline-col-header {

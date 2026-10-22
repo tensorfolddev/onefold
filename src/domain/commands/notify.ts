@@ -33,6 +33,12 @@ export function notify(db: Db, me: Person, notices: NewNotice[]): Db {
   return { ...db, notifications: [...made, ...db.notifications] };
 }
 
+/** Deletes these notices of yours. Never anyone else's. */
+export function deleteNotifications(db: Db, me: Person, ids: string[]): Db {
+  const pick = new Set(Array.isArray(ids) ? ids.filter((x) => typeof x === "string") : []);
+  return { ...db, notifications: db.notifications.filter((n) => !(n.personId === me.id && pick.has(n.id))) };
+}
+
 /** Marks your notices read: these ones, or all of them. Never anyone else's. */
 export function markNotificationsRead(db: Db, me: Person, ids: string[] | "all"): Db {
   const pick = ids === "all" ? undefined : new Set(Array.isArray(ids) ? ids.filter((x) => typeof x === "string") : []);
