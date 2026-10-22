@@ -42,6 +42,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
   return {
     members: db.people.map((p) => r(p.id, {
       name: p.name, color: p.color, role: p.role, team: p.team, capacityH: p.capacityH, panel: opt(p.panel), active: p.active,
+      photo: opt(p.photo),
     })),
     invites: db.invites.map((i) => r(i.id, {
       tokenHash: i.tokenHash, email: i.email, panel: i.panel, role: i.role, invitedBy: i.invitedBy,
@@ -131,6 +132,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
   const people: Person[] = t.members.map((m) => ({
     id: m.id, name: str(m.name), initials: initialsOf(str(m.name)), color: str(m.color), role: str(m.role), team: str(m.team),
     capacityH: m.capacityH as number, email: emails.get(m.id) ?? "", panel: und(m.panel), active: m.active as boolean,
+    ...(m.photo ? { photo: str(m.photo) } : {}),
   }));
   const products: Product[] = t.products.map((p) => ({
     key: p.id, name: str(p.name), type: p.type as Product["type"], client: und(p.client), stage: p.stage as Product["stage"],

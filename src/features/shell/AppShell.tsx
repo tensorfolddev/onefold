@@ -4,11 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell, BookOpen, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, Moon, Plug,
+  Bell, BookOpen, Camera, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, Moon, Plug,
   Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { isSoundOn } from "@/features/tickets/sounds";
 import { SoundSettings } from "./SoundSettings";
+import { PhotoDialog } from "@/features/people/PhotoDialog";
 import { AppStateProvider, useAppState, type Theme } from "@/features/shell/state";
 import { useAuth, useMe } from "@/data/StoreProvider";
 import type { Panel } from "@/domain/types";
@@ -143,9 +144,11 @@ function UserMenu() {
   const { theme, setTheme } = useAppState();
   const { db, me, panel, signOut } = useMe();
   const [sounds, setSounds] = useState(false);
+  const [photo, setPhoto] = useState(false);
   return (
     <>
     {sounds && <SoundSettings onClose={() => setSounds(false)} />}
+    {photo && <PhotoDialog personId={me.id} onClose={() => setPhoto(false)} />}
     <Popover
       align="right"
       width={260}
@@ -158,7 +161,9 @@ function UserMenu() {
       {(close) => (
         <>
           <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 8px 12px" }}>
-            <Avatar personId={me.id} size="lg" />
+            <button type="button" className="menu-photo" aria-label="Change your photo" onClick={() => { close(); setPhoto(true); }}>
+              <Avatar personId={me.id} size="lg" />
+            </button>
             <div>
               <div style={{ fontWeight: 500 }}>{me.name}</div>
               <div className="muted label">{me.role} · {db.org.name}</div>
@@ -182,6 +187,9 @@ function UserMenu() {
             </button>
           ))}
           <div className="menu-divider" />
+          <button type="button" className="menu-item" onClick={() => { close(); setPhoto(true); }}>
+            <Camera /> Change photo
+          </button>
           <button type="button" className="menu-item" onClick={() => { close(); setSounds(true); }}>
             {isSoundOn() ? <Volume2 /> : <VolumeX />} Notifications &amp; sounds
           </button>

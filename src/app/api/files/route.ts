@@ -1,9 +1,10 @@
 // POST /api/files?ticket=<key>&name=<file name>   body: the image's bytes — adds it to that ticket.
 // POST /api/files?doc=<id>&name=<file name>       body: any file's bytes (25 MB) — adds it to that doc.
 // POST /api/files?decision=<id>&name=<file name>  body: any file's bytes (25 MB) — adds it to that decision's text.
+// POST /api/files?avatar=<person id>              body: an image (2 MB) — becomes their photo (yours, or anyone's for an admin).
 import type { NextRequest } from "next/server";
 import { limit, MINUTE } from "@/server/auth/rateLimit";
-import { checkDocUpload, checkUpload, MAX_DOC_FILE_BYTES, MAX_UPLOAD_BYTES, readUpTo, uploadDocFile, uploadImage } from "@/server/files";
+import { checkAvatarUpload, checkDocUpload, checkUpload, MAX_AVATAR_BYTES, MAX_DOC_FILE_BYTES, MAX_UPLOAD_BYTES, readUpTo, uploadAvatar, uploadDocFile, uploadImage } from "@/server/files";
 import { handle, ok, requireSession, str } from "@/server/http";
 
 export async function POST(req: NextRequest) {
@@ -12,6 +13,11 @@ export async function POST(req: NextRequest) {
     limit(`upload:${who.userId}`, 60, MINUTE);
     const p = req.nextUrl.searchParams;
     const name = str(p.get("name"), 300);
+    const avatarOf = str(p.get("avatar"), 100);
+    if (avatarOf) {
+      await checkAvatarUpload(who, avatarOf); // before reading (and storing) anything
+      return ok(await uploadAvatar(who, avatarOf, await readUpTo(req, MAX_AVATAR_BYTES)));
+    }
     const docId = str(p.get("doc"), 100);
     const decisionId = str(p.get("decision"), 100);
     if (docId || decisionId) {

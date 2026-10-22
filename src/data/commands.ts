@@ -52,6 +52,7 @@ export const updateProduct = wrap("updateProduct");
 export const setProductLook = wrap("setProductLook");
 export const setPriority = wrap("setPriority");
 export const markNotificationsRead = wrap("markNotificationsRead");
+export const setPhoto = wrap("setPhoto");
 export const deleteNotifications = wrap("deleteNotifications");
 export const setMember = wrap("setMember");
 export const requestStage = wrap("requestStage");

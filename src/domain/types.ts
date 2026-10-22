@@ -42,6 +42,7 @@ export interface Person {
   email: string; // the login email; the login itself (password) lives on the server only
   panel?: Panel; // undefined = cannot sign in (client contacts)
   active: boolean;
+  photo?: string; // "tpl:fox" (a ready-made one) or "file:<id>" (uploaded); none = initials (domain/avatars.ts)
 }
 
 export interface Team {

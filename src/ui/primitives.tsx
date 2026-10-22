@@ -3,14 +3,27 @@
 import Link from "next/link";
 import { DynamicIcon, type IconName } from "lucide-react/dynamic";
 import { HEALTH, STAGE_TONE, toneVar } from "@/domain/status";
+import { photoFileOf, templateOf } from "@/domain/avatars";
 import type { Health, Product, Stage, Tone } from "@/domain/types";
 import { useDb } from "@/data/StoreProvider";
 
-export function Avatar({ personId, size = "md" }: { personId?: string; size?: "sm" | "md" | "lg" }) {
+export function Avatar({ personId, size = "md" }: { personId?: string; size?: "sm" | "md" | "lg" | "xl" }) {
   const { personById } = useDb();
   const p = personById(personId);
   const cls = `avatar ${size === "md" ? "" : size}`;
   if (!p) return <span className={`${cls} empty`} aria-label="Unassigned" title="Unassigned">–</span>;
+  // Their photo: one they uploaded, or a ready-made one; otherwise their initials on their colour.
+  const file = photoFileOf(p.photo);
+  const tpl = templateOf(p.photo);
+  if (file) {
+    return (
+      <span className={`${cls} has-photo`} title={p.name} role="img" aria-label={p.name}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- a small private image the API serves */}
+        <img src={`/api/files/${file}`} alt="" loading="lazy" decoding="async" />
+      </span>
+    );
+  }
+  if (tpl) return <span className={`${cls} is-template`} style={{ background: tpl.bg }} title={p.name} role="img" aria-label={p.name}><span aria-hidden>{tpl.emoji}</span></span>;
   return (
     <span className={cls} style={{ background: p.color }} title={p.name} aria-label={p.name}>
       {p.initials}

@@ -6,7 +6,9 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { and, eq, sql } from "drizzle-orm";
+import { photoFileOf } from "../domain/avatars.ts";
 import { AccessError, addAttachment, ValidationError } from "../domain/commands/index.ts";
+import { canSetPhoto, withUploadedPhoto } from "../domain/commands/people.ts";
 import { canDoc } from "../domain/docAccess.ts";
 import { can } from "../domain/permissions.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
@@ -20,6 +22,7 @@ import * as s from "./db/schema.ts";
 import { journal } from "./journal.ts";
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // the browser sends a 256 px square, far smaller
 export const MAX_DOC_FILE_BYTES = 25 * 1024 * 1024; // any file in a doc; images show inline, the rest download
 const MAX_SIDE = 20_000; // px — anything bigger is a broken (or hostile) header
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/; // org and file ids (base64url): never "..", never a slash
@@ -114,6 +117,42 @@ export async function uploadImage(who: SessionRow, input: { ticketKey: string; n
       const version = await saveCompany(tx, loaded, next);
       await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source: "web" },
         [{ command: "addAttachment", args: { ticketKey: input.ticketKey, id, name, type: image.type, size: bytes.length } }], version);
+      return { version, id };
+    });
+  } catch (e) {
+    await rm(/*turbopackIgnore: true*/ path, { force: true });
+    throw e;
+  }
+}
+
+// ---------- profile photos: your own, or anyone's for an admin; the whole company sees them ----------
+
+/** Refuses before anything is read: only you set your photo (an admin sets anyone's). */
+export async function checkAvatarUpload(who: SessionRow, personId: string): Promise<void> {
+  await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+    const loaded = await mustLoad(tx, who);
+    const me = personFor(loaded, who.userId);
+    if (!loaded.db.people.some((p) => p.id === personId)) throw new ValidationError("Person not found");
+    if (!canSetPhoto(me, personId)) throw new AccessError();
+  });
+}
+
+/** Stores the image (already square and small: the browser crops it) and makes it the person's photo. */
+export async function uploadAvatar(who: SessionRow, personId: string, bytes: Buffer): Promise<{ version: number; id: string }> {
+  await checkAvatarUpload(who, personId);
+  const image = inspectImage(bytes);
+  if (!image) throw new ValidationError("Only PNG, JPG, WebP or GIF images");
+  const id = newId("img");
+  const path = fileAt(who.orgId, id);
+  await mkdir(/*turbopackIgnore: true*/ dirname(path), { recursive: true, mode: 0o750 });
+  await writeFile(/*turbopackIgnore: true*/ path, bytes, { mode: 0o640, flag: "wx" });
+  try {
+    return await inScope({ orgId: who.orgId, userId: who.userId, lock: true }, async (tx) => {
+      const loaded = await mustLoad(tx, who);
+      const me = personFor(loaded, who.userId);
+      const version = await saveCompany(tx, loaded, withUploadedPhoto(loaded.db, me, personId, id));
+      await journal(tx, { orgId: who.orgId, userId: who.userId, actorId: me.id, source: "web" },
+        [{ command: "setPhoto", args: { personId, uploaded: id, type: image.type, size: bytes.length } }], version);
       return { version, id };
     });
   } catch (e) {
@@ -218,6 +257,7 @@ export async function readImage(who: SessionRow, id: string): Promise<{ bytes: B
     const view = snapshotFor(loaded.db, personFor(loaded, who.userId));
     const onTicket = view.tickets.flatMap((t) => t.attachments ?? []).find((a) => a.id === id);
     if (onTicket) return onTicket;
+    if (loaded.db.people.some((p) => photoFileOf(p.photo) === id)) return { id, name: "photo", type: "" }; // someone's photo: the whole company sees it (its type: from its bytes)
     const [f] = await tx.select().from(s.docFiles).where(and(eq(s.docFiles.orgId, who.orgId), eq(s.docFiles.id, id)));
     if (f) return view.docs.some((d) => d.id === f.docId) ? { id: f.id, name: f.name, type: f.type, download: !opensInBrowser(f.type) } : null;
     const [g] = await tx.select().from(s.decisionFiles).where(and(eq(s.decisionFiles.orgId, who.orgId), eq(s.decisionFiles.id, id)));
@@ -226,7 +266,10 @@ export async function readImage(who: SessionRow, id: string): Promise<{ bytes: B
   });
   if (!att) return null;
   try {
-    return { bytes: await readFile(/*turbopackIgnore: true*/ fileAt(who.orgId, id)), type: att.type, name: att.name, download: "download" in att ? att.download : false };
+    const bytes = await readFile(/*turbopackIgnore: true*/ fileAt(who.orgId, id));
+    const type = att.type || inspectImage(bytes)?.type;
+    if (!type) return null;
+    return { bytes, type, name: att.name, download: "download" in att ? att.download : false };
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw e;
@@ -250,7 +293,9 @@ export async function cleanupFiles(now = Date.now()): Promise<number> {
       const inDecisions = await tx.select({ id: s.decisionFiles.id }).from(s.decisionFiles).where(eq(s.decisionFiles.orgId, orgId));
       const inUndo = await tx.execute(sql`select distinct jsonb_path_query(before, '$.tickets[*].attachments[*].id') #>> '{}' as id
         from undo_points where org_id = ${orgId}`);
-      const used = new Set([...onTickets.map((r) => r.id), ...inDocs.map((r) => r.id), ...inDecisions.map((r) => r.id), ...(inUndo.rows as { id: string }[]).map((r) => r.id)]);
+      const photos = await tx.select({ photo: s.members.photo }).from(s.members).where(eq(s.members.orgId, orgId));
+      const used = new Set([...onTickets.map((r) => r.id), ...inDocs.map((r) => r.id), ...inDecisions.map((r) => r.id), ...(inUndo.rows as { id: string }[]).map((r) => r.id),
+        ...photos.flatMap((r) => photoFileOf(r.photo ?? undefined) ?? [])]);
       let n = 0;
       for (const name of names) {
         if (used.has(name)) continue;

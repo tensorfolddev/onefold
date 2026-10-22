@@ -49,6 +49,8 @@ export interface Store extends Lookups {
   sendVerification: () => Promise<string | null>;
   /** Uploads an image onto a ticket (after any changes still on their way). Resolves to an error message, or null. */
   uploadImage: (ticketKey: string, file: Blob, name: string) => Promise<string | null>;
+  /** Uploads a (square, small) image as someone's photo; resolves to an error message, or null when it's theirs. */
+  uploadPhoto: (personId: string, file: Blob) => Promise<string | null>;
   /** Makes a doc (and its first body) after any changes still on their way. Resolves to its id, or null (said in a toast). */
   createDoc: (input: NewDocInput) => Promise<string | null>;
   /** Adds someone already in the company to a product by their email. Resolves to their name, or null (said in a toast). */
@@ -218,6 +220,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return done;
   }, [refreshOrSay, toast]);
 
+  const uploadPhoto = useCallback(async (personId: string, file: Blob) => {
+    try {
+      await upload(`/api/files?avatar=${encodeURIComponent(personId)}&name=photo.jpg`, file);
+      await refreshOrSay();
+      return null;
+    } catch (e) {
+      return message(e);
+    }
+  }, [refreshOrSay]);
+
   const uploadImage = useCallback((ticketKey: string, file: Blob, name: string) => {
     pending.current += 1;
     const done = queue.current.then(async () => {
@@ -348,10 +360,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...lookups, db: live.db, archivedTickets: live.archived, me, panel: view.panel,
       href: (path: string) => `/${PANEL_SLUG[view.panel]}${path}`,
       can: (action, ctx = {}) => canFor(me, action, ctx),
-      run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification, uploadImage, createDoc,
+      run, act, toast, signOut, createInvites, setPassword, emailUnverified: view.emailUnverified, sendVerification, uploadImage, uploadPhoto, createDoc,
       addMemberByEmail,
     };
-  }, [view, live, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage, createDoc, addMemberByEmail]);
+  }, [view, live, lookups, run, act, toast, signOut, createInvites, setPassword, sendVerification, uploadImage, uploadPhoto, createDoc, addMemberByEmail]);
 
   return (
     <StoreCtx.Provider value={{ store, auth }}>

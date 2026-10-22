@@ -1506,3 +1506,37 @@ test("sign-up fits a phone screen with no sideways scroll", async ({ page }) => 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+test("Change photo: a ready-made one, or one from your device (cropped to a square) — kept after a reload; or back to initials", async ({ page }) => {
+  await signUp(page, "Photon", email("photon"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: "Change photo" }).click();
+  const dialog = page.getByRole("dialog", { name: "Your photo" });
+  await dialog.getByRole("radio", { name: "fox" }).click();
+  await expect(page.getByText("Photo changed")).toBeVisible();
+  await expect(dialog.getByRole("radio", { name: "fox" })).toHaveAttribute("aria-checked", "true");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Account menu" }).locator(".avatar.is-template")).toHaveText("🦊");
+
+  // From this device: a wide picture becomes a square photo that loads.
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAFUlEQVR4nGN4FmBjs+BZ1IkKBjgLAF8ACZ08oo+vAAAAAElFTkSuQmCC", "base64");
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: "Change photo" }).click();
+  const uploaded = page.waitForResponse((r) => r.url().includes("/api/files?avatar=") && r.ok());
+  await dialog.getByLabel("Photo file").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });
+  await uploaded;
+  await expect(page.getByText("Your photo is up")).toBeVisible();
+  const img = page.getByRole("button", { name: "Account menu" }).locator(".avatar.has-photo img");
+  await expect(img).toBeVisible();
+  await page.reload();
+  await expect(img).toBeVisible();
+  await expect.poll(() => img.evaluate((i: HTMLImageElement) => (i.complete ? i.naturalWidth : 0))).toBe(256); // it loads, and it's square
+
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: "Change photo" }).click();
+  await dialog.getByRole("button", { name: "Remove photo" }).click();
+  await expect(page.getByText("Back to initials")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Account menu" }).locator(".avatar")).toHaveText("AK");
+});
