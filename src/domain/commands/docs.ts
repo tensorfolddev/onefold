@@ -3,7 +3,7 @@ import { canDoc, rootOf } from "../docAccess.ts";
 import { can, isOnProduct } from "../permissions.ts";
 import type { Decision, DecisionLabel, DecisionStatus, Doc, DocKind, DocShare, Notification, Person } from "../types.ts";
 import type { Db } from "../../data/db.ts";
-import { AccessError, check, fail, id, productOf, replace, requiredError, ValidationError } from "./shared.ts";
+import { AccessError, check, fail, id, newIdError, productOf, replace, requiredError, ValidationError } from "./shared.ts";
 
 // ---------- docs, decisions, milestones ----------
 export function addDoc(db: Db, me: Person, productKey: string, input: { kind: DocKind; title: string }): Db {
@@ -176,8 +176,13 @@ export function upsertMilestone(db: Db, me: Person, productKey: string, input: {
   fail(requiredError("Due date", input.due));
   if (!(input.pct >= 0 && input.pct <= 100)) throw new ValidationError("Progress must be between 0 and 100");
   const fields = { name: input.name.trim(), due: input.due, pct: Math.round(input.pct) };
-  if (input.id) return { ...db, milestones: replace(db.milestones, (m) => m.id === input.id, (m) => ({ ...m, ...fields })) };
-  return { ...db, milestones: [...db.milestones, { id: id(), productKey, lateDays: 0, ...fields }] };
+  if (input.id && db.milestones.some((m) => m.id === input.id)) {
+    return { ...db, milestones: replace(db.milestones, (m) => m.id === input.id, (m) => ({ ...m, ...fields })) };
+  }
+  // A new one, named by the caller when it gives an id (so the browser and the server agree, and an edit right after lands).
+  const milestoneId = input.id ?? id();
+  fail(newIdError(milestoneId, false));
+  return { ...db, milestones: [...db.milestones, { id: milestoneId, productKey, lateDays: 0, ...fields }] };
 }
 
 // ---------- pages: the company's space, each project's, and everyone's own (My docs), nested ----------

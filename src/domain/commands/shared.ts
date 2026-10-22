@@ -13,6 +13,9 @@ export const STAGES: Stage[] = ["INTAKE", "DEFINE", "PLAN", "BUILD", "RELEASE"];
 export const COLORS = ["var(--color-bright-blue)", "var(--color-grass_green)", "var(--color-purple)", "var(--color-dark-orange)",
   "var(--color-teal)", "var(--color-berry)", "var(--color-navy)", "var(--color-sofia_pink)"];
 export const id = () => crypto.randomUUID();
+/** A new thing's id from the caller (so the browser and the server name it the same): short, plain, and not taken. */
+export const newIdError = (given: unknown, taken: boolean) =>
+  typeof given !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(given) ? "Invalid id." : taken ? "That already exists." : null;
 
 export function check(me: Person, action: Action, ctx: Ctx) {
   // Whoever may open it is told why; anyone else (any developer, a manager not on it) isn't told it's there.

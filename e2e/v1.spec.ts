@@ -1540,3 +1540,33 @@ test("Change photo: a ready-made one, or one from your device (cropped to a squa
   await expect(page.getByText("Back to initials")).toBeVisible();
   await expect(page.getByRole("button", { name: "Account menu" }).locator(".avatar")).toHaveText("AK");
 });
+
+test("live updates come back after the connection is refused (a 502 while 1Fold restarts) — and catch up on what was missed", async ({ page }) => {
+  await signUp(page, "Relay", email("relay"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Beacon");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/BE$/);
+
+  // A second tab whose live connection is refused, as Caddy does while 1Fold restarts for a release.
+  const other = await page.context().newPage();
+  let refused = 0;
+  await other.route("**/api/org/events", (r) => { refused += 1; return r.fulfill({ status: 502, body: "restarting" }); });
+  await other.goto("/admin/products/BE/tickets");
+  await expect.poll(() => refused).toBeGreaterThan(0);
+
+  const add = async (title: string) => {
+    await page.goto("/admin/products/BE/tickets");
+    await page.getByRole("button", { name: "New ticket" }).click();
+    await page.getByLabel("New ticket title").fill(title);
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.keyboard.press("Escape");
+  };
+  await add("Made while it was down");
+  await other.unroute("**/api/org/events"); // 1Fold is back
+  await expect(other.locator(".kanban-card", { hasText: "Made while it was down" })).toBeVisible({ timeout: 20_000 }); // caught up, no reload
+  await add("Made after");
+  await expect(other.locator(".kanban-card", { hasText: "Made after" })).toBeVisible({ timeout: 15_000 }); // and live again
+});
