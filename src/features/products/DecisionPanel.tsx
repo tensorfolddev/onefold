@@ -5,9 +5,9 @@
 // sit in one row. Managers and admins edit; everyone on the project reads. Also the short "new decision" form.
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { FileText, Plus, X } from "lucide-react";
+import { Archive, FileText, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addDecision, updateDecision } from "@/data/commands";
+import { addDecision, archiveDecisions, updateDecision } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
 import type { Decision, DecisionStatus, Doc } from "@/domain/types";
@@ -141,7 +141,7 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
   const docIds = decision.docIds ?? [];
   const tickets = keys.map((k) => db.tickets.find((t) => t.key === k)).filter((t) => !!t);
   const docs = docIds.map((id) => db.docs.find((d) => d.id === id && !d.archivedAt)).filter((d) => !!d);
-  const siblings = db.decisions.filter((d) => d.productKey === decision.productKey);
+  const siblings = db.decisions.filter((d) => d.productKey === decision.productKey && !d.archivedAt);
   const others = siblings.filter((d) => d.id !== decision.id);
   const replacedBy = decision.supersededBy ? db.decisions.find((d) => d.id === decision.supersededBy) : undefined;
   const replaces = others.filter((d) => d.supersededBy === decision.id);
@@ -157,6 +157,12 @@ export function DecisionPanel({ decision, onClose, onOpen }: { decision: Decisio
           <div className="decision-panel-bar">
             {editable ? <StatusMenu decision={decision} siblings={siblings} variant="pill" /> : <StatusPill decision={decision} />}
             <span className="spacer" />
+            {editable && (
+              <button type="button" className="docs-topbar-btn" aria-label="Archive decision" data-tip="Archive" onClick={() => {
+                onClose();
+                act((d, m) => archiveDecisions(d, m, [decision.id]), { success: `“${decision.title}” archived — it's in Settings → Archived`, undoable: true });
+              }}><Archive aria-hidden /></button>
+            )}
             <button type="button" className="docs-topbar-btn" aria-label="Close" data-tip="Close" onClick={onClose}><X aria-hidden /></button>
           </div>
           <h2 id="decision-panel-title" className="decision-panel-title">

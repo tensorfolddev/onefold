@@ -139,6 +139,37 @@ export function updateDecision(db: Db, me: Person, decisionId: string, patch: De
   return { ...db, decisions: replace(db.decisions, (d) => d.id === decisionId, () => written.decision), notifications: [...written.notifications, ...db.notifications] };
 }
 
+/** Takes decisions out of the log — whoever may record them; nothing about them is lost, and they come back as they were. */
+export function archiveDecisions(db: Db, me: Person, decisionIds: string[]): Db {
+  const ids = new Set(decisionIds);
+  for (const decisionId of ids) {
+    const cur = db.decisions.find((d) => d.id === decisionId);
+    if (!cur) throw new ValidationError("Decision not found");
+    check(me, "decision.add", { product: productOf(db, cur.productKey) });
+  }
+  const at = now();
+  return { ...db, decisions: db.decisions.map((d) => (ids.has(d.id) && !d.archivedAt ? { ...d, archivedAt: at, archivedBy: me.id } : d)) };
+}
+
+export function restoreDecisions(db: Db, me: Person, decisionIds: string[]): Db {
+  const ids = new Set(decisionIds);
+  for (const decisionId of ids) {
+    const cur = db.decisions.find((d) => d.id === decisionId);
+    if (!cur) throw new ValidationError("Decision not found");
+    check(me, "decision.add", { product: productOf(db, cur.productKey) });
+  }
+  return {
+    ...db,
+    decisions: db.decisions.map((d) => {
+      if (!ids.has(d.id) || !d.archivedAt) return d;
+      const back = { ...d };
+      delete back.archivedAt;
+      delete back.archivedBy;
+      return back;
+    }),
+  };
+}
+
 export function upsertMilestone(db: Db, me: Person, productKey: string, input: { id?: string; name: string; due: string; pct: number }): Db {
   check(me, "milestone.edit", { product: productOf(db, productKey) });
   fail(requiredError("Name", input.name));

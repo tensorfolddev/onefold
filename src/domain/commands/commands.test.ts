@@ -431,3 +431,16 @@ test("a public link: only its owner turns it on, only on a top page in My docs, 
   assert.equal(db.docs.find((d) => d.id === top.key)?.isPublic, undefined);
   assert.throws(() => A.setDocPublic(db, sara, top.key, true), ValidationError); // a subpage shares through its top page
 });
+
+test("clearing a ticket's epic, due date or requirement reaches the server: null survives JSON, undefined doesn't", () => {
+  const t = db0.tickets.find((x) => x.type !== "epic" && x.epicKey && !x.archivedAt)!;
+  let db = A.updateTicket(db0, lead, t.key, { due: "2026-12-31", requirementId: db0.requirements.find((r) => r.productKey === t.productKey)?.id });
+  // What the browser sends is JSON: { epicKey: undefined } would arrive as {} — and change nothing.
+  const wire = <T,>(patch: T): T => JSON.parse(JSON.stringify(patch));
+  db = A.updateTicket(db, lead, t.key, wire({ epicKey: null, due: null, requirementId: null }));
+  const after = ticketIn(db, t.key);
+  assert.equal(after.epicKey, undefined);
+  assert.equal(after.due, undefined);
+  assert.equal(after.requirementId, undefined);
+  assert.ok(db.activity.some((a) => a.ticketKey === t.key && a.field === "Epic" && a.to === "None")); // and the log says so
+});

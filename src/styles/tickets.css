@@ -171,6 +171,14 @@ button.priority-cell:hover { filter: brightness(0.94); }
 }
 .kanban-card:hover { border-color: var(--ui-border-color); }
 .kanban-card-key { display: inline-flex; align-items: center; gap: 6px; }
+/* Right-click menus (ui/ContextMenu) scroll inside themselves when the window is short. */
+.context-menu { overflow-y: auto; }
+/* "Add to epic": the product's epics, searchable; the list scrolls, the menu never leaves the window. */
+.epic-picker { display: flex; flex-direction: column; }
+.epic-picker-head { display: flex; align-items: center; gap: 4px; padding: 0 0 6px; font-size: 13px; font-weight: 600; }
+.epic-picker .tpl-picker-list { max-height: min(300px, calc(100vh - 170px)); }
+.epic-picker .tpl-ref-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.epic-picker-dot { flex: none; width: 10px; height: 10px; border-radius: 3px; }
 /* A ticket's type in words (TypeTag), tinted like its icon: Feature blue, Bug red, Epic purple. */
 .type-tag {
   --t: var(--color-bright-blue);

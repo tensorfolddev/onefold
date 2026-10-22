@@ -7,8 +7,12 @@ import { notify, textMentions } from "./notify.ts";
 import { check, fail, id, liveTicketOf, log, positiveNumberError, productOf, replace, requiredError, ticketOf, ValidationError } from "./shared.ts";
 
 // ---------- tickets ----------
-export type TicketPatch = Partial<Pick<Ticket,
+type TicketFields = Partial<Pick<Ticket,
   "title" | "type" | "epicKey" | "assigneeIds" | "priority" | "due" | "estimateH" | "requirementId" | "statusId" | "color">>;
+const CLEARABLE = ["epicKey", "due", "estimateH", "requirementId"] as const;
+type Clearable = (typeof CLEARABLE)[number];
+/** A ticket's changes. `null` clears a field: it survives the JSON trip to the server, where `undefined` is dropped. */
+export type TicketPatch = Omit<TicketFields, Clearable> & { [K in Clearable]?: TicketFields[K] | null };
 /** Older clients (and older steps) send one assignee; it means "just this person" (none = unassigned). */
 type LegacyPatch = TicketPatch & { assigneeId?: string };
 const MAX_ASSIGNEES = 20;
@@ -50,7 +54,10 @@ const PRIORITY_LABEL: Record<Priority, string> = { critical: "Critical", high: "
 
 export function updateTicket(db: Db, me: Person, key: string, given: LegacyPatch): Db {
   const { assigneeId: one, ...rest } = given;
-  const patch: TicketPatch = "assigneeId" in given ? { ...rest, assigneeIds: one ? [one] : [] } : rest;
+  const sent: TicketPatch = "assigneeId" in given ? { ...rest, assigneeIds: one ? [one] : [] } : rest;
+  // A cleared field (null) is there and undefined from here on; null anywhere else means nothing was sent for it.
+  const patch = Object.fromEntries(Object.entries(sent).flatMap(([k, v]): [string, unknown][] =>
+    v !== null ? [[k, v]] : (CLEARABLE as readonly string[]).includes(k) ? [[k, undefined]] : [])) as TicketFields;
   const cur = liveTicketOf(db, key, me);
   check(me, "ticket.edit", { product: productOf(db, cur.productKey) });
   if (patch.title !== undefined) fail(requiredError("Title", patch.title));
@@ -79,7 +86,7 @@ export function updateTicket(db: Db, me: Person, key: string, given: LegacyPatch
   const names = (ids?: string[]) => ids?.length ? ids.map(name).join(", ") : "—";
   const status = (sid: string) => db.statusesByProduct[cur.productKey]?.find((s) => s.id === sid)?.name ?? "—";
   const req = (rid?: string) => db.requirements.find((r) => r.id === rid)?.code ?? "None";
-  const describe: { [K in keyof TicketPatch]-?: [Activity["field"], (v: Ticket[K]) => string] } = {
+  const describe: { [K in keyof TicketFields]-?: [Activity["field"], (v: Ticket[K]) => string] } = {
     title: ["Title", (v) => v ?? ""],
     type: ["Type", (v) => TEMPLATE_NAME[v]],
     epicKey: ["Epic", (v) => v ?? "None"],
@@ -93,7 +100,7 @@ export function updateTicket(db: Db, me: Person, key: string, given: LegacyPatch
   };
   const clean = { ...patch, ...(patch.title !== undefined && { title: patch.title.trim() }) };
   let activity = db.activity;
-  for (const field of Object.keys(clean) as (keyof TicketPatch)[]) {
+  for (const field of Object.keys(clean) as (keyof TicketFields)[]) {
     const before = cur[field], after = clean[field];
     if (Array.isArray(before) || Array.isArray(after) ? String(before ?? []) === String(after ?? []) : before === after) continue;
     const [label, fmt] = describe[field] as [Activity["field"], (v: unknown) => string];

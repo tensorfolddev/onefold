@@ -83,7 +83,7 @@ export function EpicField({ ticket }: { ticket: Ticket }) {
   const epics = epicsOf(db, ticket.productKey);
   return (
     <select className="meta-select" aria-label="Epic" value={ticket.epicKey ?? ""}
-      onChange={(e) => updateTicket(ticket.key, { epicKey: e.target.value || undefined })}>
+      onChange={(e) => updateTicket(ticket.key, { epicKey: e.target.value || null })}>
       <option value="">No epic</option>
       {epics.map((t) => <option key={t.key} value={t.key}>{epicLabel(db, t)} · {t.title}</option>)}
     </select>
@@ -187,7 +187,7 @@ export function DueField({ ticket, done }: { ticket: Ticket; done: boolean }) {
           onBlur={(e) => { const due = e.target.value || undefined; if (due !== ticket.due) updateTicket(ticket.key, { due }); }}
         />
       </label>
-      {ticket.due && <IconButton label="Clear due date" onClick={() => updateTicket(ticket.key, { due: undefined })}><X /></IconButton>}
+      {ticket.due && <IconButton label="Clear due date" onClick={() => updateTicket(ticket.key, { due: null })}><X /></IconButton>}
     </>
   );
 }
@@ -258,7 +258,7 @@ export function RequirementField({ ticket }: { ticket: Ticket }) {
   return (
     <select
       className="meta-select" aria-label="Requirement" value={ticket.requirementId ?? ""}
-      onChange={(e) => updateTicket(ticket.key, { requirementId: e.target.value || undefined })}
+      onChange={(e) => updateTicket(ticket.key, { requirementId: e.target.value || null })}
     >
       <option value="">None</option>
       {reqs.map((r) => <option key={r.id} value={r.id}>{r.code} · {r.title}</option>)}

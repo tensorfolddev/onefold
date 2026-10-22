@@ -8,6 +8,7 @@ import { useMe } from "@/data/StoreProvider";
 import { TeamsManager } from "@/features/people/TeamsManager";
 import { ArchivedDocsBucket } from "@/features/docs/ArchivedDocs";
 import { ArchivedProductsBucket } from "@/features/products/ArchiveControls";
+import { ArchivedDecisionsBucket } from "@/features/products/ArchivedDecisions";
 import { ArchivedTicketsBucket } from "@/features/products/ArchivedTickets";
 import { errorOf, FormError } from "@/ui/fields";
 import { SettingsLayout, type SettingsSection } from "@/ui/SettingsLayout";
@@ -21,7 +22,7 @@ export default function SettingsPage() {
     { id: "job-titles", label: "Job titles", icon: IdCard, hint: "The titles people pick from. Renaming one updates everyone who has it.", body: <JobTitles /> },
     { id: "teams", label: "Teams", icon: Users, hint: "Your teams and their leads, and who's on which.", body: <TeamsManager /> },
     { id: "archived", label: "Archived", icon: Archive, hint: "Everything archived across the company: bring it back, or delete it for good.",
-      body: <div className="buckets"><ArchivedProductsBucket /><ArchivedTicketsBucket /><ArchivedDocsBucket productKey="" /></div> },
+      body: <div className="buckets"><ArchivedProductsBucket /><ArchivedTicketsBucket /><ArchivedDocsBucket productKey="" /><ArchivedDecisionsBucket /></div> },
   ];
   return (
     <div className="page admin-page settings-page">

@@ -145,7 +145,7 @@ export function EpicTicketsSection({ epic, editable }: { epic: Ticket; editable:
           <ul className="tpl-refs">
             {kids.map((t) => (
               <TicketRow key={t.key} t={t} removeLabel={`Take ${t.key} out of this epic`}
-                onRemove={editable ? () => act((d, m) => updateTicket(d, m, t.key, { epicKey: undefined })) : undefined} />
+                onRemove={editable ? () => act((d, m) => updateTicket(d, m, t.key, { epicKey: null })) : undefined} />
             ))}
           </ul>
         </>
