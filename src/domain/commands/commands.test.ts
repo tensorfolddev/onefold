@@ -21,6 +21,7 @@ const db0 = seedDb();
 const who = (id: string) => db0.people.find((p) => p.id === id)!;
 const sara = who("u-sara"), admin = who("u-tayyab"), lead = who("u-ayesha"), faraz = who("u-faraz");
 const ticketIn = (db: ReturnType<typeof seedDb>, key: string) => db.tickets.find((t) => t.key === key)!;
+const who2 = (db: ReturnType<typeof seedDb>, id: string) => db.people.find((p) => p.id === id)!;
 
 test("developer creates and edits a ticket on own product — but archiving or deleting is for others", () => {
   const { db, key } = A.createTicket(db0, sara, "AP", "New thing");
@@ -443,4 +444,16 @@ test("clearing a ticket's epic, due date or requirement reaches the server: null
   assert.equal(after.due, undefined);
   assert.equal(after.requirementId, undefined);
   assert.ok(db.activity.some((a) => a.ticketKey === t.key && a.field === "Epic" && a.to === "None")); // and the log says so
+});
+
+test("a photo: yours, or anyone's for an admin — a template, or none; uploads come only through the server", () => {
+  assert.throws(() => A.setPhoto(db0, sara, lead.id, "tpl:fox"), A.AccessError); // not someone else's
+  let db = A.setPhoto(db0, sara, sara.id, "tpl:fox");
+  assert.equal(who2(db, sara.id).photo, "tpl:fox");
+  assert.throws(() => A.setPhoto(db, sara, sara.id, "tpl:no-such-template"), A.ValidationError);
+  assert.throws(() => A.setPhoto(db, sara, sara.id, "file:img-abc"), A.ValidationError);
+  db = A.setPhoto(db, admin, sara.id, "tpl:panda");
+  assert.equal(who2(db, sara.id).photo, "tpl:panda");
+  db = A.setPhoto(db, sara, sara.id, null);
+  assert.equal(who2(db, sara.id).photo, undefined);
 });

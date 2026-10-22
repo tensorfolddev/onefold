@@ -8,7 +8,7 @@ import { addStatus, deleteStatus, moveStatus, updateStatus } from "./lists.ts";
 import { deleteNotifications, markNotificationsRead } from "./notify.ts";
 import { inviteMembers, revokeInvite, updateOrg } from "./org.ts";
 import {
-  addJobTitle, addTeam, deleteJobTitle, deleteTeam, renameJobTitle, updatePerson, updateTeam,
+  addJobTitle, addTeam, deleteJobTitle, deleteTeam, renameJobTitle, setPhoto, updatePerson, updateTeam,
 } from "./people.ts";
 import {
   addGroup, approveStage, archiveProduct, createProduct, deleteGroup, deleteProduct, moveProduct, renameGroup, requestStage,
@@ -30,7 +30,7 @@ export const commands = {
   addDoc, deleteDoc, addDecision, updateDecision, archiveDecisions, restoreDecisions, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, setDocPublic, shareDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
   // people + company
-  updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
+  updatePerson, setPhoto, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
   // notifications
   markNotificationsRead, deleteNotifications,
@@ -45,7 +45,7 @@ export {
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
   addDoc, deleteDoc, addDecision, updateDecision, archiveDecisions, restoreDecisions, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, setDocPublic, shareDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
-  updatePerson, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
+  updatePerson, setPhoto, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
   // notifications
   markNotificationsRead, deleteNotifications,

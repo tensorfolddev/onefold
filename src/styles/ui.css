@@ -110,6 +110,14 @@
 .avatar.sm { width: 24px; height: 24px; font-size: 10px; }
 .avatar.lg { width: 40px; height: 40px; font-size: 15px; }
 .avatar.empty { background: transparent; border: 1px dashed var(--ui-border-color); color: var(--secondary-text-color); }
+.avatar.xl { width: 72px; height: 72px; font-size: 26px; }
+/* A photo: uploaded (cropped to a circle), or a ready-made one (an emoji on its own soft colour). */
+.avatar.has-photo { overflow: hidden; background: var(--allgrey-background-color); }
+.avatar.has-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.avatar.is-template { font-size: 18px; }
+.avatar.sm.is-template { font-size: 13px; }
+.avatar.lg.is-template { font-size: 23px; }
+.avatar.xl.is-template { font-size: 40px; }
 .avatar-stack { display: inline-flex; }
 .avatar-stack .avatar { box-shadow: 0 0 0 2px var(--primary-background-color); }
 .avatar-stack .avatar + .avatar { margin-left: -8px; }
@@ -317,3 +325,28 @@ button.chip.is-selected { background: var(--primary-selected-color); }
 /* ---------- Celebrations: a ticket reached Done, or a whole epic did (src/ui/celebrate.ts) ---------- */
 .confetti { position: fixed; inset: 0; z-index: 80; width: 100vw; height: 100vh; pointer-events: none; }
 .assignees-more { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--primary-text-color); background: var(--allgrey-background-color); }
+
+/* ---------- Photos (features/people/PhotoDialog) ---------- */
+.menu-photo { display: inline-flex; border-radius: 50%; }
+.menu-photo:hover .avatar, .menu-photo:focus-visible .avatar { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 35%, transparent); }
+.person-photo { display: flex; align-items: center; gap: 16px; }
+.photo-dialog { width: min(520px, calc(100vw - 32px)); }
+.photo-body { display: grid; gap: 14px; padding: 12px 24px 24px; }
+.photo-now { display: flex; align-items: center; gap: 18px; }
+.photo-now-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.photo-now-actions .muted { flex-basis: 100%; font-size: 12.5px; }
+.photo-label { margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--secondary-text-color); }
+.photo-templates { display: grid; grid-template-columns: repeat(auto-fill, 64px); gap: 12px; }
+.photo-template {
+  position: relative; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; font-size: 34px;
+  transition: transform var(--motion-productive-short, 120ms) ease, box-shadow var(--motion-productive-short, 120ms) ease;
+}
+.photo-template:hover:not(:disabled) { transform: scale(1.06); }
+.photo-template:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.photo-template[aria-checked="true"] { box-shadow: 0 0 0 3px var(--primary-background-color), 0 0 0 5px var(--primary-color); }
+.photo-template-on {
+  position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; padding: 3px; border-radius: 50%;
+  color: #fff; background: var(--primary-color); box-shadow: 0 0 0 2px var(--primary-background-color);
+}
+@media (max-width: 480px) { .photo-now { flex-direction: column; align-items: flex-start; } }
+@media (prefers-reduced-motion: reduce) { .photo-template { transition: none; } .photo-template:hover:not(:disabled) { transform: none; } }

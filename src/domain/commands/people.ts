@@ -1,3 +1,5 @@
+import { AVATAR_TEMPLATES } from "../avatars.ts";
+import { can } from "../permissions.ts";
 import type { Person } from "../types.ts";
 import type { Db } from "../../data/db.ts";
 import { check, fail, id, initialsOf, personOf, replace, requiredError, ValidationError } from "./shared.ts";
@@ -23,6 +25,33 @@ export function updatePerson(db: Db, me: Person, pid: string, patch: PersonPatch
   };
   return { ...db, people: replace(db.people, (p) => p.id === pid, (p) => ({ ...p, ...clean })) };
 }
+
+// ---------- photos: anyone their own; an admin anyone's ----------
+function photoPerson(db: Db, me: Person, pid: string) {
+  const p = personOf(db, pid);
+  if (pid !== me.id) check(me, "people.manage", {});
+  return p;
+}
+const withPhoto = (db: Db, pid: string, photo: string | undefined): Db =>
+  ({ ...db, people: replace(db.people, (p) => p.id === pid, (p) => { const next = { ...p }; if (photo) next.photo = photo; else delete next.photo; return next; }) });
+
+/** A ready-made photo ("tpl:fox"), or none (null). An uploaded one is set by the server's upload (withUploadedPhoto). */
+export function setPhoto(db: Db, me: Person, pid: string, photo: string | null): Db {
+  photoPerson(db, me, pid);
+  if (photo !== null && !(typeof photo === "string" && photo.startsWith("tpl:") && AVATAR_TEMPLATES.some((t) => `tpl:${t.id}` === photo))) {
+    throw new ValidationError("Pick a photo from the list, or upload your own");
+  }
+  return withPhoto(db, pid, photo ?? undefined);
+}
+
+/** The server's upload, after storing the image: it becomes the person's photo. Not a command the browser can send. */
+export function withUploadedPhoto(db: Db, me: Person, pid: string, fileId: string): Db {
+  photoPerson(db, me, pid);
+  return withPhoto(db, pid, `file:${fileId}`);
+}
+
+/** May `me` change `pid`'s photo? */
+export const canSetPhoto = (me: Person, pid: string) => pid === me.id || can(me, "people.manage");
 
 // ---------- job titles (admin-managed list used by every job-title picker) ----------
 export function addJobTitle(db: Db, me: Person, title: string): Db {

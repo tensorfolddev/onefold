@@ -67,6 +67,7 @@ export const members = pgTable("members", {
   capacityH: doublePrecision("capacity_h").notNull(),
   panel: text("panel"), // admin | manager | developer; null = can't sign in
   active: boolean("active").notNull(),
+  photo: text("photo"), // "tpl:fox" or "file:<id>" (domain/avatars.ts); null = initials
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] }), uniqueIndex("members_org_user").on(t.orgId, t.userId), index("members_user").on(t.userId)]);
 

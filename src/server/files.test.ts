@@ -95,3 +95,23 @@ test("cleanup keeps what a ticket or an Undo still needs, and removes the rest",
   assert.equal(await cleanupFiles(later), 1);
   assert.deepEqual(await filesOnDisk(), []);
 });
+
+test("a profile photo: your own (anyone's, for an admin) — the whole company sees it, cleanup keeps it", async () => {
+  const { uploadAvatar } = await import("./files.ts");
+  const { AccessError } = await import("../domain/commands/index.ts");
+  const adminId = (await viewFor(admin)).db.people.find((p) => p.panel === "admin")!.id;
+  const later = Date.now() + 2 * 60 * 60_000;
+  await assert.rejects(uploadAvatar(dev, adminId, PNG_1x1), AccessError); // not someone else's
+  await assert.rejects(uploadAvatar(dev, devPersonId, Buffer.from("not an image")), /Only PNG, JPG, WebP or GIF/);
+  const { id } = await uploadAvatar(dev, devPersonId, JPEG_3x2);
+  assert.equal((await viewFor(admin)).db.people.find((p) => p.id === devPersonId)?.photo, `file:${id}`);
+  assert.deepEqual((await readImage(admin, id))?.bytes, JPEG_3x2); // anyone in the company sees it
+  assert.equal(await cleanupFiles(later), 0); // in use
+
+  // A template by command; an uploaded photo only through the upload (a command can't point at any image).
+  await applySteps(admin, [{ name: "setPhoto", args: [devPersonId, "tpl:fox"] }]); // an admin, for someone else
+  assert.equal((await viewFor(dev)).db.people.find((p) => p.id === devPersonId)?.photo, "tpl:fox");
+  await assert.rejects(applySteps(dev, [{ name: "setPhoto", args: [devPersonId, `file:${id}`] }]), /Pick a photo/);
+  assert.equal(await readImage(admin, id), null); // not anyone's photo now
+  assert.equal(await cleanupFiles(later), 1); // so the old upload goes
+});

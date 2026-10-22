@@ -5,7 +5,8 @@ import { Copy, Eye, EyeOff, RefreshCw, X } from "lucide-react";
 import { MIN_PASSWORD, updatePerson } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import type { Panel, Person, Role } from "@/domain/types";
-import { IconButton, Tooltip } from "@/ui/primitives";
+import { Avatar, IconButton, Tooltip } from "@/ui/primitives";
+import { PhotoDialog } from "./PhotoDialog";
 import { PANEL_LABEL } from "@/features/shell/AppShell";
 import { errorOf, Field, FormError } from "@/ui/fields";
 
@@ -32,6 +33,7 @@ export function PersonForm({ person, onClose }: { person: Person; onClose: () =>
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ email: string; password: string } | null>(null);
+  const [photo, setPhoto] = useState(false);
   const isMe = person.id === me.id;
 
   useEffect(() => {
@@ -92,6 +94,10 @@ export function PersonForm({ person, onClose }: { person: Person; onClose: () =>
           </div>
         ) : (
           <form className="admin-form is-single" onSubmit={save} noValidate>
+            <div className="person-photo">
+              <Avatar personId={person.id} size="xl" />
+              <button type="button" className="btn btn-secondary" onClick={() => setPhoto(true)}>Change photo</button>
+            </div>
             <Field label="Full name">
               <input className="admin-input" value={name} onChange={(e) => setName(e.target.value)} autoFocus autoComplete="off" />
             </Field>
@@ -136,6 +142,7 @@ export function PersonForm({ person, onClose }: { person: Person; onClose: () =>
           </form>
         )}
       </section>
+      {photo && <PhotoDialog personId={person.id} onClose={() => setPhoto(false)} />}
     </>
   );
 }
