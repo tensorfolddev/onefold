@@ -11,7 +11,7 @@ import { limit, MINUTE } from "@/server/auth/rateLimit";
 import { handle, ok, readBody, refuse, requireSession } from "@/server/http";
 import { createLinkCode, myWhatsApp, unlinkWhatsApp } from "@/server/whatsapp/bot";
 import { botFor, requestCompanyBot } from "@/server/whatsapp/companyBot";
-import { companyWhatsApp, saveSettings } from "@/server/whatsapp/settings";
+import { companyWhatsApp, saveSettings, setTimeZone } from "@/server/whatsapp/settings";
 
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/whatsapp/[action]">) {
   const { action } = await ctx.params;
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/whatsapp/[a
     }
     if (action === "unlink") { await unlinkWhatsApp(who); return ok({}); }
     if (action === "company") return ok(await saveSettings(who, (await readBody(req, 32 * 1024)).settings));
+    if (action === "timezone") return ok({ timeZone: await setTimeZone(who, (await readBody(req, 1024)).timeZone) });
     if (action === "company-bot") {
       const request = (await readBody(req, 1024)).request;
       if (request !== "pair" && request !== "logout") return refuse("Ask to connect or to disconnect", 400);

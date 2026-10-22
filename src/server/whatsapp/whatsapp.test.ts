@@ -15,7 +15,7 @@ import { createLinkCode, handleMessage, myWhatsApp } from "./bot.ts";
 import { companyBot, requestCompanyBot, setCompanyBotState, takeCompanyBotRequests } from "./companyBot.ts";
 import { localClock, sendDueBriefs } from "./brief.ts";
 import { textOf } from "./bridge.ts";
-import { companyWhatsApp, saveSettings } from "./settings.ts";
+import { companyWhatsApp, saveSettings, setTimeZone } from "./settings.ts";
 
 const outbox = await mkdtemp(join(tmpdir(), "onefold-wa-outbox-"));
 process.env.EMAIL_OUTBOX_DIR = outbox;
@@ -228,9 +228,36 @@ test("a brief waits for a reconnecting WhatsApp until 11:00, then goes by email;
   whatsapp.reconnecting = false;
 
   // The worker died mid-send on Friday: the claim was left "pending". Ten minutes on, it's taken over and sent.
-  await pg.asOwner(`insert into brief_deliveries (org_id, member_id, day, channel, at) values ($1, $2, '2026-10-23', 'pending', now() - interval '20 minutes')`, [admin.orgId, samId]);
+  await pg.asOwner(`insert into brief_sends (org_id, member_id, day, slot, channel, at) values ($1, $2, '2026-10-23', '09:00', 'pending', now() - interval '20 minutes')`, [admin.orgId, samId]);
   assert.deepEqual(await briefsAt("2026-10-23T04:10:00Z"), { ...NONE, whatsapp: 1 });
   assert.deepEqual(await briefsAt("2026-10-23T04:11:00Z"), NONE);
+});
+
+test("moving the brief's time sends today's brief again at the new time — any minute, in the company's own time zone", async () => {
+  const toSam = () => whatsapp.sent.filter((m) => m.jid === SAM).length;
+  const before = toSam();
+  assert.equal((await briefsAt("2026-10-21T04:05:00Z")).whatsapp, 1); // Wednesday 9:05 in Pakistan: today's brief
+  assert.deepEqual(await briefsAt("2026-10-21T05:58:00Z"), NONE); // 10:58: already had today's
+  await saveSettings(admin, { briefAt: "11:02" }); // any minute, not only every five
+  assert.deepEqual(await briefsAt("2026-10-21T06:01:00Z"), NONE); // 11:01: not yet
+  assert.equal((await briefsAt("2026-10-21T06:02:00Z")).whatsapp, 1); // 11:02: again, at the new time
+  assert.deepEqual(await briefsAt("2026-10-21T06:03:00Z"), NONE); // once for each time
+  assert.equal(toSam() - before, 2);
+
+  // What went out is in Deliveries, word for word.
+  const briefs = (await companyWhatsApp(admin)).log.filter((d) => d.kind === "brief" && d.personId === samId);
+  assert.match(briefs[0].text ?? "", /Build the cart/);
+  assert.equal(briefs[0].phone, "+92 30•••2222");
+
+  // The company's own time zone: Dubai is an hour behind Pakistan, so 11:02 there is 07:02 UTC.
+  await assert.rejects(setTimeZone(dev, "Asia/Dubai"), AccessError);
+  await assert.rejects(setTimeZone(admin, "Mars/Olympus"), /time zone/);
+  await setTimeZone(admin, "Asia/Dubai");
+  assert.equal((await companyWhatsApp(admin)).timeZone, "Asia/Dubai");
+  assert.deepEqual(await briefsAt("2026-10-28T06:05:00Z"), NONE); // 11:05 in Pakistan, 10:05 in Dubai
+  assert.equal((await briefsAt("2026-10-28T07:02:00Z")).whatsapp, 1); // 11:02 in Dubai
+  await setTimeZone(admin, "Asia/Karachi");
+  await saveSettings(admin, { briefAt: "09:00" });
 });
 
 test("the other form of a WhatsApp id is the same person; a recycled number moves to its new owner", async () => {

@@ -217,6 +217,28 @@
 .tb-mono { font-variant-numeric: tabular-nums; }
 .tb-preview { overflow: hidden; }
 .tb-preview { display: block !important; line-height: 44px; white-space: nowrap; text-overflow: ellipsis; }
+/* Deliveries: a row opens its details; ten a page. */
+.tb-row.is-openable { cursor: pointer; }
+.tb-open { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; color: var(--secondary-text-color); }
+.tb-row.is-openable:hover .tb-open { color: var(--primary-text-color); text-decoration: underline; text-underline-offset: 3px; }
+.tb-open:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 4px; }
+.tb-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.tb-pager .muted { margin-right: 6px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.tb-zone { width: min(320px, 100%); }
+.tb-delivery { width: min(560px, calc(100vw - 32px)); }
+.tb-delivery-status { display: inline-flex; align-items: center; height: 24px; margin-left: 8px; padding: 0 10px; border-radius: 6px; vertical-align: 3px; font-family: var(--font-family); font-size: 12.5px; }
+.tb-delivery-facts { display: grid; grid-template-columns: 110px 1fr; gap: 10px 16px; margin: 12px 24px 0; font-size: 14px; }
+.tb-delivery-facts dt { color: var(--secondary-text-color); }
+.tb-delivery-facts dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.tb-delivery-error { color: var(--negative-color); }
+.tb-delivery-label { margin: 18px 24px 8px; font-size: 13px; font-weight: 600; color: var(--secondary-text-color); }
+.tb-delivery > p { margin: 0 24px 24px; }
+/* The message as WhatsApp shows it: a green bubble, its own line breaks and *bold*. */
+.tb-delivery-text {
+  max-height: min(48vh, 420px); margin: 0 24px 24px; padding: 12px 14px; overflow-y: auto; border-radius: 4px 14px 14px 14px;
+  font-size: 14px; line-height: 1.5; color: #111b21; background: #d9fdd3;
+}
+.tb-delivery-text .wa-line { display: block; min-height: 1.5em; }
 .tb-status { justify-content: center !important; padding: 0 8px !important; color: #fff; font-size: 13.5px; font-weight: 500; text-align: center; border-left-color: transparent !important; }
 .tb-status.is-green { background: #00c875; }
 .tb-status.is-blue { background: #579bfc; }
