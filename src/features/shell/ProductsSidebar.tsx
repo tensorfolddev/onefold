@@ -238,7 +238,7 @@ export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: 
       )}
       {canGroups && (adding ? (
         <InlineName label="New group name" onCancel={() => setAdding(false)}
-          onSave={(n) => act((d, m) => addGroup(d, m, n), { success: `${n.trim()} group added` })} />
+          onSave={(n) => act((d, m) => addGroup(d, m, n, `grp-${crypto.randomUUID().slice(0, 8)}`), { success: `${n.trim()} group added` })} />
       ) : (
         <button type="button" className="sidebar-add-group" onClick={() => setAdding(true)}><Plus aria-hidden /> New group</button>
       ))}

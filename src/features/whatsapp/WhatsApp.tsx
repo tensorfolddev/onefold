@@ -10,7 +10,7 @@ import { useMe } from "@/data/StoreProvider";
 import { IconButton } from "@/ui/primitives";
 
 type BotState = "off" | "pairing" | "connecting" | "connected" | "logged_out";
-interface MyWhatsApp { available: boolean; linked: { phone: string; briefs: boolean; linkedAt: string } | null }
+interface MyWhatsApp { available: boolean; linked: { phone: string; briefs: boolean; linkedAt: string } | null; briefWhen: string | null; replyWord: string }
 interface Status { me: MyWhatsApp; botInfo: { state: BotState; phone: string | null } }
 interface LinkCode { code: string; url: string; botPhone: string; expiresAt: string }
 
@@ -73,7 +73,10 @@ export function WhatsAppDialog({ onClose }: { onClose: () => void }) {
     body = (
       <>
         <p className="wa-linked"><Check aria-hidden /> Connected to <strong>{shownPhone(linked.phone)}</strong></p>
-        <p className="muted">Every working day at 9:00 you get your pending tasks here, project by project. Reply <strong>1FOLD</strong> to the bot anytime for an update.</p>
+        <p className="muted">
+          {status.me.briefWhen ? <>You get your pending tasks here {status.me.briefWhen}, project by project.</> : <>Your company&apos;s daily brief is off.</>}{" "}
+          Reply <strong>{status.me.replyWord}</strong> to the bot anytime for an update.
+        </p>
         <div className="inv-foot">
           <button type="button" className="btn btn-tertiary is-danger" disabled={busy}
             onClick={() => void run(async () => { await api("/api/whatsapp/unlink", {}); setCode(null); }, "WhatsApp disconnected")}>
@@ -105,7 +108,7 @@ export function WhatsAppDialog({ onClose }: { onClose: () => void }) {
   } else {
     body = (
       <>
-        <p className="muted">Get your pending tasks on WhatsApp every working day at 9:00, project by project, with due dates and links. You send the first message, so 1Fold only ever writes to you.</p>
+        <p className="muted">Get your pending tasks on WhatsApp{status.me.briefWhen ? ` ${status.me.briefWhen}` : ""}, project by project, with due dates and links. You send the first message, so 1Fold only ever writes to you.</p>
         <div className="inv-foot">
           <button type="button" className="btn btn-tertiary" onClick={onClose}>Not now</button>
           <button type="button" className="btn btn-primary" disabled={busy}

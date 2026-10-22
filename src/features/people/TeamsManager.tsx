@@ -20,7 +20,8 @@ export function TeamsManager() {
     e.preventDefault();
     const err = errorOf(() => addTeam(db, me, name));
     if (err) return setError(err);
-    if (act((d, m) => addTeam(d, m, name), { success: `${name.trim()} team added` })) {
+    const teamId = `team-${crypto.randomUUID().slice(0, 8)}`; // named here, so the server's copy is the same team
+    if (act((d, m) => addTeam(d, m, name, teamId), { success: `${name.trim()} team added` })) {
       setName("");
       setError(null);
     }

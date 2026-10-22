@@ -457,3 +457,23 @@ test("a photo: yours, or anyone's for an admin — a template, or none; uploads 
   db = A.setPhoto(db, sara, sara.id, null);
   assert.equal(who2(db, sara.id).photo, undefined);
 });
+
+test("a new team or group is named by the caller, so the browser and the server agree on its id (and what's done to it next lands)", () => {
+  let db = A.addTeam(db0, admin, "QA", "team-qa123");
+  assert.equal(db.teams.find((t) => t.name === "QA")?.id, "team-qa123");
+  db = A.updateTeam(db, admin, "team-qa123", { leadId: lead.id }); // right away, by the same id
+  assert.equal(db.teams.find((t) => t.id === "team-qa123")?.leadId, lead.id);
+  assert.throws(() => A.addTeam(db, admin, "QA two", "team-qa123"), A.ValidationError); // taken
+  assert.throws(() => A.addTeam(db, admin, "QA three", ""), A.ValidationError);
+  db = A.addGroup(db, admin, "Mobile", "grp-mob1");
+  assert.equal(db.productGroups.find((g) => g.name === "Mobile")?.id, "grp-mob1");
+  assert.throws(() => A.addGroup(db, admin, "Web", "grp-mob1"), A.ValidationError);
+});
+
+test("a new milestone named by the caller keeps that id, so editing it right away lands on the server too", () => {
+  let db = A.upsertMilestone(db0, lead, "AP", { id: "ms-new1", name: "Beta", due: "2027-02-01", pct: 0 });
+  assert.equal(db.milestones.find((m) => m.id === "ms-new1")?.name, "Beta");
+  db = A.upsertMilestone(db, lead, "AP", { id: "ms-new1", name: "Beta 1", due: "2027-02-01", pct: 20 });
+  assert.deepEqual(db.milestones.filter((m) => m.id === "ms-new1").map((m) => [m.name, m.pct]), [["Beta 1", 20]]); // edited, not doubled
+  assert.throws(() => A.upsertMilestone(db0, lead, "AP", { id: "bad id!", name: "x", due: "2027-01-01", pct: 0 }), A.ValidationError);
+});

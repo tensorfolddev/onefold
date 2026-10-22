@@ -1,7 +1,7 @@
 import { now, today } from "../clock.ts";
 import type { Person, Priority, PriorityLook, Product, ProductIcon, Stage } from "../types.ts";
 import { listsFor, PRODUCT_COLORS, type Db } from "../../data/db.ts";
-import { check, COLORS, fail, id, personOf, productKeyError, productOf, replace, requiredError, STAGES, ValidationError } from "./shared.ts";
+import { check, COLORS, fail, id, newIdError, personOf, productKeyError, productOf, replace, requiredError, STAGES, ValidationError } from "./shared.ts";
 
 // ---------- products ----------
 export interface ProductInput {
@@ -72,6 +72,7 @@ export function addGroup(db: Db, me: Person, name: string, groupId = `grp-${id()
   check(me, "groups.manage", {});
   fail(requiredError("Group name", name));
   if (nameTaken(db.productGroups.map((g) => g.name), name)) throw new ValidationError("There's already a group with that name");
+  fail(newIdError(groupId, db.productGroups.some((g) => g.id === groupId)));
   return { ...db, productGroups: [...db.productGroups, { id: groupId, name: name.trim() }] };
 }
 

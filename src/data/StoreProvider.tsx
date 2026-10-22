@@ -88,6 +88,8 @@ const StoreCtx = createContext<{ store: Store | null; auth: Auth } | null>(null)
 /** The commit this page was built from (set by the Docker build); the server says which one it runs. */
 const BUILD = process.env.NEXT_PUBLIC_GIT_SHA ?? "dev";
 const TOAST_MS = 5000;
+const RECONNECT_MS = 1000; // live updates: the first wait before opening the connection again, doubling to
+const RECONNECT_MAX_MS = 30_000;
 const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong — please try again");
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -136,23 +138,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     refresh().catch((e: unknown) => toast(message(e), undefined, "error")).finally(() => setReady(true));
   }, [refresh, toast]);
 
-  // Other people's changes: a live event with the new version, or coming back to the tab.
+  // Other people's changes: a live event with the new version, or coming back to the tab. The browser re-opens a
+  // dropped connection itself, but an answer it can't use — a 502 while 1Fold restarts for a release, say — ends it for
+  // good; so it's opened again here, a little later each time. Back after a gap, it catches up on what it missed.
   const orgId = view?.db.org.id;
   useEffect(() => {
     if (!orgId) return;
-    const events = new EventSource("/api/org/events");
-    events.addEventListener("version", (e) => {
-      if (Number((e as MessageEvent).data) > (viewRef.current?.version ?? 0) && pending.current === 0) void refreshOrSay();
-    });
-    // A doc's body was saved, or who has a doc open changed: open doc pages listen for these (features/docs).
-    for (const kind of ["doc", "presence"] as const) {
-      events.addEventListener(kind, (e) => {
-        try { window.dispatchEvent(new CustomEvent(`onefold:${kind}`, { detail: JSON.parse((e as MessageEvent).data) })); } catch { /* malformed: ignore */ }
+    let events: EventSource | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let wait = RECONNECT_MS;
+    let opened = false;
+    let missed = false; // it failed since it last worked (or since the page loaded)
+    const connect = () => {
+      clearTimeout(retry);
+      events?.close();
+      const es = new EventSource("/api/org/events");
+      events = es;
+      es.onopen = () => {
+        wait = RECONNECT_MS;
+        if (opened || missed) void refreshOrSay(); // after a gap: whatever changed meanwhile
+        opened = true;
+        missed = false;
+      };
+      es.onerror = () => {
+        missed = true;
+        if (es.readyState !== EventSource.CLOSED) return; // the browser is trying again by itself
+        retry = setTimeout(connect, wait);
+        wait = Math.min(wait * 2, RECONNECT_MAX_MS);
+      };
+      es.addEventListener("version", (e) => {
+        if (Number((e as MessageEvent).data) > (viewRef.current?.version ?? 0) && pending.current === 0) void refreshOrSay();
       });
-    }
-    const onVisible = () => { if (document.visibilityState === "visible") void refreshOrSay(); };
+      // A doc's body was saved, or who has a doc open changed: open doc pages listen for these (features/docs).
+      for (const kind of ["doc", "presence"] as const) {
+        es.addEventListener(kind, (e) => {
+          try { window.dispatchEvent(new CustomEvent(`onefold:${kind}`, { detail: JSON.parse((e as MessageEvent).data) })); } catch { /* malformed: ignore */ }
+        });
+      }
+    };
+    connect();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshOrSay();
+      if (events?.readyState === EventSource.CLOSED) { wait = RECONNECT_MS; connect(); } // don't wait for the next try
+    };
     document.addEventListener("visibilitychange", onVisible);
-    return () => { events.close(); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { clearTimeout(retry); events?.close(); document.removeEventListener("visibilitychange", onVisible); };
   }, [orgId, refreshOrSay]);
 
   // Leaving (reload, close, typed URL) while changes are still on their way would drop them: ask first.

@@ -12,7 +12,7 @@ import { activeMemberId as memberOf, type SessionRow } from "../accounts.ts";
 import { sha256 } from "../auth/secrets.ts";
 import { database, inScope } from "../db/client.ts";
 import * as s from "../db/schema.ts";
-import { message, normalWord, scheduleText } from "../../domain/whatsapp.ts";
+import { daysText, message, normalWord, scheduleText, wordsText } from "../../domain/whatsapp.ts";
 import { briefFor } from "./brief.ts";
 import { botFor } from "./companyBot.ts";
 import { settingsFor } from "./settings.ts";
@@ -35,16 +35,21 @@ export interface MyWhatsApp {
   /** Whether the bot is there to link to right now. */
   available: boolean;
   linked: { phone: string; briefs: boolean; linkedAt: string } | null;
+  /** When their brief comes, as the company set it ("every working day at 09:00"; null: it's off), and the word that asks for it. */
+  briefWhen: string | null;
+  replyWord: string;
 }
 
 export async function myWhatsApp(who: SessionRow): Promise<MyWhatsApp> {
   const memberId = await memberOf(who);
   const [link] = await database().select().from(s.whatsappLinks)
     .where(and(eq(s.whatsappLinks.orgId, who.orgId), eq(s.whatsappLinks.memberId, memberId)));
-  const bot = await botFor(who.orgId); // the company's own number
+  const [bot, settings] = await Promise.all([botFor(who.orgId), settingsFor(who.orgId)]); // the company's own number, its brief
   return {
     available: bot.state === "connected" && !!bot.phone,
     linked: link ? { phone: link.phone, briefs: link.briefs, linkedAt: link.linkedAt } : null,
+    briefWhen: settings.briefOn ? `every ${daysText(settings.briefDays)} at ${settings.briefAt}` : null,
+    replyWord: wordsText(settings.words).replace(/\*/g, ""),
   };
 }
 

@@ -304,6 +304,8 @@ test("admins set their company's WhatsApp — the brief's time and days (or off)
   await assert.rejects(saveSettings(admin, { briefAt: "25:00" }), /time like 09:00/);
   await assert.rejects(saveSettings(admin, { briefDays: [] }), /at least one day/);
   await saveSettings(admin, { briefAt: "07:30", briefDays: [6], words: ["Status", "1 Fold"], templates: { help: "Hi! Reply {words}. {signOff}", signOff: "— Acme" } });
+  // A teammate's own WhatsApp page says it the company's way at once — not "every working day at 9:00".
+  assert.deepEqual(await myWhatsApp(dev).then((m) => [m.briefWhen, m.replyWord]), ["every Sat at 07:30", "STATUS"]);
 
   await applySteps(admin, [{ name: "setMember", args: ["CH", samId, true] }]); // back on Checkout
   const { key } = await applySteps(admin, [{ name: "createTicket", args: ["CH", "Weekend check"] }]);
@@ -322,6 +324,7 @@ test("admins set their company's WhatsApp — the brief's time and days (or off)
 
   await saveSettings(admin, { briefOn: false, briefDays: [0, 1, 2, 3, 4, 5, 6] });
   assert.deepEqual(await briefsAt("2026-10-27T04:10:00Z"), NONE); // off: no brief, any day
+  assert.equal((await myWhatsApp(dev)).briefWhen, null);
 
   const page = await companyWhatsApp(admin);
   assert.equal(page.linked.find((l) => l.personId === samId)?.phone, "+92 30•••8888"); // enough to tell numbers apart

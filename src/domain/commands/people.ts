@@ -2,7 +2,7 @@ import { AVATAR_TEMPLATES } from "../avatars.ts";
 import { can } from "../permissions.ts";
 import type { Person } from "../types.ts";
 import type { Db } from "../../data/db.ts";
-import { check, fail, id, initialsOf, personOf, replace, requiredError, ValidationError } from "./shared.ts";
+import { check, fail, id, initialsOf, newIdError, personOf, replace, requiredError, ValidationError } from "./shared.ts";
 
 // ---------- people + teams ----------
 // People join by invite (org.ts) or by creating the company. Admins edit access, roles and teams here.
@@ -88,11 +88,13 @@ export function deleteTeam(db: Db, me: Person, teamId: string): Db {
   return { ...db, teams: db.teams.filter((t) => t.id !== teamId) };
 }
 
-export function addTeam(db: Db, me: Person, name: string): Db {
+/** The caller names the new team, so the browser and the server agree on its id — and what's done to it next lands. */
+export function addTeam(db: Db, me: Person, name: string, teamId = `team-${id().slice(0, 8)}`): Db {
   check(me, "teams.manage", {});
   fail(requiredError("Team name", name));
   if (db.teams.some((t) => t.name.toLowerCase() === name.trim().toLowerCase())) throw new ValidationError("A team with this name already exists");
-  return { ...db, teams: [...db.teams, { id: `team-${id().slice(0, 8)}`, name: name.trim(), leadId: "" }] };
+  fail(newIdError(teamId, db.teams.some((t) => t.id === teamId)));
+  return { ...db, teams: [...db.teams, { id: teamId, name: name.trim(), leadId: "" }] };
 }
 
 export function updateTeam(db: Db, me: Person, teamId: string, patch: { name?: string; leadId?: string }): Db {

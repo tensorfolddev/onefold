@@ -12,10 +12,11 @@ export function MilestoneForm({ productKey, milestone, onClose }: { productKey: 
   const [due, setDue] = useState(milestone?.due ?? "");
   const [pct, setPct] = useState(String(milestone?.pct ?? 0));
   const [error, setError] = useState("");
+  const [newId] = useState(() => `ms-${crypto.randomUUID().slice(0, 8)}`); // a new one is named here, so the server's is the same
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const input = { id: milestone?.id, name, due, pct: pct.trim() === "" ? NaN : Number(pct) };
+    const input = { id: milestone?.id ?? newId, name, due, pct: pct.trim() === "" ? NaN : Number(pct) };
     try {
       upsertMilestone(db, me, productKey, input);
     } catch (err) {
