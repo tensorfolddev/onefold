@@ -73,6 +73,7 @@ export function PhotoDialog({ personId, onClose }: { personId: string; onClose: 
       <div className="photo-body">
         <div className="photo-now">
           <Avatar personId={person.id} size="xl" />
+          <div className="photo-who"><strong>{person.name}</strong><span className="muted">{person.role}</span></div>
           <div className="photo-now-actions">
             <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden aria-label="Photo file"
               onChange={(e) => void upload(e.target.files?.[0])} />
@@ -84,8 +85,8 @@ export function PhotoDialog({ personId, onClose }: { personId: string; onClose: 
                 <Trash2 aria-hidden /> Remove photo
               </button>
             )}
-            <span className="muted">A square from the middle of your picture is used.</span>
           </div>
+          <span className="muted photo-hint">JPG, PNG, WebP or GIF — a square from the middle of the picture is used.</span>
         </div>
         <h3 className="photo-label">Or pick one</h3>
         <div className="photo-templates" role="radiogroup" aria-label="Ready-made photos">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { Check, Flag, X } from "lucide-react";
+import { Check, ChevronDown, Flag, X } from "lucide-react";
 import { useAppState } from "@/features/shell/state";
 import { isOnProduct } from "@/domain/permissions";
 import { useDb } from "@/data/StoreProvider";
@@ -9,6 +9,7 @@ import { epicLabel, epicsOf } from "@/domain/selectors/epics";
 import type { Priority, Product, Ticket } from "@/domain/types";
 import { Popover } from "@/ui/Popover";
 import { Avatar, IconButton } from "@/ui/primitives";
+import { SearchList } from "@/ui/SearchList";
 import { shortDate } from "@/domain/status";
 import { Assignees, DueDate, isOverdue, usePriorityLook } from "./TicketBits";
 
@@ -77,16 +78,29 @@ export function TypeField({ ticket }: { ticket: Ticket }) {
   );
 }
 
+/** The ticket's epic: a searchable list that scrolls (a product can have dozens), always on screen. */
 export function EpicField({ ticket }: { ticket: Ticket }) {
   const { updateTicket } = useAppState();
   const { db } = useDb();
   const epics = epicsOf(db, ticket.productKey);
+  const current = epics.find((e) => e.key === ticket.epicKey);
+  const choices = [
+    { value: "", label: "No epic" },
+    ...epics.map((e) => ({ value: e.key, label: `${epicLabel(db, e)} · ${e.title}`, swatch: e.color ?? "var(--color-purple)" })),
+  ];
   return (
-    <select className="meta-select" aria-label="Epic" value={ticket.epicKey ?? ""}
-      onChange={(e) => updateTicket(ticket.key, { epicKey: e.target.value || null })}>
-      <option value="">No epic</option>
-      {epics.map((t) => <option key={t.key} value={t.key}>{epicLabel(db, t)} · {t.title}</option>)}
-    </select>
+    <Popover floating width={340} className="search-list-menu" trigger={({ toggle, open }) => (
+      <button type="button" className="meta-select picker-trigger" aria-label="Epic" aria-haspopup="listbox" aria-expanded={open} onClick={toggle}>
+        {current && <span className="search-list-swatch" style={{ background: current.color ?? "var(--color-purple)" }} aria-hidden />}
+        <span className="picker-text">{current ? `${epicLabel(db, current)} · ${current.title}` : "No epic"}</span>
+        <ChevronDown aria-hidden />
+      </button>
+    )}>
+      {(close) => (
+        <SearchList label="Epics" placeholder="Search epics" empty="This product has no epics yet" choices={choices} value={ticket.epicKey ?? ""}
+          onPick={(v) => { close(); if (v !== (ticket.epicKey ?? "")) updateTicket(ticket.key, { epicKey: v || null }); }} />
+      )}
+    </Popover>
   );
 }
 

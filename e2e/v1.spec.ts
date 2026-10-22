@@ -1371,14 +1371,19 @@ test("Integrations center: Claude and WhatsApp for everyone; Team Bot for admins
   await expect(page).toHaveURL(/\?tab=Daily(%20|\+)brief$/); // the tab is in the address
   await page.getByLabel("Time", { exact: true }).fill("08:32"); // any minute, not only every five
   await page.getByRole("group", { name: "Days" }).getByRole("button", { name: "Sat" }).click();
-  await page.getByLabel("Time zone").selectOption("Asia/Dubai"); // the company's own time zone
+  await page.getByRole("button", { name: "Time zone" }).click(); // the company's own time zone: a list to search, on screen
+  const zones = page.getByRole("listbox", { name: "Time zones" });
+  const box = (await zones.boundingBox())!, view = page.viewportSize()!;
+  expect(box.y >= 0 && box.y + box.height <= view.height).toBe(true);
+  await page.getByLabel("Search time zones").fill("dubai");
+  await zones.getByRole("option", { name: /Asia\/Dubai/ }).click();
   await expect(page.locator(".tb-told")).toContainText("Every Mon, Tue, Wed, Thu, Fri and Sat at 08:32");
   let done = saved();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await done;
   await page.reload();
   await expect(page.getByLabel("Time", { exact: true })).toHaveValue("08:32");
-  await expect(page.getByLabel("Time zone")).toHaveValue("Asia/Dubai");
+  await expect(page.getByRole("button", { name: "Time zone" })).toContainText("Asia/Dubai");
 
   await page.getByRole("tab", { name: "Templates", exact: true }).click(); // reply words and every template, one page
   await page.getByLabel("New reply word").fill("status");

@@ -3,7 +3,7 @@
 // Integrations → Team Bot, for admins — its tabs, monday-style: Members (who's linked, as a table), Daily brief (when
 // it goes), Templates (the words that ask for it, and every message the bot sends — previewed exactly as a teammate
 // sees it, each back to 1FOLD's own in one click) and Deliveries (what went out, and whether it arrived).
-import { ChevronLeft, ChevronRight, RefreshCw, RotateCcw, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, RefreshCw, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, message as problemOf } from "@/data/api";
 import { useMe } from "@/data/StoreProvider";
@@ -12,7 +12,9 @@ import {
   DEFAULT_SETTINGS, message, normalWord, scheduleText, TEMPLATE_KEYS, TEMPLATES, WEEKDAY_NAMES,
   type TemplateKey, type WhatsAppSettings,
 } from "@/domain/whatsapp";
+import { Popover } from "@/ui/Popover";
 import { Avatar } from "@/ui/primitives";
+import { SearchList } from "@/ui/SearchList";
 
 interface Linked { personId: string; phone: string; briefs: boolean; linkedAt: string }
 interface Delivery {
@@ -148,9 +150,18 @@ export function BriefTab({ settings, timeZone, save }: { settings: WhatsAppSetti
         </div>
         <div className={`tb-setting${on ? "" : " is-off"}`}>
           <div><strong>Time zone</strong><span>The brief goes out at its time here. Changing the time sends today&apos;s brief again at the new time.</span></div>
-          <select className="input tb-zone" value={zone} disabled={!on} aria-label="Time zone" onChange={(e) => setZone(e.target.value)}>
-            {zones.map((z) => <option key={z.zone} value={z.zone}>{z.label}</option>)}
-          </select>
+          <Popover floating align="right" width={340} className="search-list-menu" trigger={({ toggle, open }) => (
+            <button type="button" className="input tb-zone picker-trigger" disabled={!on} aria-label="Time zone" aria-haspopup="listbox" aria-expanded={open} onClick={toggle}>
+              <span className="picker-text">{zones.find((z) => z.value === zone)?.label ?? zone}</span>
+              <span className="search-list-hint">{zones.find((z) => z.value === zone)?.hint}</span>
+              <ChevronDown aria-hidden />
+            </button>
+          )}>
+            {(close) => (
+              <SearchList label="Time zones" placeholder="Search — a city, or GMT+5" empty="No time zones" choices={zones} value={zone}
+                onPick={(v) => { setZone(v); close(); }} />
+            )}
+          </Popover>
         </div>
         <div className={`tb-setting${on ? "" : " is-off"}`}>
           <div><strong>Days</strong><span>Pick the days it goes out.</span></div>
@@ -372,7 +383,7 @@ function DeliveryDetail({ delivery: d, onClose }: { delivery: Delivery; onClose:
   );
 }
 
-/** Every time zone this browser knows ("Asia/Karachi · GMT+5"), the company's own first if it's somehow missing. */
+/** Every time zone this browser knows ("Asia/Karachi", "GMT+5"), the company's own first if it's somehow missing. */
 function useTimeZones(current: string) {
   return useMemo(() => {
     const all: string[] = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
@@ -380,7 +391,7 @@ function useTimeZones(current: string) {
     return zones.map((zone) => {
       let offset = "";
       try { offset = new Intl.DateTimeFormat("en", { timeZone: zone, timeZoneName: "shortOffset" }).formatToParts().find((p) => p.type === "timeZoneName")?.value ?? ""; } catch { /* shown without it */ }
-      return { zone, label: `${zone.replace(/_/g, " ")}${offset ? ` · ${offset}` : ""}` };
+      return { value: zone, label: zone.replace(/_/g, " "), hint: offset };
     });
   }, [current]);
 }

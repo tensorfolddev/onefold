@@ -225,7 +225,7 @@
 .tb-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .tb-pager .muted { margin-right: 6px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .tb-zone { width: min(320px, 100%); }
-.tb-delivery { width: min(560px, calc(100vw - 32px)); }
+.pf-dialog.tb-delivery { width: min(560px, calc(100vw - 32px)); }
 .tb-delivery-status { display: inline-flex; align-items: center; height: 24px; margin-left: 8px; padding: 0 10px; border-radius: 6px; vertical-align: 3px; font-family: var(--font-family); font-size: 12.5px; }
 .tb-delivery-facts { display: grid; grid-template-columns: 110px 1fr; gap: 10px 16px; margin: 12px 24px 0; font-size: 14px; }
 .tb-delivery-facts dt { color: var(--secondary-text-color); }
