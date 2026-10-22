@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { visibleProducts } from "@/domain/permissions";
 import { useMe } from "@/data/StoreProvider";
-import { ProductCards, ProductsView } from "@/features/products/ProductsView";
+import { ProductCards } from "@/features/products/ProductsView";
 import { NewProductDialog } from "@/features/products/ProductForm";
 
 export default function ProductsPage() {
@@ -27,7 +27,7 @@ export default function ProductsPage() {
           <Link href={href("/products?new=1")} scroll={false} className="btn btn-primary"><Plus aria-hidden /> New product</Link>
         )}
       </header>
-      {panel === "developer" ? <ProductCards /> : <ProductsView />}
+      <ProductCards />
       {creating && <NewProductDialog onClose={() => router.replace(href("/products"), { scroll: false })} />}
     </div>
   );

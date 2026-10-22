@@ -181,7 +181,10 @@
   border: 1px solid color-mix(in srgb, var(--primary-color) 30%, var(--layout-border-color)); border-radius: 16px;
   background: color-mix(in srgb, var(--primary-color) 3%, var(--primary-background-color));
 }
-.tb-setup-qr { flex: none; display: grid; place-items: center; width: 248px; min-height: 248px; padding: 8px; border-radius: 12px; background: #fff; border: 1px solid var(--layout-border-color); }
+.tb-setup-qr { /* 230px of code inside 16px of white: the scanner's quiet zone */
+  flex: none; display: grid; place-items: center; width: min(264px, 100%); aspect-ratio: 1; padding: 16px;
+  border-radius: 14px; background: #fff; border: 1px solid var(--layout-border-color);
+}
 .tb-qr-wait { display: grid; justify-items: center; gap: 10px; color: #676879; font-size: 14px; text-align: center; }
 .tb-setup-text { flex: 1; min-width: 280px; display: grid; gap: 14px; align-content: start; }
 .tb-setup-text h2 { margin: 0; font: 600 20px/1.3 var(--title-font-family); }

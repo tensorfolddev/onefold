@@ -292,6 +292,8 @@ test("Claude connects with a personal token: an MCP tool makes a ticket that sho
   await page.getByText("Our own product").click();
   await page.getByRole("button", { name: "Create product" }).click();
   await expect(page).toHaveURL(/\/admin\/products\/MO$/);
+  await page.goto("/admin/products"); // admins get the same big cards as developers
+  await expect(page.locator("a.pc", { hasText: "Mobile" })).toHaveAttribute("href", "/admin/products/MO/tickets");
 
   await page.goto("/admin/integrations/claude");
   await page.getByRole("button", { name: "Connect Claude" }).click();
@@ -969,6 +971,21 @@ test("notifications: an @mention in an update reaches them live; @@ is urgent; b
   await dev.waitForTimeout(500); // the save is on its way
   await dev.reload();
   await expect(dev.getByRole("button", { name: "Notifications, 0 unread" })).toBeVisible(); // read stays read
+
+  // Newest on top (after a reload too, when the list comes from the server), and a notice can be deleted for good.
+  await dev.getByRole("button", { name: "Notifications, 0 unread" }).click();
+  const rows = dev.getByRole("dialog", { name: "Notifications" }).locator(".notification-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.first()).toContainText("assigned you");
+  await expect(rows.last()).toContainText(/mentioned you in [A-Z]+-1 Launch page/);
+  const saved = dev.waitForResponse((r) => r.url().endsWith("/api/org/changes") && r.ok());
+  await dev.getByRole("dialog", { name: "Notifications" }).getByRole("button", { name: "Delete notification" }).first().click();
+  await saved;
+  await expect(rows).toHaveCount(2);
+  await dev.reload();
+  await dev.getByRole("button", { name: "Notifications, 0 unread" }).click();
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("Urgent");
 });
 
 test("docs: @@ makes an urgent mention, kept as one after a reload", async ({ page }) => {

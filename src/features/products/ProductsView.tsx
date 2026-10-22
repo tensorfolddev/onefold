@@ -10,54 +10,14 @@ import { shortDate } from "@/domain/status";
 import { Avatar, EmptyState, HealthDot, ProductTile } from "@/ui/primitives";
 import type { Product } from "@/domain/types";
 
-export function ProductsView() {
-  return <div className="products-view"><ProductTable /></div>;
-}
-
-
-function ProductTable() {
-  const { me, db, href } = useMe();
-  const products = visibleProducts(me, db.products);
-  return (
-    <table className="pd-table products-table">
-      <thead>
-        <tr><th>Product</th><th>Type</th><th>Health</th><th>PM</th><th>Next milestone</th></tr>
-      </thead>
-      <tbody>
-        {products.map((p) => {
-          const ms = nextMilestone(db, p.key);
-          return (
-            <tr key={p.key} className="row-linked">
-              <td data-label="Product">
-                <Link href={href(`/products/${p.key}`)} className="row-link">
-                  <ProductTile product={p} /> {p.name}
-                </Link>
-              </td>
-              <td data-label="Type">{p.type === "client" ? `Client · ${p.client}` : "Internal"}</td>
-              <td data-label="Health"><HealthDot health={p.health} /></td>
-              <td data-label="PM"><Avatar personId={p.pmId} size="sm" /></td>
-              <td data-label="Next milestone">
-                {ms ? (
-                  <>
-                    {ms.name} · {shortDate(ms.due)}
-                    {ms.lateDays > 0 && <span className="pd-late"> · {ms.lateDays}d late</span>}
-                  </>
-                ) : <span className="muted">—</span>}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-/** Developer view of "All products": one big card per product they work on, straight into its tickets. */
+/** "All products", for everyone: one big card per product you can see, straight into its tickets. */
 export function ProductCards() {
-  const { me, db } = useMe();
+  const { me, db, can } = useMe();
   const products = visibleProducts(me, db.products);
   if (!products.length) {
-    return (
+    return can("product.create") ? (
+      <EmptyState icon={<FolderOpen aria-hidden />} title="No products yet">Make your first one with New product.</EmptyState>
+    ) : (
       <EmptyState icon={<FolderOpen aria-hidden />} title="You're not on any product yet">
         Ask your manager to add you to a product.
       </EmptyState>

@@ -127,6 +127,15 @@
   font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #fff; background: var(--negative-color);
 }
 .unread-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--primary-color); }
+/* Delete sits beside the row (a button can't hold another); it shows on hover or focus where there's a pointer. */
+.notification-item { display: flex; align-items: flex-start; gap: 2px; }
+.notification-item .notification-row { flex: 1; min-width: 0; }
+.notification-delete { flex: none; margin-top: 8px; color: var(--secondary-text-color); }
+.notification-delete:hover { color: var(--negative-color); }
+@media (hover: hover) {
+  .notification-delete { opacity: 0; transition: opacity var(--motion-productive-short, 120ms); }
+  .notification-item:hover .notification-delete, .notification-item:focus-within .notification-delete { opacity: 1; }
+}
 
 .mobile-only { display: none !important; }
 .sidebar-toggle { display: none !important; }

@@ -4,7 +4,7 @@
 // label, a coloured status cell you can change in place, who decided, when, what it links to). Either way a click
 // opens the full record (?d=<id>, so it can be linked). Notes take a colour of your choosing; statuses can be the
 // team's own labels (Suspended, On hold…).
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, FileText, Plus, Scale, Search, StickyNote, Table2 } from "lucide-react";
 import { useMe } from "@/data/StoreProvider";
@@ -15,7 +15,6 @@ import { DecisionPanel, NewDecision } from "./DecisionPanel";
 import { groupsOf, NoteColorMenu, shownStatus, StatusMenu, tone, type Shown } from "./DecisionStatus";
 
 type View = "table" | "notes";
-const VIEW_KEY = "onefold.decisions.view";
 const SHOWN_TICKETS = 2;
 const CLOSED = new Set(["rejected", "superseded"]); // groups that start folded
 const haystack = (d: Decision) => [d.title, d.why, d.context, d.alternatives, d.consequences, d.label?.name, ...(d.ticketKeys ?? [])].join(" ").toLowerCase();
@@ -120,14 +119,8 @@ export function DecisionLog({ productKey }: { productKey: string }) {
   const canAdd = !!product && can("decision.add", { product });
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
-  const [view, setViewState] = useState<View>("notes");
-  useEffect(() => {
-    try { if (localStorage.getItem(VIEW_KEY) === "table") setViewState("table"); } catch { /* per-browser convenience only */ } // eslint-disable-line react-hooks/set-state-in-effect -- this browser's choice
-  }, []);
-  const setView = (v: View) => {
-    setViewState(v);
-    try { localStorage.setItem(VIEW_KEY, v); } catch { /* per-browser convenience only */ }
-  };
+  // Notes every time the log opens; Table is a switch for this visit, not remembered.
+  const [view, setView] = useState<View>("notes");
 
   const all = db.decisions
     .filter((d) => d.productKey === productKey)

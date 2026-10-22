@@ -136,14 +136,15 @@ export function PairingQr({ text }: { text: string }) {
   useEffect(() => {
     let live = true;
     import("qrcode")
-      .then((qr) => qr.default.toDataURL(text, { margin: 1, width: 256 }))
-      .then((url) => { if (live) setSrc({ text, url }); })
+      // SVG: sharp at any size and on any screen. No margin of its own: the white card around it is the quiet zone.
+      .then((qr) => qr.default.toString(text, { type: "svg", margin: 0, errorCorrectionLevel: "M" }))
+      .then((svg) => { if (live) setSrc({ text, url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` }); })
       .catch(() => {});
     return () => { live = false; };
   }, [text]);
   return src?.text === text
     // eslint-disable-next-line @next/next/no-img-element -- a generated data: URL
-    ? <img className="wa-qr" src={src.url} width={256} height={256} alt="QR code to link the bot's WhatsApp" />
+    ? <img className="wa-qr" src={src.url} width={230} height={230} alt="QR code to link the bot's WhatsApp" />
     : <div className="wa-qr is-loading" aria-busy="true" />;
 }
 
