@@ -65,17 +65,19 @@ export function registerDecisionTools(server: McpServer, { context, changeCompan
       docs: (d.docIds ?? []).flatMap((id) => c.db.docs.filter((x) => x.id === id).map((x) => ({ id: x.id, title: x.title }))),
       superseded_by: replacedBy ? { id: replacedBy.id, title: replacedBy.title } : null,
       supersedes: c.db.decisions.filter((x) => x.supersededBy === d.id).map((x) => ({ id: x.id, title: x.title })),
+      archived: !!d.archivedAt,
       url: url(c, d),
     };
   };
 
   server.registerTool("list_decisions", {
     title: "List decisions",
-    description: "A project's decision log (or every project you can see), newest first: what was decided, why, its status and links. Filter by status or words.",
+    description: "A project's decision log (or every project you can see), newest first: what was decided, why, its status and links. Filter by status or words. Archived decisions are left out unless include_archived is true.",
     inputSchema: {
       product: z.string().optional().describe("Product key or name, e.g. CH"),
       status: STATUS.optional(),
       text: z.string().optional().describe("Words to find in the title or any part of the record"),
+      include_archived: z.boolean().optional(),
     },
     annotations: READ,
   }, (a) => attempt(async () => {
@@ -83,7 +85,7 @@ export function registerDecisionTools(server: McpServer, { context, changeCompan
     const key = a.product ? findProduct(c, a.product).key : undefined;
     const words = a.text?.trim().toLowerCase();
     return c.db.decisions
-      .filter((d) => (!key || d.productKey === key) && (!a.status || (d.status ?? "accepted") === a.status))
+      .filter((d) => (!key || d.productKey === key) && (!a.status || (d.status ?? "accepted") === a.status) && (a.include_archived || !d.archivedAt))
       .filter((d) => !words || [d.title, d.why, d.context, d.alternatives, d.consequences].join(" ").toLowerCase().includes(words))
       .sort((x, y) => y.date.localeCompare(x.date) || y.id.localeCompare(x.id))
       .map((d) => record(c, d));

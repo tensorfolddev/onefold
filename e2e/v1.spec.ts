@@ -34,7 +34,7 @@ async function signUp(page: Page, company: string, founderEmail: string) {
 }
 
 /** Settings → Archived: opens a bucket ("products", "tickets" or "docs") into its window, and gives that window. */
-async function openArchive(page: Page, what: "products" | "tickets" | "docs") {
+async function openArchive(page: Page, what: "products" | "tickets" | "docs" | "decisions") {
   await page.getByRole("button", { name: new RegExp(`^Archived ${what}`) }).click();
   return page.getByRole("dialog", { name: new RegExp(`^Archived ${what}`) });
 }
@@ -743,6 +743,22 @@ test("decisions: sticky notes by default, written freely in the editor, supersed
 
   await page.getByRole("tab", { name: "Notes" }).click();
   await expect(note("Bill yearly").locator(".decision-sticky-status")).toHaveText("Suspended");
+
+  // Archive one from its right-click menu: it leaves the log, kept whole in Settings → Archived, and comes back.
+  const log = page.url();
+  await note("Bill yearly").click({ button: "right" });
+  const saved2 = page.waitForResponse((r) => r.url().endsWith("/api/org/changes") && r.ok());
+  await page.getByRole("menuitem", { name: "Archive decision" }).click();
+  await saved2;
+  await expect(page.getByText(/“Bill yearly” archived/)).toBeVisible();
+  await expect(note("Bill yearly")).toHaveCount(0);
+  await page.goto("/admin/settings");
+  const archived = await openArchive(page, "decisions");
+  await expect(archived.getByText("Bill yearly")).toBeVisible();
+  await archived.getByRole("button", { name: "Restore Bill yearly" }).click();
+  await expect(page.getByText("“Bill yearly” is back")).toBeVisible();
+  await page.goto(log);
+  await expect(note("Bill yearly").locator(".decision-sticky-status")).toHaveText("Suspended"); // as it was
 });
 
 test("docs: a cover from the gallery or uploaded from your computer, kept after a reload", async ({ page }) => {
@@ -833,6 +849,56 @@ test("right-click a ticket — on the board or in the table — to open it, copy
   await expect(page.getByRole("menu", { name: /actions/ })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu", { name: /actions/ })).toHaveCount(0);
+});
+
+test("right-click a ticket → Add to epic: the product's epics, searchable, inside the window; taking it out sticks too", async ({ page, request }) => {
+  await signUp(page, "Epsilon Labs", email("epsi"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Atlas");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/AT$/);
+  // Epics come from MCP here (the board has no "new epic" button).
+  await page.goto("/admin/integrations/claude");
+  await page.getByRole("button", { name: "Connect Claude" }).click();
+  await page.getByLabel("Token name").fill("epics (e2e)");
+  await page.getByRole("button", { name: "Create token" }).click();
+  const token = (await page.locator(".mcp-command").textContent())!.match(/Bearer (1fold_[\w-]+)/)![1];
+  const make = (title: string, type: string) => request.post("/api/mcp", {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json, text/event-stream" },
+    data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "create_ticket", arguments: { product: "AT", title, type } } },
+  });
+  for (let n = 1; n <= 12; n++) await make(`Epic number ${n}`, "epic");
+  await make("Fix the login", "task");
+  await page.getByRole("button", { name: "Done" }).click();
+
+  await page.goto("/admin/products/AT/tickets");
+  const card = page.locator(".kanban-card", { hasText: "Fix the login" });
+  const box = (await card.boundingBox())!;
+  await card.click({ button: "right", position: { x: box.width - 4, y: box.height - 4 } });
+  await page.getByRole("menuitem", { name: "Add to epic" }).click();
+  const menu = page.getByRole("menu", { name: "AT-13 actions" });
+  await expect(menu.getByRole("menuitemradio")).toHaveCount(12);
+  const r = (await menu.boundingBox())!, view = page.viewportSize()!;
+  expect(r.x >= 0 && r.y >= 0 && r.x + r.width <= view.width && r.y + r.height <= view.height).toBe(true); // never off-screen
+  await menu.getByLabel("Search epics").fill("number 7");
+  await expect(menu.getByRole("menuitemradio")).toHaveCount(1);
+  let saved = page.waitForResponse((res) => res.url().endsWith("/api/org/changes") && res.ok());
+  await menu.getByRole("menuitemradio", { name: /Epic number 7/ }).click();
+  await saved;
+  await expect(page.getByText("AT-13 is in AT-7 Epic number 7")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".kanban-card", { hasText: "Fix the login" }).locator(".epic-chip")).toBeVisible();
+
+  // Out of its epic again — and that reaches the server too (it used to come back after a reload).
+  await page.locator(".kanban-card", { hasText: "Fix the login" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Move to another epic" }).click();
+  saved = page.waitForResponse((res) => res.url().endsWith("/api/org/changes") && res.ok());
+  await page.getByRole("menuitem", { name: "Remove from its epic" }).click();
+  await saved;
+  await page.reload();
+  await expect(page.locator(".kanban-card", { hasText: "Fix the login" }).locator(".epic-chip")).toHaveCount(0);
 });
 
 test("project settings: statuses and priorities, named and coloured your way, show on the board", async ({ page }) => {

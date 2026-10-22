@@ -6,10 +6,12 @@
 // team's own labels (Suspended, On hold…).
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, FileText, Plus, Scale, Search, StickyNote, Table2 } from "lucide-react";
+import { Archive, ChevronDown, ExternalLink, FileText, Plus, Scale, Search, StickyNote, Table2 } from "lucide-react";
+import { archiveDecisions } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { shortDate } from "@/domain/status";
 import type { Decision } from "@/domain/types";
+import { ContextMenu } from "@/ui/ContextMenu";
 import { Avatar, EmptyState } from "@/ui/primitives";
 import { DecisionPanel, NewDecision } from "./DecisionPanel";
 import { groupsOf, NoteColorMenu, shownStatus, StatusMenu, tone, type Shown } from "./DecisionStatus";
@@ -28,8 +30,10 @@ function StatusCell({ decision, siblings, editable }: { decision: Decision; sibl
   );
 }
 
-function Group({ group, items, siblings, all, editable, forceOpen, onOpen }: {
-  group: Shown; items: Decision[]; siblings: Decision[]; all: Map<string, Decision>; editable: boolean; forceOpen: boolean; onOpen: (id: string) => void;
+type OnMenu = ((e: React.MouseEvent, id: string) => void) | undefined;
+
+function Group({ group, items, siblings, all, editable, forceOpen, onOpen, onMenu }: {
+  group: Shown; items: Decision[]; siblings: Decision[]; all: Map<string, Decision>; editable: boolean; forceOpen: boolean; onOpen: (id: string) => void; onMenu: OnMenu;
 }) {
   const { personById } = useMe();
   const [open, setOpen] = useState(!CLOSED.has(group.key));
@@ -54,7 +58,7 @@ function Group({ group, items, siblings, all, editable, forceOpen, onOpen }: {
             const keys = d.ticketKeys ?? [];
             const replacedBy = d.supersededBy ? all.get(d.supersededBy) : undefined;
             return (
-              <div key={d.id} className="docs-board-row decision-row" role="row">
+              <div key={d.id} className="docs-board-row decision-row" role="row" onContextMenu={onMenu && ((e) => onMenu(e, d.id))}>
                 <span role="cell" className="decision-cell-title">
                   <button type="button" className="decision-open" onClick={() => onOpen(d.id)}>{d.title}</button>
                   {replacedBy && <span className="decision-cell-replaced">→ {replacedBy.title}</span>}
@@ -77,8 +81,8 @@ function Group({ group, items, siblings, all, editable, forceOpen, onOpen }: {
 }
 
 /** The wall: one sticky note per decision, in board order (open questions first), each in its own colour. */
-function StickyWall({ items, groups, all, editable, onOpen }: {
-  items: Decision[]; groups: Shown[]; all: Map<string, Decision>; editable: boolean; onOpen: (id: string) => void;
+function StickyWall({ items, groups, all, editable, onOpen, onMenu }: {
+  items: Decision[]; groups: Shown[]; all: Map<string, Decision>; editable: boolean; onOpen: (id: string) => void; onMenu: OnMenu;
 }) {
   const { personById } = useMe();
   const ordered = groups.flatMap((g) => items.filter((d) => shownStatus(d).key === g.key));
@@ -89,7 +93,7 @@ function StickyWall({ items, groups, all, editable, onOpen }: {
         const replacedBy = d.supersededBy ? all.get(d.supersededBy) : undefined;
         const keys = d.ticketKeys ?? [];
         return (
-          <li key={d.id} style={{ ...tone(s.color), "--paper": d.color ?? s.color } as React.CSSProperties}>
+          <li key={d.id} style={{ ...tone(s.color), "--paper": d.color ?? s.color } as React.CSSProperties} onContextMenu={onMenu && ((e) => onMenu(e, d.id))}>
             <button type="button" className="decision-sticky" onClick={() => onOpen(d.id)}>
               <span className="decision-sticky-status">{s.label}</span>
               <span className="decision-sticky-title">{d.title}</span>
@@ -121,9 +125,12 @@ export function DecisionLog({ productKey }: { productKey: string }) {
   const [creating, setCreating] = useState(false);
   // Notes every time the log opens; Table is a switch for this visit, not remembered.
   const [view, setView] = useState<View>("notes");
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  // Right-click a note or a row: open it, or (for whoever may record decisions) archive it.
+  const onMenu: OnMenu = canAdd ? (e, id) => { e.preventDefault(); setMenu({ id, x: e.clientX, y: e.clientY }); } : undefined;
 
   const all = db.decisions
-    .filter((d) => d.productKey === productKey)
+    .filter((d) => d.productKey === productKey && !d.archivedAt) // archived ones are in Settings → Archived
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   const byId = new Map(all.map((d) => [d.id, d]));
   const q = query.trim().toLowerCase();
@@ -163,17 +170,37 @@ export function DecisionLog({ productKey }: { productKey: string }) {
       ) : q && !shown.length ? (
         <EmptyState icon={<Search aria-hidden />} title="Nothing matches">Try another word.</EmptyState>
       ) : view === "notes" ? (
-        <StickyWall items={shown} groups={groups} all={byId} editable={canAdd} onOpen={openDecision} />
+        <StickyWall items={shown} groups={groups} all={byId} editable={canAdd} onOpen={openDecision} onMenu={onMenu} />
       ) : (
         <div className="docs-board">
           {groups.map((g) => (
-            <Group key={g.key} group={g} items={shown.filter((d) => shownStatus(d).key === g.key)} siblings={all} all={byId} editable={canAdd} forceOpen={!!q} onOpen={openDecision} />
+            <Group key={g.key} group={g} items={shown.filter((d) => shownStatus(d).key === g.key)} siblings={all} all={byId} editable={canAdd} forceOpen={!!q} onOpen={openDecision} onMenu={onMenu} />
           ))}
         </div>
       )}
 
       {open && <DecisionPanel key={open.id} decision={open} onClose={() => openDecision(null)} onOpen={openDecision} />}
+      {menu && byId.get(menu.id) && (
+        <DecisionMenu key={`${menu.id}@${menu.x},${menu.y}`} decision={byId.get(menu.id)!} x={menu.x} y={menu.y}
+          onOpen={() => openDecision(menu.id)} onClose={() => setMenu(null)} />
+      )}
       {creating && <NewDecision productKey={productKey} onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); openDecision(id); }} />}
     </div>
+  );
+}
+
+/** Right-click a decision: open it, or archive it (Undo in the toast; it's kept whole in Settings → Archived). */
+function DecisionMenu({ decision, x, y, onOpen, onClose }: { decision: Decision; x: number; y: number; onOpen: () => void; onClose: () => void }) {
+  const { act } = useMe();
+  const run = (fn: () => void) => () => { onClose(); fn(); };
+  const archive = () => act((d, m) => archiveDecisions(d, m, [decision.id]), {
+    success: `“${decision.title}” archived — it's in Settings → Archived`, undoable: true,
+  });
+  return (
+    <ContextMenu x={x} y={y} label={`${decision.title} actions`} onClose={onClose}>
+      <button type="button" role="menuitem" className="menu-item" onClick={run(onOpen)}><ExternalLink aria-hidden /> Open decision</button>
+      <hr className="menu-sep" />
+      <button type="button" role="menuitem" className="menu-item" onClick={run(archive)}><Archive aria-hidden /> Archive decision</button>
+    </ContextMenu>
   );
 }

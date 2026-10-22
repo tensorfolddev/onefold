@@ -67,6 +67,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
       alternatives: opt(d.alternatives), consequences: opt(d.consequences), ticketKeys: d.ticketKeys?.length ? d.ticketKeys : null,
       docIds: d.docIds?.length ? d.docIds : null, supersededBy: opt(d.supersededBy), updatedAt: instantOrNull(d.updatedAt),
       labelName: opt(d.label?.name), labelColor: opt(d.label?.color), color: opt(d.color), body: d.body ?? null,
+      archivedAt: instantOrNull(d.archivedAt), archivedBy: opt(d.archivedBy),
     })),
     milestones: db.milestones.map((m) => r(m.id, { productId: m.productKey, name: m.name, due: m.due, pct: m.pct, lateDays: m.lateDays })),
     docs: db.docs.map((d) => r(d.id, {
@@ -184,6 +185,8 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
       ...(d.updatedAt ? { updatedAt: instant(str(d.updatedAt)) } : {}),
       ...(d.labelName && d.labelColor ? { label: { name: str(d.labelName), color: str(d.labelColor) } } : {}),
       ...(d.color ? { color: str(d.color) } : {}),
+      ...(d.archivedAt ? { archivedAt: instant(str(d.archivedAt)) } : {}),
+      ...(d.archivedBy ? { archivedBy: str(d.archivedBy) } : {}),
       ...(typeof d.body === "string" ? { body: d.body } : {}),
     })),
     milestones: t.milestones.map((m): Milestone => ({

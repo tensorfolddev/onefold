@@ -166,6 +166,8 @@ export const decisions = pgTable("decisions", {
   labelName: text("label_name"), // the team's own status label (e.g. Suspended), with its colour
   labelColor: text("label_color"),
   color: text("color"), // the sticky note's colour
+  archivedAt: ts("archived_at"), // hidden from the log, kept whole until restored
+  archivedBy: text("archived_by"),
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 

@@ -188,3 +188,20 @@ test("@@ mentions are urgent: in a decision's text (told again, urgently, even i
   const told = notifyDocMentions(db0, lead, docId, [], [sara.id]).notifications[0];
   assert.deepEqual([told.personId, told.urgent], [sara.id, true]);
 });
+
+test("decisions: archived by whoever may record them — kept, hidden, and back in one step; developers can't", async () => {
+  const { addDecision, archiveDecisions, restoreDecisions } = await import("./docs.ts");
+  let db = addDecision(db0, lead, "AP", { title: "Use Postgres", why: "One database" }, "dec-pg");
+  assert.throws(() => archiveDecisions(db, sara, ["dec-pg"]), AccessError);
+  assert.throws(() => archiveDecisions(db, lead, ["no-such-decision"]), ValidationError);
+  db = archiveDecisions(db, lead, ["dec-pg"]);
+  const archived = db.decisions.find((d) => d.id === "dec-pg")!;
+  assert.equal(archived.archivedBy, lead.id);
+  assert.ok(archived.archivedAt);
+  assert.equal(archived.title, "Use Postgres"); // nothing about it is lost
+  assert.equal(archiveDecisions(db, lead, ["dec-pg"]).decisions.find((d) => d.id === "dec-pg")!.archivedAt, archived.archivedAt); // twice is once
+  db = restoreDecisions(db, admin, ["dec-pg"]);
+  const back = db.decisions.find((d) => d.id === "dec-pg")!;
+  assert.equal(back.archivedAt, undefined);
+  assert.equal(back.archivedBy, undefined);
+});
