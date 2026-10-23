@@ -274,24 +274,28 @@
   .tpl-sec-ref { display: none; }
 }
 
-/* ---------- Held up: waiting on something, or stuck — the card strains now and then (domain/selectors/blocked.ts) ---------- */
-.kanban-card.is-held { position: relative; border-color: color-mix(in srgb, var(--negative-color) 45%, var(--layout-border-color)); }
-.kanban-card.is-held::before {
-  content: ""; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0;
-  background: var(--negative-color); animation: held-pulse 1.8s ease-in-out infinite;
+/* ---------- Held up: waiting on something, or stuck — a red lock, and now and then the card strains to break free
+   (domain/selectors/blocked.ts): a 0.5s shake, then 2s still ---------- */
+.held-lock {
+  flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px;
+  color: var(--negative-color); background: color-mix(in srgb, var(--negative-color) 13%, var(--primary-background-color));
 }
+.held-lock svg { width: 13px; height: 13px; }
+.kanban-card-key .held-lock { margin-left: auto; }
+.kanban-card-key .held-lock + .epic-chip { margin-left: 0; }
 /* Only the card in its list: the copy that follows the pointer while dragging stays still. */
-.kanban-card-slot > .kanban-card.is-held { animation: held-strain 4s ease-in-out infinite; }
+.kanban-card-slot > .kanban-card.is-held { animation: held-strain 2.5s ease-in-out infinite; }
 .kanban-card.is-held:hover, .kanban-card.is-held:focus-visible { animation-play-state: paused; }
 @keyframes held-strain {
-  0%, 78%, 100% { transform: none; }
-  80% { transform: translateX(-2px) rotate(-0.6deg); }
-  83% { transform: translateX(2px) rotate(0.6deg); }
-  86% { transform: translateX(-2px) rotate(-0.4deg); }
-  89% { transform: translateX(1px) rotate(0.3deg); }
-  92% { transform: translateX(-1px); }
+  0%, 80%, 100% { transform: none; }
+  82.5% { transform: translateX(-1.85px) rotate(-0.56deg); }
+  85% { transform: translateX(1.7px) rotate(0.51deg); }
+  87.5% { transform: translateX(-1.55px) rotate(-0.47deg); }
+  90% { transform: translateX(1.4px) rotate(0.42deg); }
+  92.5% { transform: translateX(-1.25px) rotate(-0.38deg); }
+  95% { transform: translateX(1.1px) rotate(0.33deg); }
+  97.5% { transform: translateX(-0.95px) rotate(-0.29deg); }
 }
-@keyframes held-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) {
-  .kanban-card.is-held, .kanban-card.is-held::before { animation: none; }
+  .kanban-card.is-held { animation: none; }
 }
