@@ -592,8 +592,6 @@ button.ticket-description:hover { background-color: var(--primary-background-hov
 .kanban-card .due-chip:has(.is-done) { --bar: #00a35c; }
 .kanban-card .due-chip.is-empty { --bar: var(--ui-border-color); color: var(--secondary-text-color); font-weight: 400; }
 .kanban-card .due-chip svg { width: 13px; height: 13px; }
-/* A crowded bottom row shortens its "Blocked by…" chip, never pushes the people off the card. */
-.kanban-card-meta > .blocked-chip { flex-shrink: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ticket-grid .col-ticket .ticket-title { flex: 1 1 0; min-width: 72px; } /* the title always wins the space */
 .ticket-grid .col-ticket .epic-chip { flex: 0 1 auto; max-width: 40%; }
 .mw-cell-name { gap: 8px; }

@@ -5,7 +5,7 @@ import { Layers, Plus } from "lucide-react";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDb } from "@/data/StoreProvider";
-import { heldUp, openBlockers } from "@/domain/selectors/blocked";
+import { heldUp } from "@/domain/selectors/blocked";
 import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
 import { Assignees, DueDate, EpicChip, PriorityChip, TypeIcon, TypeTag } from "./TicketBits";
@@ -20,18 +20,6 @@ export const listId = (statusId: string) => `list:${statusId}`;
 export const SORT_TRANSITION = { duration: 220, easing: "cubic-bezier(0.2, 0, 0, 1)" };
 
 export type Composer = { statusId: string; position: "top" | "bottom" } | null;
-
-/** "Blocked by CH-2" while a dependency is still open — with a face that says how that feels. */
-function BlockedChip({ ticket }: { ticket: Ticket }) {
-  const { db } = useDb();
-  const open = openBlockers(db, ticket).map((t) => t.key);
-  if (!open.length) return null;
-  return (
-    <span className="blocked-chip" title={`Waiting on ${open.join(", ")} — finish ${open.length > 1 ? "those" : "that"} first`}>
-      <span className="blocked-face" aria-hidden>😣</span> Blocked by {open[0]}{open.length > 1 ? ` +${open.length - 1}` : ""}
-    </span>
-  );
-}
 
 function EpicProgress({ epic }: { epic: Ticket }) {
   const { db } = useDb();
@@ -57,9 +45,7 @@ function QuickEdit({ children }: { children: React.ReactNode }) {
  * The card's bottom row: [priority][date] … people. On a card you can edit, each opens its own picker right there,
  * so priority, deadline and assignees change without opening the ticket.
  */
-function CardFoot({ ticket, done, editable, alwaysDate, children }: {
-  ticket: Ticket; done: boolean; editable: boolean; alwaysDate?: boolean; children?: React.ReactNode;
-}) {
+function CardFoot({ ticket, done, editable, alwaysDate }: { ticket: Ticket; done: boolean; editable: boolean; alwaysDate?: boolean }) {
   const { productByKey } = useDb();
   const product = editable ? productByKey(ticket.productKey) : undefined;
   if (product) {
@@ -67,7 +53,6 @@ function CardFoot({ ticket, done, editable, alwaysDate, children }: {
       <>
         <QuickEdit><PriorityField ticket={ticket} onCard /></QuickEdit>
         <QuickEdit><CardDueField ticket={ticket} done={done} /></QuickEdit>
-        {children}
         <span className="spacer" />
         <QuickEdit><AssigneeField ticket={ticket} product={product} onCard /></QuickEdit>
       </>
@@ -77,7 +62,6 @@ function CardFoot({ ticket, done, editable, alwaysDate, children }: {
     <>
       <PriorityChip priority={ticket.priority} productKey={ticket.productKey} />
       {ticket.due ? <span className="due-chip"><DueDate ticket={ticket} done={done} /></span> : alwaysDate && <span className="due-chip is-empty">No date</span>}
-      {children}
       <span className="spacer" />
       <Assignees ids={ticket.assigneeIds} max={2} />
     </>
@@ -112,7 +96,7 @@ export const CardView = memo(function CardView({ ticket, editable = false }: { t
       <span className="kanban-card-key"><TypeIcon type={ticket.type} /><TypeTag type={ticket.type} title={ticket.key} /><EpicChip ticket={ticket} /></span>
       <span className="kanban-card-title">{ticket.title}</span>
       <span className="kanban-card-meta">
-        <CardFoot ticket={ticket} done={status?.category === "done"} editable={editable}><BlockedChip ticket={ticket} /></CardFoot>
+        <CardFoot ticket={ticket} done={status?.category === "done"} editable={editable} />
       </span>
     </>
   );
