@@ -1,11 +1,11 @@
 "use client";
 
 import { memo } from "react";
-import { Layers, Plus } from "lucide-react";
+import { Layers, Lock, Plus } from "lucide-react";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDb } from "@/data/StoreProvider";
-import { heldUp } from "@/domain/selectors/blocked";
+import { heldUp, openBlockers } from "@/domain/selectors/blocked";
 import { epicLabel } from "@/domain/selectors/epics";
 import type { Status, Ticket } from "@/domain/types";
 import { Assignees, DueDate, EpicChip, PriorityChip, TypeIcon, TypeTag } from "./TicketBits";
@@ -20,6 +20,15 @@ export const listId = (statusId: string) => `list:${statusId}`;
 export const SORT_TRANSITION = { duration: 220, easing: "cubic-bezier(0.2, 0, 0, 1)" };
 
 export type Composer = { statusId: string; position: "top" | "bottom" } | null;
+
+/** A small red lock while the ticket is held up — its tooltip says what it's waiting on. */
+function HeldLock({ ticket }: { ticket: Ticket }) {
+  const { db } = useDb();
+  if (!heldUp(db, ticket)) return null;
+  const open = openBlockers(db, ticket).map((t) => t.key);
+  const why = open.length ? `Waiting on ${open.join(", ")} — finish ${open.length > 1 ? "those" : "that"} first` : "Stuck";
+  return <span className="held-lock" role="img" aria-label={why} title={why}><Lock aria-hidden /></span>;
+}
 
 function EpicProgress({ epic }: { epic: Ticket }) {
   const { db } = useDb();
@@ -93,7 +102,7 @@ export const CardView = memo(function CardView({ ticket, editable = false }: { t
   return (
     <>
       {/* What it is, not its number (the number shows on hover, and in the ticket itself) */}
-      <span className="kanban-card-key"><TypeIcon type={ticket.type} /><TypeTag type={ticket.type} title={ticket.key} /><EpicChip ticket={ticket} /></span>
+      <span className="kanban-card-key"><TypeIcon type={ticket.type} /><TypeTag type={ticket.type} title={ticket.key} /><HeldLock ticket={ticket} /><EpicChip ticket={ticket} /></span>
       <span className="kanban-card-title">{ticket.title}</span>
       <span className="kanban-card-meta">
         <CardFoot ticket={ticket} done={status?.category === "done"} editable={editable} />
