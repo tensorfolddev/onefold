@@ -94,8 +94,11 @@ backups_dir() { mkdir -p "$ENV_DIR/backups" && chmod 700 "$ENV_DIR/backups"; }
 
 # require_crypt <remote>: backups hold every secret, so they only ever go to an rclone *crypt* remote.
 require_crypt() {
-  local name="${1%%:*}"
-  rclone config show "$name" 2>/dev/null | grep -Eq '^type *= *crypt$' ||
+  local name="${1%%:*}" conf
+  # Read it all first: piped straight into grep -q, rclone is cut off at the first match and now and then exits 1,
+  # which pipefail turns into a refusal (it once stopped two production releases in a row).
+  conf="$(rclone config show "$name" 2>/dev/null)" || conf=""
+  grep -Eq '^type *= *crypt$' <<<"$conf" ||
     die "BACKUP_REMOTE ($1) isn't an rclone crypt remote — backups must be encrypted. See deploy/README.md → Backups."
 }
 
