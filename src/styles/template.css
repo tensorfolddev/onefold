@@ -247,11 +247,6 @@
 .tpl-lightbox-body img { max-width: 100%; max-height: calc(100dvh - 140px); width: auto; height: auto; border-radius: 6px; }
 
 /* board signals */
-.blocked-chip {
-  display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border-radius: 999px;
-  font-size: 12px; font-weight: 600; color: var(--negative-color); background: color-mix(in srgb, var(--negative-color) 11%, var(--primary-background-color));
-}
-.blocked-chip svg { width: 12px; height: 12px; }
 .epic-card-progress { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--secondary-text-color); }
 .epic-card-bar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--epic) 18%, var(--primary-background-color)); }
 .epic-card-bar span { display: block; height: 100%; border-radius: 3px; background: var(--epic); }
@@ -287,13 +282,7 @@
 }
 /* Only the card in its list: the copy that follows the pointer while dragging stays still. */
 .kanban-card-slot > .kanban-card.is-held { animation: held-strain 4s ease-in-out infinite; }
-.kanban-card.is-held:hover, .kanban-card.is-held:focus-visible, .kanban-card.is-held:hover .blocked-face,
-.kanban-card.is-held:hover .blocked-face::after { animation-play-state: paused; }
-.blocked-face { position: relative; display: inline-block; font-size: 12px; line-height: 1; animation: held-face 4s ease-in-out infinite; }
-.blocked-face::after {
-  content: "💧"; position: absolute; right: -5px; top: -4px; font-size: 8px; opacity: 0;
-  animation: held-sweat 4s ease-in infinite;
-}
+.kanban-card.is-held:hover, .kanban-card.is-held:focus-visible { animation-play-state: paused; }
 @keyframes held-strain {
   0%, 78%, 100% { transform: none; }
   80% { transform: translateX(-2px) rotate(-0.6deg); }
@@ -303,17 +292,6 @@
   92% { transform: translateX(-1px); }
 }
 @keyframes held-pulse { 50% { opacity: 0.35; } }
-@keyframes held-face {
-  0%, 78%, 100% { transform: none; }
-  82% { transform: scale(1.15) rotate(-8deg); }
-  88% { transform: scale(1.1) rotate(8deg); }
-  94% { transform: none; }
-}
-@keyframes held-sweat {
-  0%, 60% { opacity: 0; transform: translateY(0); }
-  66% { opacity: 1; }
-  90%, 100% { opacity: 0; transform: translateY(9px); }
-}
 @media (prefers-reduced-motion: reduce) {
-  .kanban-card.is-held, .kanban-card.is-held::before, .blocked-face, .blocked-face::after { animation: none; }
+  .kanban-card.is-held, .kanban-card.is-held::before { animation: none; }
 }
