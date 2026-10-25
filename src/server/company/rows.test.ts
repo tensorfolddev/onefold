@@ -65,6 +65,20 @@ test("a decision keeps its own label and note colour through rows and back", () 
   assert.deepEqual(back.decisions.at(-1), extra);
 });
 
+test("a requirement keeps its words, criteria, status and confirmed version through rows and back", () => {
+  const db = demoDb();
+  const criteria = [{ id: "c1", text: "Card form", done: true }, { id: "c2", text: "Receipt email", done: false }];
+  const extra = {
+    id: "rq-x", productKey: "AP", code: "R9", title: "Pay by card", description: "Stripe **Checkout**", criteria,
+    status: "draft" as const, rev: 3, confirmed: { rev: 2, title: "Pay by card", description: "Stripe", criteria, by: "u-ayesha", at: "2026-10-20T09:00:00Z" },
+    proposedBy: "u-client", droppedReason: "Later", createdAt: "2026-10-19T08:00:00Z", createdBy: "u-ayesha", updatedAt: "2026-10-21T10:30:00Z",
+  };
+  const withOne = { ...db, requirements: [...db.requirements, extra] };
+  const back = fromRows(orgRow(withOne), withPositions(toRows(withOne)), new Map(db.people.map((p) => [p.id, p.email])));
+  assert.deepEqual(back.requirements.at(-1), extra);
+  assert.deepEqual(back.requirements[0], db.requirements[0]); // an old one (code and title only) stays just that
+});
+
 test("a project keeps its own priority names and colours through rows and back", () => {
   const db = demoDb();
   const priorities = { critical: { name: "Urgent", color: "#ff0055" }, low: { name: "Someday" } };

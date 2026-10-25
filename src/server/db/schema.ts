@@ -145,6 +145,16 @@ export const requirements = pgTable("requirements", {
   productId: text("product_id").notNull(),
   code: text("code").notNull(),
   title: text("title").notNull(),
+  description: text("description"), // Markdown
+  criteria: jsonb("criteria"), // acceptance criteria: [{ id, text, done }]
+  status: text("status"), // draft | proposed | to_confirm | changes_requested | confirmed | dropped; null = draft
+  rev: integer("rev"),
+  confirmed: jsonb("confirmed"), // the version that was confirmed: { rev, title, description, criteria, by, at }
+  proposedBy: text("proposed_by"),
+  droppedReason: text("dropped_reason"),
+  createdAt: ts("created_at"),
+  createdBy: text("created_by"),
+  updatedAt: ts("updated_at"),
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 

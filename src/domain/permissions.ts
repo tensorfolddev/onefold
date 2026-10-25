@@ -4,6 +4,7 @@ export type Action =
   | "product.view" | "product.edit" | "product.create" | "product.approveStage" | "product.requestStage"
   | "members.edit" | "ticket.create" | "ticket.edit" | "ticket.delete" | "statuses.edit" | "product.brand"
   | "doc.add" | "doc.addMeetingNotes" | "doc.delete" | "doc.create" | "doc.edit" | "doc.archive" | "decision.add" | "milestone.edit" | "ticket.archive"
+  | "requirement.edit"
   | "product.archive" | "product.delete" | "product.group" | "groups.manage" | "members.view"
   | "people.manage" | "teams.manage" | "org.manage";
 

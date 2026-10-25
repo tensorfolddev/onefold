@@ -14,6 +14,9 @@ import {
   addGroup, approveStage, archiveProduct, createProduct, deleteGroup, deleteProduct, moveProduct, renameGroup, requestStage,
   restoreProduct, setMember, setPriority, setProductLook, updateProduct,
 } from "./products.ts";
+import {
+  addRequirement, deleteRequirement, dropRequirement, markRequirementConfirmed, restoreRequirement, updateRequirement,
+} from "./requirements.ts";
 import { addAttachment, addDependency, removeAttachment, removeDependency, setSection } from "./template.ts";
 import { addComment, archiveTickets, createTicket, deleteTickets, moveTicket, restoreTickets, updateTicket } from "./tickets.ts";
 
@@ -29,6 +32,8 @@ export const commands = {
   // docs
   addDoc, deleteDoc, addDecision, updateDecision, archiveDecisions, restoreDecisions, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, setDocPublic, shareDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
+  // requirements
+  addRequirement, updateRequirement, markRequirementConfirmed, dropRequirement, restoreRequirement, deleteRequirement,
   // people + company
   updatePerson, setPhoto, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
@@ -45,6 +50,8 @@ export {
   moveProduct, archiveProduct, restoreProduct, deleteProduct,
   addDoc, deleteDoc, addDecision, updateDecision, archiveDecisions, restoreDecisions, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, setDocPublic, shareDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
+  // requirements
+  addRequirement, updateRequirement, markRequirementConfirmed, dropRequirement, restoreRequirement, deleteRequirement,
   updatePerson, setPhoto, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
   // notifications
@@ -64,6 +71,7 @@ export { acceptInvite, inviteProblem, inviteState, isFreeMail, signUp, slugError
 export { EMAIL_RE, MIN_PASSWORD, domainOf } from "./shared.ts";
 export type { InviteInput, NewInvite, SignUpInput } from "./org.ts";
 export type { TicketPatch } from "./tickets.ts";
+export type { RequirementInput } from "./requirements.ts";
 export type { StatusPatch } from "./lists.ts";
 export type { PersonPatch } from "./people.ts";
 export type { ProductInput } from "./products.ts";
