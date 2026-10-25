@@ -9,7 +9,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useDb } from "@/data/StoreProvider";
 import { relativeTime } from "@/domain/status";
 import type { Doc } from "@/domain/types";
-import { RequirementsTable } from "@/features/products/LiveWidgets";
 import { Avatar } from "@/ui/primitives";
 import { ArchivedDocs } from "./ArchivedDocs";
 import { DocsTopBar, spaceName } from "./DocsSpace";
@@ -173,12 +172,6 @@ export function DocsHome({ productKey }: { productKey: string }) {
           </div>
         )}
         {personal && <ArchivedDocs productKey={MY_DOCS} />}
-        {product && (
-          <>
-            <h2 className="docs-section-title">Requirements</h2>
-            <RequirementsTable productKey={productKey} />
-          </>
-        )}
         {newDoc.picker}
       </div>
     </>

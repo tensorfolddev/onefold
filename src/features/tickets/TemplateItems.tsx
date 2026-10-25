@@ -17,33 +17,43 @@ type Props = { def: SectionDef; ticket: Ticket; editable: boolean };
 
 export function ItemsSection({ def, ticket, editable }: Props) {
   const { act } = useDb();
-  const items = itemsOf(ticket.sections?.[def.id]);
+  return (
+    <ItemsEditor items={itemsOf(ticket.sections?.[def.id])} kind={def.kind} title={def.title} hint={def.hint} editable={editable}
+      onSave={(next) => act((d, m) => setSection(d, m, ticket.key, def.id, next))} />
+  );
+}
+
+/** A list you edit in place — bullets, numbered steps or a checklist: Enter adds a line, a pasted list adds one per row. */
+export function ItemsEditor({ items, kind, title, hint, editable, tickable = false, onSave: save }: {
+  items: SectionItem[]; kind: SectionDef["kind"]; title: string; hint?: string; editable: boolean;
+  tickable?: boolean; // a checklist whose boxes can be ticked even while its lines can't be edited
+  onSave: (next: SectionItem[]) => unknown; // truthy once saved
+}) {
   const [draft, setDraft] = useState("");
-  const checklist = def.kind === "checklist";
-  const save = (next: SectionItem[]) => act((d, m) => setSection(d, m, ticket.key, def.id, next));
+  const checklist = kind === "checklist";
   const add = (texts: string[]) => {
     const lines = texts.map(stripMarker).filter(Boolean);
     if (!lines.length) return;
     if (save([...items, ...lines.map((text) => ({ id: newLineId(), text, ...(checklist && { done: false }) }))])) setDraft("");
   };
-  const List = def.kind === "steps" ? "ol" : "ul";
+  const List = kind === "steps" ? "ol" : "ul";
 
   if (!editable && !items.length) return <p className="tpl-empty">Not filled in</p>;
   return (
     <>
-      {!items.length && <p className="tpl-hint">{def.hint}</p>}
+      {!items.length && hint && <p className="tpl-hint">{hint}</p>}
       {items.length > 0 && (
-        <List className="tpl-items" data-kind={def.kind}>
+        <List className="tpl-items" data-kind={kind}>
           {items.map((it, i) => (
             <li key={it.id} className="tpl-item" data-done={it.done || undefined}>
               {checklist ? (
                 <input
-                  type="checkbox" className="tpl-check" checked={!!it.done} disabled={!editable} aria-label={it.text}
+                  type="checkbox" className="tpl-check" checked={!!it.done} disabled={!editable && !tickable} aria-label={it.text}
                   onChange={() => save(items.map((x) => (x.id === it.id ? { ...x, done: !x.done } : x)))}
                 />
-              ) : def.kind === "steps" ? <span className="tpl-step" aria-hidden>{i + 1}</span> : <span className="tpl-bullet" aria-hidden />}
+              ) : kind === "steps" ? <span className="tpl-step" aria-hidden>{i + 1}</span> : <span className="tpl-bullet" aria-hidden />}
               {editable ? (
-                <LineText value={it.text} label={`${def.title} line ${i + 1}`}
+                <LineText value={it.text} label={`${title} line ${i + 1}`}
                   onSave={(text) => save(items.map((x) => (x.id === it.id ? { ...x, text } : x)))} />
               ) : <span className="tpl-item-text">{it.text}</span>}
               {editable && (
@@ -59,8 +69,8 @@ export function ItemsSection({ def, ticket, editable }: Props) {
         <form className="tpl-add" onSubmit={(e) => { e.preventDefault(); add([draft]); }}>
           <Plus aria-hidden />
           <input
-            value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Add to ${def.title}`} maxLength={500}
-            placeholder={checklist ? "Add a line to tick off — Enter to add" : def.kind === "steps" ? "Add the next step — Enter to add" : "Add a line — Enter to add"}
+            value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Add to ${title}`} maxLength={500}
+            placeholder={checklist ? "Add a line to tick off — Enter to add" : kind === "steps" ? "Add the next step — Enter to add" : "Add a line — Enter to add"}
             onPaste={(e) => {
               const text = e.clipboardData.getData("text");
               if (!text.includes("\n")) return;

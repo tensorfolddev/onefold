@@ -196,6 +196,69 @@ test("moving a ticket to Done cheers: a toast and a burst of confetti", async ({
   await expect(page.locator("canvas.confetti")).toHaveCount(0, { timeout: 6000 });
 });
 
+test("requirements: write one with acceptance criteria, link a ticket, confirm it, change it (it needs confirming again), drop it", async ({ page }) => {
+  await signUp(page, "Requisite", email("rq"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Ledger");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/LE$/);
+  await page.goto("/admin/products/LE/tickets");
+  await page.getByRole("button", { name: "New ticket" }).click();
+  await page.getByLabel("New ticket title").fill("Charge the card");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  await page.goto("/admin/products/LE/requirements");
+  await expect(page.getByText("No requirements yet")).toBeVisible();
+  await page.getByRole("button", { name: "New requirement" }).click();
+  await page.getByLabel("Requirement", { exact: true }).fill("Customers can pay by card");
+  await page.getByRole("button", { name: "Add and write" }).click();
+  const panel = page.locator(".requirement-panel");
+  await expect(panel).toContainText("R1");
+  await expect(panel).toContainText("Draft");
+
+  const add = panel.getByLabel("Add to Acceptance criteria");
+  await add.fill("Card form");
+  await add.press("Enter");
+  await add.fill("Receipt email");
+  await add.press("Enter");
+  await expect(panel.getByRole("checkbox")).toHaveCount(2);
+
+  await panel.getByRole("button", { name: "Ticket", exact: true }).click();
+  await page.getByRole("option", { name: /Charge the card/ }).click();
+  await expect(panel.getByRole("button", { name: "Task LE-1 Charge the card" })).toBeVisible();
+  await expect(panel).toContainText("0 of 1 done");
+
+  await panel.getByRole("button", { name: "Mark confirmed" }).click();
+  await expect(panel).toContainText("Confirmed");
+  await expect(panel.getByRole("button", { name: "Edit" })).toBeVisible(); // its words are locked now
+  await panel.getByRole("checkbox", { name: "Card form" }).check(); // ticking a criterion as met is still fine
+  await expect(panel.getByRole("button", { name: "Edit" })).toBeVisible();
+
+  await panel.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Change it" }).click();
+  await panel.getByRole("button", { name: "Customers can pay by card" }).click();
+  const title = panel.getByRole("textbox", { name: "Requirement", exact: true });
+  await title.fill("Customers can pay by card or wallet");
+  await title.press("Enter");
+  await expect(panel).toContainText("Changed since it was confirmed");
+  await expect(panel).toContainText("Confirmed version (version 3"); // the title and its two criteria were three versions
+  await expect(panel.locator(".requirement-confirmed")).toContainText("Customers can pay by card"); // what was agreed, kept
+
+  await panel.getByRole("button", { name: "Drop requirement" }).click();
+  await page.getByLabel("Why is it out of scope?").fill("The client moved it to phase 2");
+  await page.getByRole("button", { name: "Drop it" }).click();
+  await expect(panel).toContainText("Dropped: The client moved it to phase 2");
+
+  await page.goto("/admin/products/LE/requirements"); // a fresh load: all of it was saved on the server
+  await page.getByRole("tab", { name: /Dropped/ }).click();
+  await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeVisible();
+  await page.getByRole("tab", { name: /^All/ }).click();
+  await expect(page.getByText("Nothing here.")).toBeVisible();
+});
+
 const PNG_1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 const loaded = (img: ReturnType<Page["getByRole"]>) => expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
 

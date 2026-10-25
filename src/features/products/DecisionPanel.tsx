@@ -58,7 +58,7 @@ function DecisionBody({ decision, editable }: { decision: Decision; editable: bo
 }
 
 /** Text that reads as text; if you may edit, click it to change it. Saves when you leave it; Escape puts it back. */
-function EditableText({ label, value, editable, hint, startEditing = false, required = false, title = false, onSave, onDone }: {
+export function EditableText({ label, value, editable, hint, startEditing = false, required = false, title = false, onSave, onDone }: {
   label: string; value: string; editable: boolean; hint?: string; startEditing?: boolean; required?: boolean; title?: boolean;
   onSave: (v: string) => boolean; onDone?: () => void;
 }) {
@@ -113,7 +113,7 @@ function DocPickerList({ candidates, onPick }: { candidates: Doc[]; onPick: (id:
   );
 }
 
-function AddLink({ label, children }: { label: string; children: (close: () => void) => React.ReactNode }) {
+export function AddLink({ label, children }: { label: string; children: (close: () => void) => React.ReactNode }) {
   return (
     <Popover floating width={380} className="tpl-picker decision-picker" trigger={({ open, toggle }) => (
       <button type="button" className="decision-add-btn" aria-haspopup="dialog" aria-expanded={open} onClick={toggle}><Plus aria-hidden /> {label}</button>

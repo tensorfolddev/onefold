@@ -1,0 +1,40 @@
+/* ---------- Requirements tab (FO-13): the list, and one opened in the side panel (it borrows the decision panel's look) ---------- */
+.requirements { display: flex; flex-direction: column; gap: 16px; padding: 24px 32px 48px; }
+.requirements-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.requirements-title { margin: 0; font: var(--font-h3-medium); }
+.requirements-sub { margin: 4px 0 0; max-width: 640px; font-size: 14px; line-height: 20px; color: var(--secondary-text-color); }
+.requirements-filter { align-self: flex-start; }
+.requirements-count { margin-left: 4px; font-variant-numeric: tabular-nums; color: var(--secondary-text-color); }
+.requirements-none { margin: 8px 0; font-size: 14px; color: var(--secondary-text-color); }
+.requirements-table td.key { width: 56px; }
+.requirements-row { cursor: pointer; }
+.requirements-row:hover td { background: var(--primary-background-hover-color); }
+.requirements-row.is-dropped .requirements-name { text-decoration: line-through; color: var(--secondary-text-color); }
+.requirements-name {
+  padding: 0; border: 0; background: none; font: inherit; text-align: left; color: var(--primary-text-color); cursor: pointer;
+}
+.requirements-name:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 2px; }
+.requirements-progress { display: inline-flex; align-items: center; gap: 8px; min-width: 160px; }
+.requirements-progress .battery { width: 80px; }
+
+.requirement-panel .btn-sm { height: 30px; padding: 0 10px; font-size: 13px; }
+.requirement-banner { margin-top: 10px; }
+.requirement-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 13px; color: var(--secondary-text-color); }
+.requirement-progress .battery { width: 120px; }
+.requirement-history { margin: 0; padding-left: 18px; font-size: 13px; line-height: 22px; color: var(--secondary-text-color); }
+.requirement-confirmed summary { cursor: pointer; }
+.requirement-confirmed-title { margin: 8px 0 4px; font-weight: 600; }
+.requirement-confirmed-text { margin: 0 0 6px; white-space: pre-wrap; font-size: 14px; line-height: 20px; }
+.requirement-confirmed-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 22px; }
+
+/* On a phone each requirement is a small card: its code and title, then its status and progress. */
+@media (max-width: 767px) {
+  .requirements { padding: 16px; }
+  .requirements-table tr { display: grid; grid-template-columns: auto 1fr; gap: 6px 8px; align-items: center; }
+  .requirements-table td { display: block; width: auto; padding: 0; }
+  .requirements-table td::before { content: none; }
+  .requirements-table td.key { width: auto; }
+  .requirements-table td:nth-child(2) { font-weight: 500; }
+  .requirements-table td:nth-child(3), .requirements-table td:nth-child(4) { grid-column: 1 / -1; }
+  .requirements-table td:nth-child(5), .requirements-table td:nth-child(6) { display: none; }
+}

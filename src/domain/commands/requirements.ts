@@ -42,8 +42,8 @@ function criteriaOf(v: unknown): SectionItem[] {
   });
 }
 
-/** The words of a requirement — what a confirmation is about. */
-const wordsOf = (r: Requirement) => JSON.stringify([r.title, r.description ?? "", r.criteria ?? []]);
+/** The words of a requirement — what a confirmation is about. Ticking a criterion as met isn't a change to them. */
+const wordsOf = (r: Requirement) => JSON.stringify([r.title, r.description ?? "", (r.criteria ?? []).map((c) => [c.id, c.text])]);
 const save = (db: Db, r: Requirement): Db => ({ ...db, requirements: replace(db.requirements, (x) => x.id === r.id, () => r) });
 
 export function addRequirement(db: Db, me: Person, productKey: string, input: RequirementInput, requirementId: string = id()): Db {
@@ -76,10 +76,12 @@ export function updateRequirement(db: Db, me: Person, requirementId: string, pat
     if (criteria.length) next.criteria = criteria;
     else delete next.criteria;
   }
-  if (wordsOf(next) === wordsOf(cur)) return db;
-  next.rev = (cur.rev ?? 1) + 1;
+  if (JSON.stringify(next) === JSON.stringify(cur)) return db;
   next.updatedAt = now();
-  if (statusOfRequirement(cur) === "confirmed") next.status = "draft";
+  if (wordsOf(next) !== wordsOf(cur)) {
+    next.rev = (cur.rev ?? 1) + 1;
+    if (statusOfRequirement(cur) === "confirmed") next.status = "draft";
+  }
   return save(db, next);
 }
 

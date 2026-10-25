@@ -60,6 +60,14 @@ test("marking confirmed keeps the version as it read; changing it afterwards kee
   assert.equal(r.rev, 2);
 });
 
+test("ticking an acceptance criterion as met is saved, but isn't a change to what was confirmed", () => {
+  let db = markRequirementConfirmed(addRequirement(db0, lead, "AP", { title: "Search", criteria: [line("c1", "By name")] }, "rq-9"), lead, "rq-9");
+  db = updateRequirement(db, lead, "rq-9", { criteria: [{ id: "c1", text: "By name", done: true }] });
+  const r = req(db, "rq-9");
+  assert.equal(r.criteria?.[0].done, true);
+  assert.deepEqual([statusOfRequirement(r), r.rev], ["confirmed", 1]);
+});
+
 test("dropping needs a reason; restoring goes back to confirmed only if nothing changed since", () => {
   let db = markRequirementConfirmed(addRequirement(db0, lead, "AP", { title: "Dark mode" }, "rq-7"), lead, "rq-7");
   assert.throws(() => dropRequirement(db, lead, "rq-7", "  "), ValidationError);
