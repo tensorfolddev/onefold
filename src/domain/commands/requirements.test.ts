@@ -110,7 +110,7 @@ test("only a never-confirmed requirement with no tickets can be deleted", () => 
 test("progress counts the linked tasks and bugs — not epics, not cancelled or archived ones — and their hours", () => {
   // AP-R1: the epic AP-3, plus AP-12 (in dev, 6h), AP-13 (review, 8h), AP-14 and AP-15 (shipped, 5h + 3h)
   const p = requirementProgress(db0, req(db0, "AP-R1"));
-  assert.deepEqual([p.done, p.total, p.hoursDone, p.hoursTotal], [2, 4, 8, 22]);
+  assert.deepEqual([p.done, p.doing, p.total, p.hoursDone, p.hoursTotal], [2, 2, 4, 8, 22]); // AP-12 in dev, AP-13 in review
   assert.equal(p.linked.some((t) => t.type === "epic"), false);
   const archived = archiveTickets(db0, admin, ["AP-12"]);
   assert.deepEqual([requirementProgress(archived, req(archived, "AP-R1")).total], [3]);

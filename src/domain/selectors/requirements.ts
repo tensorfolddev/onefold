@@ -36,10 +36,17 @@ export function nextRequirementCode(db: Db, productKey: string): string {
   return `R${highest + 1}`;
 }
 
+/** Agreed, and every ticket that builds it is done. */
+export const isDelivered = (db: Db, r: Requirement) => {
+  const p = requirementProgress(db, r);
+  return statusOfRequirement(r) === "confirmed" && p.total > 0 && p.done === p.total;
+};
+
 /** The tasks and bugs that build it — epics only group them; archived and cancelled ones don't count — and their hours. */
 export function requirementProgress(db: Db, r: Requirement) {
   const linked = db.tickets.filter((t) => t.requirementId === r.id && t.type !== "epic" && !t.archivedAt && categoryOf(db, t) !== "cancelled");
   const done = linked.filter((t) => categoryOf(db, t) === "done");
+  const doing = linked.filter((t) => categoryOf(db, t) === "in_progress").length;
   const hours = (list: Ticket[]) => list.reduce((h, t) => h + (t.estimateH || 0), 0);
-  return { linked, done: done.length, total: linked.length, hoursDone: hours(done), hoursTotal: hours(linked) };
+  return { linked, done: done.length, doing, total: linked.length, hoursDone: hours(done), hoursTotal: hours(linked) };
 }

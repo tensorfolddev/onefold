@@ -3,9 +3,10 @@
 // A project's requirements (FO-13): what it must do for its client, how far along each one is, and — for whoever
 // manages the project — writing, confirming and dropping them. A monday-style table like the decision log's: one group
 // per status (Dropped starts folded), a full-colour status cell, priority, progress from linked tickets, hours, where
-// it came from. A click opens it in the side panel (?req=<id>, so it can be linked).
+// it came from — or (the default) a board like the tickets' one (RequirementBoard). A click opens one in the side
+// panel (?req=<id>, so it can be linked).
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ListChecks, Plus, Search } from "lucide-react";
+import { ChevronDown, ListChecks, Plus, Search, SquareKanban, Table2 } from "lucide-react";
 import { useState } from "react";
 import { useMe } from "@/data/StoreProvider";
 import { coverage } from "@/domain/selectors/product";
@@ -15,6 +16,7 @@ import type { Requirement, RequirementStatus } from "@/domain/types";
 import { tone } from "@/features/products/DecisionStatus";
 import { Battery, EmptyState } from "@/ui/primitives";
 import { NewRequirement } from "./NewRequirement";
+import { RequirementBoard } from "./RequirementBoard";
 import { RequirementPanel } from "./RequirementPanel";
 
 const codeNumber = (r: Requirement) => Number(/\d+/.exec(r.code)?.[0] ?? 0);
@@ -30,6 +32,8 @@ export function RequirementsView({ productKey }: { productKey: string }) {
   const editable = !!product && can("requirement.edit", { product });
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  // The board every time the tab opens; the table is a switch for this visit (like the decision log's notes).
+  const [view, setView] = useState<"board" | "table">("board");
 
   const all = db.requirements.filter((r) => r.productKey === productKey).sort((a, b) => codeNumber(a) - codeNumber(b));
   const q = query.trim().toLowerCase();
@@ -51,6 +55,12 @@ export function RequirementsView({ productKey }: { productKey: string }) {
           </label>
         )}
         <div className="decisions-actions">
+          {all.length > 0 && (
+            <div className="docs-view-switch" role="tablist" aria-label="View">
+              <button type="button" role="tab" aria-selected={view === "board"} onClick={() => setView("board")}><SquareKanban aria-hidden /> Board</button>
+              <button type="button" role="tab" aria-selected={view === "table"} onClick={() => setView("table")}><Table2 aria-hidden /> Table</button>
+            </div>
+          )}
           {editable && <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}><Plus aria-hidden /> New requirement</button>}
         </div>
       </div>
@@ -61,6 +71,8 @@ export function RequirementsView({ productKey }: { productKey: string }) {
         </EmptyState>
       ) : q && !shown.length ? (
         <EmptyState icon={<Search aria-hidden />} title="Nothing matches">Try another word.</EmptyState>
+      ) : view === "board" ? (
+        <RequirementBoard items={shown} editable={editable} onOpen={openRequirement} />
       ) : (
         <div className="docs-board">
           {STATUS_ORDER.map((status) => {

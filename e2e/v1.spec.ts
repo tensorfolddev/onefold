@@ -258,6 +258,8 @@ test("requirements: write one with acceptance criteria, link a ticket, confirm i
   await expect(panel).toContainText("Dropped: The client moved it to phase 2");
 
   await page.goto("/admin/products/LE/requirements"); // a fresh load: all of it was saved on the server
+  await expect(page.getByRole("region", { name: "Dropped" })).toContainText("Customers can pay by card or wallet"); // the board, by default
+  await page.getByRole("tab", { name: "Table" }).click();
   await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeHidden(); // Dropped starts folded
   await page.getByRole("button", { name: /^Dropped/ }).click();
   await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeVisible();
@@ -266,6 +268,41 @@ test("requirements: write one with acceptance criteria, link a ticket, confirm i
   await expect(page.locator(".requirement-panel")).toContainText("From meeting: Kickoff call, 12 Oct");
   await page.locator(".requirement-panel").getByRole("button", { name: "Close" }).click();
   await expect(page.getByRole("button", { name: /^Draft/ })).toHaveCount(0); // no other group: it was the only one
+});
+
+test("requirements board: drag a draft to Confirmed, to Dropped (it asks why), and back out", async ({ page }) => {
+  await signUp(page, "Boardwalk", email("bw"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Boardwalk");
+  await page.getByText("Our own product").click();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/BO$/);
+  await page.goto("/admin/products/BO/requirements");
+  await page.getByRole("button", { name: "New requirement" }).click();
+  await page.getByLabel("Requirement", { exact: true }).fill("Weekly report email");
+  await page.getByRole("button", { name: "Add and write" }).click();
+  await page.locator(".requirement-panel").getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(".requirement-panel")).toHaveCount(0);
+
+  const column = (name: string) => page.getByRole("region", { name });
+  const drag = async (to: string) => {
+    await page.locator(".requirement-card", { hasText: "Weekly report email" }).hover();
+    await page.mouse.down();
+    const box = (await column(to).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 120, { steps: 12 });
+    await page.mouse.up();
+  };
+  await expect(column("Draft")).toContainText("Weekly report email");
+  await drag("Confirmed");
+  await expect(column("Confirmed")).toContainText("Weekly report email");
+  await expect(page.locator(".requirement-panel")).toHaveCount(0); // letting go isn't a click: nothing opened
+  await drag("Dropped");
+  await page.getByLabel("Why is it out of scope?").fill("Not this year");
+  await page.getByRole("button", { name: "Drop it" }).click();
+  await expect(column("Dropped")).toContainText("Not this year");
+  await drag("Confirmed"); // out of Dropped: restored, and still confirmed (nothing changed since)
+  await expect(column("Confirmed")).toContainText("Weekly report email");
 });
 
 const PNG_1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
