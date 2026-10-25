@@ -71,7 +71,7 @@ export { acceptInvite, inviteProblem, inviteState, isFreeMail, signUp, slugError
 export { EMAIL_RE, MIN_PASSWORD, domainOf } from "./shared.ts";
 export type { InviteInput, NewInvite, SignUpInput } from "./org.ts";
 export type { TicketPatch } from "./tickets.ts";
-export type { RequirementInput } from "./requirements.ts";
+export type { RequirementInput, RequirementPatch } from "./requirements.ts";
 export type { StatusPatch } from "./lists.ts";
 export type { PersonPatch } from "./people.ts";
 export type { ProductInput } from "./products.ts";

@@ -68,6 +68,21 @@ test("ticking an acceptance criterion as met is saved, but isn't a change to wha
   assert.deepEqual([statusOfRequirement(r), r.rev], ["confirmed", 1]);
 });
 
+test("a requirement has a priority and a source (where it came from); both can be changed or cleared", () => {
+  let db = addRequirement(db0, lead, "AP", { title: "Refunds", priority: "must", source: { kind: "email", note: " Ali's email, 16 Oct " } }, "rq-10");
+  let r = req(db, "rq-10");
+  assert.deepEqual([r.priority, r.source], ["must", { kind: "email", note: "Ali's email, 16 Oct" }]);
+  db = markRequirementConfirmed(db, lead, "rq-10");
+  db = updateRequirement(db, lead, "rq-10", { priority: "nice", source: { kind: "call" } });
+  r = req(db, "rq-10");
+  assert.deepEqual([r.priority, r.source, statusOfRequirement(r)], ["nice", { kind: "call" }, "confirmed"]); // not a change to its words
+  db = updateRequirement(db, lead, "rq-10", { priority: null, source: null });
+  r = req(db, "rq-10");
+  assert.deepEqual([r.priority, r.source], [undefined, undefined]);
+  assert.throws(() => updateRequirement(db, lead, "rq-10", { priority: "urgent" as never }), ValidationError);
+  assert.throws(() => updateRequirement(db, lead, "rq-10", { source: { kind: "fax" as never } }), ValidationError);
+});
+
 test("dropping needs a reason; restoring goes back to confirmed only if nothing changed since", () => {
   let db = markRequirementConfirmed(addRequirement(db0, lead, "AP", { title: "Dark mode" }, "rq-7"), lead, "rq-7");
   assert.throws(() => dropRequirement(db, lead, "rq-7", "  "), ValidationError);

@@ -70,7 +70,7 @@ test("a requirement keeps its words, criteria, status and confirmed version thro
   const criteria = [{ id: "c1", text: "Card form", done: true }, { id: "c2", text: "Receipt email", done: false }];
   const extra = {
     id: "rq-x", productKey: "AP", code: "R9", title: "Pay by card", description: "Stripe **Checkout**", criteria,
-    status: "draft" as const, rev: 3, confirmed: { rev: 2, title: "Pay by card", description: "Stripe", criteria, by: "u-ayesha", at: "2026-10-20T09:00:00Z" },
+    status: "draft" as const, priority: "must" as const, source: { kind: "email" as const, note: "Ali's email, 16 Oct" }, rev: 3, confirmed: { rev: 2, title: "Pay by card", description: "Stripe", criteria, by: "u-ayesha", at: "2026-10-20T09:00:00Z" },
     proposedBy: "u-client", droppedReason: "Later", createdAt: "2026-10-19T08:00:00Z", createdBy: "u-ayesha", updatedAt: "2026-10-21T10:30:00Z",
   };
   const withOne = { ...db, requirements: [...db.requirements, extra] };

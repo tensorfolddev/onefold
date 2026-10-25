@@ -3,16 +3,19 @@
 // never loses what was agreed — it just goes back to being a draft until it's confirmed again.
 import type { Db } from "../../data/db.ts";
 import { now } from "../clock.ts";
-import { nextRequirementCode, statusOfRequirement } from "../selectors/requirements.ts";
-import type { Person, Requirement, RequirementStatus, SectionItem } from "../types.ts";
+import { nextRequirementCode, REQUIREMENT_PRIORITY, SOURCE_KINDS, statusOfRequirement } from "../selectors/requirements.ts";
+import type { Person, Requirement, RequirementPriority, RequirementSource, RequirementStatus, SectionItem } from "../types.ts";
 import { check, fail, id, newIdError, productOf, replace, requiredError, ValidationError } from "./shared.ts";
 
-export interface RequirementInput { title: string; description?: string; criteria?: SectionItem[] }
+export interface RequirementInput { title: string; description?: string; criteria?: SectionItem[]; priority?: RequirementPriority; source?: RequirementSource }
+/** A change: null clears the priority or the source (JSON keeps null; undefined would vanish on the way). */
+export type RequirementPatch = Partial<Omit<RequirementInput, "priority" | "source">> & { priority?: RequirementPriority | null; source?: RequirementSource | null };
 
 const MAX_TITLE = 200;
 const MAX_DESCRIPTION = 20_000;
 const MAX_CRITERIA = 50;
 const MAX_REASON = 500;
+const MAX_SOURCE_NOTE = 200;
 
 const requirementOf = (db: Db, requirementId: string) => {
   const r = db.requirements.find((x) => x.id === requirementId);
@@ -42,6 +45,19 @@ function criteriaOf(v: unknown): SectionItem[] {
   });
 }
 
+function priorityOf(v: unknown): RequirementPriority {
+  if (typeof v !== "string" || !Object.hasOwn(REQUIREMENT_PRIORITY, v)) throw new ValidationError("Pick Must, Should or Nice to have");
+  return v as RequirementPriority;
+}
+function sourceOf(v: unknown): RequirementSource {
+  const kind = (v as RequirementSource | null)?.kind;
+  if (typeof kind !== "string" || !Object.hasOwn(SOURCE_KINDS, kind)) throw new ValidationError("Pick where it came from");
+  const raw = (v as RequirementSource).note;
+  const note = typeof raw === "string" ? raw.trim() : "";
+  fail(note.length > MAX_SOURCE_NOTE ? "Keep the source note short" : null);
+  return note ? { kind, note } : { kind };
+}
+
 /** The words of a requirement — what a confirmation is about. Ticking a criterion as met isn't a change to them. */
 const wordsOf = (r: Requirement) => JSON.stringify([r.title, r.description ?? "", (r.criteria ?? []).map((c) => [c.id, c.text])]);
 const save = (db: Db, r: Requirement): Db => ({ ...db, requirements: replace(db.requirements, (x) => x.id === r.id, () => r) });
@@ -55,13 +71,14 @@ export function addRequirement(db: Db, me: Person, productKey: string, input: Re
   const r: Requirement = {
     id: requirementId, productKey, code: nextRequirementCode(db, productKey), title: titleOf(input.title),
     ...(description && { description }), ...(criteria.length > 0 && { criteria }),
+    ...(input.priority !== undefined && { priority: priorityOf(input.priority) }), ...(input.source !== undefined && { source: sourceOf(input.source) }),
     status: "draft", rev: 1, createdAt: at, createdBy: me.id, updatedAt: at,
   };
   return { ...db, requirements: [...db.requirements, r] };
 }
 
 /** Changing its words bumps the revision; a confirmed one keeps its confirmed version and is a draft again. */
-export function updateRequirement(db: Db, me: Person, requirementId: string, patch: Partial<RequirementInput>): Db {
+export function updateRequirement(db: Db, me: Person, requirementId: string, patch: RequirementPatch): Db {
   const cur = requirementOf(db, requirementId);
   mayEdit(db, me, cur);
   const next: Requirement = { ...cur };
@@ -76,6 +93,11 @@ export function updateRequirement(db: Db, me: Person, requirementId: string, pat
     if (criteria.length) next.criteria = criteria;
     else delete next.criteria;
   }
+  // Priority and source aren't its words: changing them doesn't undo a confirmation.
+  if (patch.priority === null) delete next.priority;
+  else if (patch.priority !== undefined) next.priority = priorityOf(patch.priority);
+  if (patch.source === null) delete next.source;
+  else if (patch.source !== undefined) next.source = sourceOf(patch.source);
   if (JSON.stringify(next) === JSON.stringify(cur)) return db;
   next.updatedAt = now();
   if (wordsOf(next) !== wordsOf(cur)) {

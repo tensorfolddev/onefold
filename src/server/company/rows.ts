@@ -5,7 +5,7 @@ import { DB_VERSION, normalize, type Db } from "../../data/db.ts";
 import { initialsOf } from "../../domain/commands/shared.ts";
 import type {
   Activity, Attachment, Comment, Decision, Doc, DocShare, Invite, Milestone, Notification, Person, Product, ProductIcon, PullRequest,
-  Requirement, RequirementStatus, RequirementVersion, SectionItem, StageRequest, Status, Team, Ticket, TicketSections,
+  Requirement, RequirementPriority, RequirementSourceKind, RequirementStatus, RequirementVersion, SectionItem, StageRequest, Status, Team, Ticket, TicketSections,
 } from "../../domain/types.ts";
 
 export type Row = Record<string, unknown> & { orgId: string; id: string };
@@ -64,7 +64,7 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     }))),
     requirements: db.requirements.map((q) => r(q.id, {
       productId: q.productKey, code: q.code, title: q.title, description: opt(q.description), criteria: q.criteria?.length ? q.criteria : null,
-      status: opt(q.status), rev: q.rev ?? null, confirmed: q.confirmed ?? null, proposedBy: opt(q.proposedBy), droppedReason: opt(q.droppedReason),
+      status: opt(q.status), priority: opt(q.priority), sourceKind: opt(q.source?.kind), sourceNote: opt(q.source?.note), rev: q.rev ?? null, confirmed: q.confirmed ?? null, proposedBy: opt(q.proposedBy), droppedReason: opt(q.droppedReason),
       createdAt: instantOrNull(q.createdAt), createdBy: opt(q.createdBy), updatedAt: instantOrNull(q.updatedAt),
     })),
     decisions: db.decisions.map((d) => r(d.id, {
@@ -183,6 +183,8 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
       ...(q.description ? { description: str(q.description) } : {}),
       ...((q.criteria as SectionItem[] | null)?.length ? { criteria: q.criteria as SectionItem[] } : {}),
       ...(q.status ? { status: q.status as RequirementStatus } : {}),
+      ...(q.priority ? { priority: q.priority as RequirementPriority } : {}),
+      ...(q.sourceKind ? { source: { kind: q.sourceKind as RequirementSourceKind, ...(q.sourceNote ? { note: str(q.sourceNote) } : {}) } } : {}),
       ...(typeof q.rev === "number" ? { rev: q.rev } : {}),
       ...(q.confirmed ? { confirmed: q.confirmed as RequirementVersion } : {}),
       ...(q.proposedBy ? { proposedBy: str(q.proposedBy) } : {}),

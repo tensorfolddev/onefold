@@ -7,12 +7,12 @@
 import dynamic from "next/dynamic";
 import { Check, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { deleteRequirement, dropRequirement, markRequirementConfirmed, restoreRequirement, updateRequirement, type RequirementInput } from "@/data/commands";
+import { deleteRequirement, dropRequirement, markRequirementConfirmed, restoreRequirement, updateRequirement, type RequirementPatch } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { coverage } from "@/domain/selectors/product";
-import { REQUIREMENT_STATUS, requirementProgress, statusOfRequirement } from "@/domain/selectors/requirements";
+import { PRIORITIES, REQUIREMENT_PRIORITY, REQUIREMENT_STATUS, requirementProgress, SOURCE_KINDS, statusOfRequirement } from "@/domain/selectors/requirements";
 import { shortDate } from "@/domain/status";
-import type { Requirement } from "@/domain/types";
+import type { Requirement, RequirementPriority, RequirementSource, RequirementSourceKind } from "@/domain/types";
 import { useEditorLinks } from "@/features/docs/editor/useEditorLinks";
 import { AddLink, EditableText } from "@/features/products/DecisionPanel";
 import { useAppState } from "@/features/shell/state";
@@ -49,7 +49,7 @@ function Description({ requirement, editable, onSave }: { requirement: Requireme
   return (
     <div className="decision-body requirement-description">
       <DocEditor body={initial} editable={editable} onChange={onChange} links={links}
-        placeholder={editable ? "Describe it: who it's for, what they can do, anything the client said — type / for more." : "No description yet."} />
+        placeholder={editable ? "Who is it for, what do they need to do, and why? e.g. Sales reps export a customer's orders, so accounting can bill them. Type / for more." : "No description yet."} />
     </div>
   );
 }
@@ -73,7 +73,7 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose, asking]);
 
-  const save = useCallback((patch: Partial<RequirementInput>) => !!act((d, m) => updateRequirement(d, m, r.id, patch)), [act, r.id]);
+  const save = useCallback((patch: RequirementPatch) => !!act((d, m) => updateRequirement(d, m, r.id, patch)), [act, r.id]);
   const saveDescription = useCallback((md: string) => { save({ description: md }); }, [save]);
   const p = requirementProgress(db, r);
   const cov = coverage(db, p.linked);
@@ -116,6 +116,10 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
           <h2 id="requirement-panel-title" className="decision-panel-title">
             <EditableText key={`${r.title}:${canWrite}`} title label="Requirement" value={r.title} editable={canWrite} required onSave={(v) => save({ title: v })} />
           </h2>
+          <div className="requirement-meta">
+            <PriorityPicker value={r.priority} editable={editable && status !== "dropped"} onPick={(p) => save({ priority: p })} />
+            <SourceField key={JSON.stringify(r.source ?? null)} source={r.source} editable={editable && status !== "dropped"} onSave={(s) => save({ source: s })} />
+          </div>
           {status === "dropped" && <p className="decision-banner is-quiet requirement-banner">Dropped: {r.droppedReason}</p>}
           {changedSince && (
             <p className="decision-banner is-quiet requirement-banner">
@@ -200,6 +204,46 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
           onCancel={() => setAsking(null)} />
       )}
     </>
+  );
+}
+
+/** Must / Should / Nice to have — what's essential, and what can wait. Changing it isn't a change to the words. */
+function PriorityPicker({ value, editable, onPick }: { value?: RequirementPriority; editable: boolean; onPick: (p: RequirementPriority) => void }) {
+  if (!editable) {
+    return value ? <span className="requirement-priority is-static" style={{ "--p": REQUIREMENT_PRIORITY[value].color } as React.CSSProperties}>{REQUIREMENT_PRIORITY[value].label}</span>
+      : <span className="muted">No priority yet</span>;
+  }
+  return (
+    <div className="requirement-priority-pick" role="radiogroup" aria-label="Priority">
+      {PRIORITIES.map((p) => (
+        <button key={p} type="button" role="radio" aria-checked={value === p} className="requirement-priority" style={{ "--p": REQUIREMENT_PRIORITY[p].color } as React.CSSProperties}
+          onClick={() => value !== p && onPick(p)}>{REQUIREMENT_PRIORITY[p].label}</button>
+      ))}
+    </div>
+  );
+}
+
+/** Where it came from: the kind (a meeting, an email…) and a short note ("Kickoff call, 12 Oct"). */
+function SourceField({ source, editable, onSave }: { source?: RequirementSource; editable: boolean; onSave: (s: RequirementSource | null) => void }) {
+  const [note, setNote] = useState(source?.note ?? "");
+  if (!editable) {
+    return source ? <span className="requirement-source">From {SOURCE_KINDS[source.kind].toLowerCase()}{source.note ? `: ${source.note}` : ""}</span> : null;
+  }
+  const saveNote = () => { if (source && note.trim() !== (source.note ?? "")) onSave({ kind: source.kind, note }); };
+  return (
+    <span className="requirement-source is-editing">
+      <select className="decision-add-select" aria-label="Where it came from" value={source?.kind ?? ""}
+        onChange={(e) => onSave(e.target.value ? { kind: e.target.value as RequirementSourceKind, note } : null)}>
+        <option value="">Where did it come from?</option>
+        {(Object.keys(SOURCE_KINDS) as RequirementSourceKind[]).map((k) => <option key={k} value={k}>{SOURCE_KINDS[k]}</option>)}
+      </select>
+      {source && (
+        <span className="input requirement-source-note">
+          <input aria-label="Source note" value={note} maxLength={200} placeholder="e.g. Kickoff call, 12 Oct"
+            onChange={(e) => setNote(e.target.value)} onBlur={saveNote} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
+        </span>
+      )}
+    </span>
   );
 }
 

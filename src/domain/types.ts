@@ -154,6 +154,11 @@ export interface Attachment {
  *  with the client · confirmed · dropped: out of scope, kept. */
 export type RequirementStatus = "draft" | "proposed" | "to_confirm" | "changes_requested" | "confirmed" | "dropped";
 
+export type RequirementPriority = "must" | "should" | "nice";
+/** Where a requirement came from — so "we never asked for that" has an answer. */
+export type RequirementSourceKind = "meeting" | "call" | "email" | "whatsapp" | "doc" | "other";
+export interface RequirementSource { kind: RequirementSourceKind; note?: string } // note: "Kickoff call, 12 Oct"
+
 /** What was confirmed, as it read then — kept when the requirement is changed afterwards. */
 export interface RequirementVersion { rev: number; title: string; description: string; criteria: SectionItem[]; by: string; at: string }
 
@@ -166,6 +171,8 @@ export interface Requirement {
   description?: string; // Markdown
   criteria?: SectionItem[]; // acceptance criteria
   status?: RequirementStatus; // none = draft
+  priority?: RequirementPriority; // none = not decided yet
+  source?: RequirementSource;
   rev?: number; // bumped by every change to title, description or criteria; none = 1
   confirmed?: RequirementVersion;
   proposedBy?: string; // a client person, when the client asked for it

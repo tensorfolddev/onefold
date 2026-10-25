@@ -7,7 +7,7 @@ import { ListChecks, Plus } from "lucide-react";
 import { useState } from "react";
 import { useMe } from "@/data/StoreProvider";
 import { coverage } from "@/domain/selectors/product";
-import { REQUIREMENT_STATUS, requirementProgress, statusOfRequirement } from "@/domain/selectors/requirements";
+import { REQUIREMENT_PRIORITY, REQUIREMENT_STATUS, requirementProgress, statusOfRequirement } from "@/domain/selectors/requirements";
 import { shortDate } from "@/domain/status";
 import type { Requirement, RequirementStatus } from "@/domain/types";
 import { Battery, EmptyState, StatusPill } from "@/ui/primitives";
@@ -67,7 +67,7 @@ export function RequirementsView({ productKey }: { productKey: string }) {
           {!shown.length ? <p className="requirements-none">Nothing here.</p> : (
             <table className="pd-table requirements-table">
               <thead>
-                <tr><th>Code</th><th>Requirement</th><th>Status</th><th>Progress</th><th>Hours</th><th>Updated</th></tr>
+                <tr><th>Code</th><th>Requirement</th><th>Priority</th><th>Status</th><th>Progress</th><th>Hours</th><th>Updated</th></tr>
               </thead>
               <tbody>
                 {shown.map((r) => <Row key={r.id} requirement={r} onOpen={() => openRequirement(r.id)} />)}
@@ -92,6 +92,7 @@ function Row({ requirement: r, onOpen }: { requirement: Requirement; onOpen: () 
     <tr className={`requirements-row${status === "dropped" ? " is-dropped" : ""}`} onClick={onOpen}>
       <td className="key">{r.code}</td>
       <td><button type="button" className="requirements-name" onClick={(e) => { e.stopPropagation(); onOpen(); }}>{r.title}</button></td>
+      <td>{r.priority ? <span className="requirement-priority is-static" style={{ "--p": REQUIREMENT_PRIORITY[r.priority].color } as React.CSSProperties}>{REQUIREMENT_PRIORITY[r.priority].short}</span> : <span className="muted">—</span>}</td>
       <td><StatusPill name={REQUIREMENT_STATUS[status].label} tone={REQUIREMENT_STATUS[status].tone} /></td>
       <td>
         {p.total ? (

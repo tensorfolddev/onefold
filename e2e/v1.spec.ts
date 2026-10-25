@@ -225,6 +225,11 @@ test("requirements: write one with acceptance criteria, link a ticket, confirm i
   await add.fill("Receipt email");
   await add.press("Enter");
   await expect(panel.getByRole("checkbox")).toHaveCount(2);
+  await panel.getByRole("radio", { name: "Must have" }).click(); // what's essential, and where it came from
+  await expect(panel.getByRole("radio", { name: "Must have" })).toHaveAttribute("aria-checked", "true");
+  await panel.getByLabel("Where it came from").selectOption("meeting");
+  await panel.getByLabel("Source note").fill("Kickoff call, 12 Oct");
+  await panel.getByLabel("Source note").press("Enter");
 
   await panel.getByRole("button", { name: "Ticket", exact: true }).click();
   await page.getByRole("option", { name: /Charge the card/ }).click();
@@ -255,6 +260,10 @@ test("requirements: write one with acceptance criteria, link a ticket, confirm i
   await page.goto("/admin/products/LE/requirements"); // a fresh load: all of it was saved on the server
   await page.getByRole("tab", { name: /Dropped/ }).click();
   await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeVisible();
+  await expect(page.locator(".requirements-row")).toContainText("Must");
+  await page.getByRole("button", { name: "Customers can pay by card or wallet" }).click();
+  await expect(page.locator(".requirement-panel")).toContainText("From meeting: Kickoff call, 12 Oct");
+  await page.locator(".requirement-panel").getByRole("button", { name: "Close" }).click();
   await page.getByRole("tab", { name: /^All/ }).click();
   await expect(page.getByText("Nothing here.")).toBeVisible();
 });

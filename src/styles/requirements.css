@@ -17,6 +17,25 @@
 .requirements-progress { display: inline-flex; align-items: center; gap: 8px; min-width: 160px; }
 .requirements-progress .battery { width: 80px; }
 
+/* Priority: a coloured dot and its name; in a picker, the chosen one is filled. */
+.requirement-priority {
+  --p: #676879;
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--p) 35%, transparent); background: #fff; color: var(--primary-text-color);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.requirement-priority::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--p); }
+.requirement-priority[aria-checked="true"] { background: var(--p); border-color: var(--p); color: #fff; }
+.requirement-priority[aria-checked="true"]::before { background: #fff; }
+.requirement-priority:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.requirement-priority.is-static { height: 24px; cursor: default; background: color-mix(in srgb, var(--p) 10%, var(--primary-background-color)); border-color: transparent; }
+.requirement-priority-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.decision-dialog .requirement-priority-pick { margin-top: 14px; }
+.requirement-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; }
+.requirement-source { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--secondary-text-color); }
+.requirement-source-note { width: 210px; height: 30px; }
+.requirement-source-note input { font-size: 13px; }
+
 .requirement-panel .btn-sm { height: 30px; padding: 0 10px; font-size: 13px; }
 .requirement-banner { margin-top: 10px; }
 .requirement-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 13px; color: var(--secondary-text-color); }
