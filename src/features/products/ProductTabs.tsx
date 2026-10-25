@@ -11,10 +11,12 @@ export function ProductTabs({ product }: { product: Product }) {
   const { db, href } = useMe();
   const base = href(`/products/${product.key}`);
   const openCount = db.tickets.filter((t) => t.productKey === product.key && isOpenTicket(db, t)).length;
+  const reqCount = db.requirements.filter((r) => r.productKey === product.key && r.status !== "dropped").length;
 
   const items: TabItem[] = [
     { label: "Overview", href: base },
     { label: "Tickets", href: `${base}/tickets`, count: openCount }, // second: it's where most of the work is
+    { label: "Requirements", href: `${base}/requirements`, count: reqCount || undefined },
     { label: "Docs", href: `${base}/docs` },
     { label: "Decisions", href: `${base}/decisions` },
     { label: "Roadmap", href: `${base}/roadmap` },

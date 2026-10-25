@@ -225,6 +225,20 @@
       "when": 1792661069473,
       "tag": "0031_member_photo",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792933071559,
+      "tag": "0032_requirement_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792938805047,
+      "tag": "0033_requirement_priority_source",
+      "breakpoints": true
     }
   ]
 }

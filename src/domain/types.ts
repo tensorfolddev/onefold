@@ -150,11 +150,36 @@ export interface Attachment {
   addedAt: string;
 }
 
+/** draft: the team's, still being written · proposed: asked for by the client · to_confirm / changes_requested:
+ *  with the client · confirmed · dropped: out of scope, kept. */
+export type RequirementStatus = "draft" | "proposed" | "to_confirm" | "changes_requested" | "confirmed" | "dropped";
+
+export type RequirementPriority = "must" | "should" | "nice";
+/** Where a requirement came from — so "we never asked for that" has an answer. */
+export type RequirementSourceKind = "meeting" | "call" | "email" | "whatsapp" | "doc" | "other";
+export interface RequirementSource { kind: RequirementSourceKind; note?: string } // note: "Kickoff call, 12 Oct"
+
+/** What was confirmed, as it read then — kept when the requirement is changed afterwards. */
+export interface RequirementVersion { rev: number; title: string; description: string; criteria: SectionItem[]; by: string; at: string }
+
+/** Something the project must do for its client, with what counts as done; tickets link to it (ticket.requirementId). */
 export interface Requirement {
   id: string; // "AP-R1"
   productKey: string;
   code: string; // "R1"
   title: string;
+  description?: string; // Markdown
+  criteria?: SectionItem[]; // acceptance criteria
+  status?: RequirementStatus; // none = draft
+  priority?: RequirementPriority; // none = not decided yet
+  source?: RequirementSource;
+  rev?: number; // bumped by every change to title, description or criteria; none = 1
+  confirmed?: RequirementVersion;
+  proposedBy?: string; // a client person, when the client asked for it
+  droppedReason?: string;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
 }
 
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "superseded";

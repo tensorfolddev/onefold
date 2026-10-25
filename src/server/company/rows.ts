@@ -5,7 +5,7 @@ import { DB_VERSION, normalize, type Db } from "../../data/db.ts";
 import { initialsOf } from "../../domain/commands/shared.ts";
 import type {
   Activity, Attachment, Comment, Decision, Doc, DocShare, Invite, Milestone, Notification, Person, Product, ProductIcon, PullRequest,
-  Requirement, StageRequest, Status, Team, Ticket, TicketSections,
+  Requirement, RequirementPriority, RequirementSourceKind, RequirementStatus, RequirementVersion, SectionItem, StageRequest, Status, Team, Ticket, TicketSections,
 } from "../../domain/types.ts";
 
 export type Row = Record<string, unknown> & { orgId: string; id: string };
@@ -62,7 +62,11 @@ export function toRows(db: Db): Record<TableName, Row[]> {
     boardLists: productKeys.flatMap((key) => (db.statusesByProduct[key] ?? []).map((s) => r(s.id, {
       productId: key, name: s.name, category: s.category, tone: s.tone, system: opt(s.system),
     }))),
-    requirements: db.requirements.map((q) => r(q.id, { productId: q.productKey, code: q.code, title: q.title })),
+    requirements: db.requirements.map((q) => r(q.id, {
+      productId: q.productKey, code: q.code, title: q.title, description: opt(q.description), criteria: q.criteria?.length ? q.criteria : null,
+      status: opt(q.status), priority: opt(q.priority), sourceKind: opt(q.source?.kind), sourceNote: opt(q.source?.note), rev: q.rev ?? null, confirmed: q.confirmed ?? null, proposedBy: opt(q.proposedBy), droppedReason: opt(q.droppedReason),
+      createdAt: instantOrNull(q.createdAt), createdBy: opt(q.createdBy), updatedAt: instantOrNull(q.updatedAt),
+    })),
     decisions: db.decisions.map((d) => r(d.id, {
       productId: d.productKey, title: d.title, why: d.why, byId: d.byId, date: d.date, status: opt(d.status), context: opt(d.context),
       alternatives: opt(d.alternatives), consequences: opt(d.consequences), ticketKeys: d.ticketKeys?.length ? d.ticketKeys : null,
@@ -174,7 +178,21 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     products,
     statusesByProduct,
     tickets,
-    requirements: t.requirements.map((q): Requirement => ({ id: q.id, productKey: str(q.productId), code: str(q.code), title: str(q.title) })),
+    requirements: t.requirements.map((q): Requirement => ({
+      id: q.id, productKey: str(q.productId), code: str(q.code), title: str(q.title),
+      ...(q.description ? { description: str(q.description) } : {}),
+      ...((q.criteria as SectionItem[] | null)?.length ? { criteria: q.criteria as SectionItem[] } : {}),
+      ...(q.status ? { status: q.status as RequirementStatus } : {}),
+      ...(q.priority ? { priority: q.priority as RequirementPriority } : {}),
+      ...(q.sourceKind ? { source: { kind: q.sourceKind as RequirementSourceKind, ...(q.sourceNote ? { note: str(q.sourceNote) } : {}) } } : {}),
+      ...(typeof q.rev === "number" ? { rev: q.rev } : {}),
+      ...(q.confirmed ? { confirmed: q.confirmed as RequirementVersion } : {}),
+      ...(q.proposedBy ? { proposedBy: str(q.proposedBy) } : {}),
+      ...(q.droppedReason ? { droppedReason: str(q.droppedReason) } : {}),
+      ...(q.createdAt ? { createdAt: instant(str(q.createdAt)) } : {}),
+      ...(q.createdBy ? { createdBy: str(q.createdBy) } : {}),
+      ...(q.updatedAt ? { updatedAt: instant(str(q.updatedAt)) } : {}),
+    })),
     decisions: t.decisions.map((d): Decision => ({
       id: d.id, productKey: str(d.productId), title: str(d.title), why: str(d.why), byId: str(d.byId), date: str(d.date),
       ...(d.status ? { status: d.status as Decision["status"] } : {}),

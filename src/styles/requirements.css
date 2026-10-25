@@ -1,0 +1,67 @@
+/* ---------- Requirements tab (FO-13): a monday-style table like the decision log's (it reuses the docs board's groups and
+   rows), and one requirement opened in the side panel (it borrows the decision panel's look) ---------- */
+.requirements { padding-bottom: 48px; }
+.requirement-table .docs-board-row { grid-template-columns: minmax(0, 1fr) 104px 156px 150px 96px 110px 84px; }
+.requirement-code { flex: none; font-size: 12px; font-weight: 600; color: var(--secondary-text-color); font-variant-numeric: tabular-nums; }
+.requirements-row.is-dropped .requirements-name { text-decoration: line-through; color: var(--secondary-text-color); }
+.requirements-progress { gap: 8px; }
+.requirements-progress .battery { flex: 1; min-width: 40px; }
+.requirement-from { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) {
+  .requirement-table .docs-board-row { grid-template-columns: minmax(0, 1fr) 112px; }
+  .requirement-table .docs-board-row > span:nth-child(2), .requirement-table .docs-board-row > span:nth-child(n + 4) { display: none; }
+  .requirement-table .docs-board-row > span:nth-child(3) { display: flex; }
+}
+
+/* Priority: a coloured dot and its name; in a picker, the chosen one is filled. */
+.requirement-priority {
+  --p: #676879;
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--p) 35%, transparent); background: #fff; color: var(--primary-text-color);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.requirement-priority::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--p); }
+.requirement-priority[aria-checked="true"] { background: var(--p); border-color: var(--p); color: #fff; }
+.requirement-priority[aria-checked="true"]::before { background: #fff; }
+.requirement-priority:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.requirement-priority.is-static { height: 24px; cursor: default; background: color-mix(in srgb, var(--p) 10%, var(--primary-background-color)); border-color: transparent; }
+.requirement-priority-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.decision-dialog .requirement-priority-pick { margin-top: 14px; }
+.requirement-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; }
+.requirement-source { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--secondary-text-color); }
+.requirement-source-note { width: 210px; height: 30px; }
+.requirement-source-note input { font-size: 13px; }
+
+.requirement-panel .btn-sm { height: 30px; padding: 0 10px; font-size: 13px; }
+.requirement-banner { margin-top: 10px; }
+.requirement-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 13px; color: var(--secondary-text-color); }
+.requirement-progress .battery { width: 120px; }
+.requirement-history { margin: 0; padding-left: 18px; font-size: 13px; line-height: 22px; color: var(--secondary-text-color); }
+.requirement-confirmed summary { cursor: pointer; }
+.requirement-confirmed-title { margin: 8px 0 4px; font-weight: 600; }
+.requirement-confirmed-text { margin: 0 0 6px; white-space: pre-wrap; font-size: 14px; line-height: 20px; }
+.requirement-confirmed-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 22px; }
+
+
+
+/* ---------- The board: the tickets' board (.kanban, .kanban-col, .kanban-card) with a requirement's few extras ---------- */
+.requirement-board { padding-bottom: 8px; height: max(420px, calc(100dvh - 420px)); } /* the lists reach down the page, like the tickets' */
+.requirement-board .kanban-col { flex: 1 1 0; min-width: 230px; max-width: 320px; } /* the columns share the width; past ~4 they scroll */
+.requirement-col.is-over .kanban-col-body { outline: 2px dashed var(--primary-color); outline-offset: -2px; }
+.requirement-type-icon { color: var(--color-purple); }
+.type-tag.requirement-tag { --t: var(--color-purple); font-variant-numeric: tabular-nums; }
+.requirement-card-extras { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.requirement-card-source { display: inline-flex; color: var(--secondary-text-color); }
+.requirement-card-source svg { width: 14px; height: 14px; }
+.requirement-criteria {
+  display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px; border-radius: var(--border-radius-small);
+  font-size: 12px; font-weight: 600; color: var(--secondary-text-color); background: var(--ui-background-color);
+}
+.requirement-criteria svg { width: 12px; height: 12px; }
+.requirement-criteria.is-met { color: #037f4c; background: color-mix(in srgb, #00c875 14%, var(--primary-background-color)); }
+.kanban-card-title.is-struck { text-decoration: line-through; color: var(--secondary-text-color); }
+/* "2/4 built" sits where a ticket's due date does, its bar green once it's all built */
+.kanban-card .requirement-built { gap: 6px; }
+.kanban-card .requirement-built.is-built { --bar: #00a35c; }
+.requirement-built-bar { width: 34px; height: 5px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--ui-border-color) 70%, transparent); }
+.requirement-built-bar i { display: block; height: 100%; background: #00c875; }
