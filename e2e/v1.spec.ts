@@ -258,7 +258,7 @@ test("requirements: write one with acceptance criteria, link a ticket, confirm i
   await expect(panel).toContainText("Dropped: The client moved it to phase 2");
 
   await page.goto("/admin/products/LE/requirements"); // a fresh load: all of it was saved on the server
-  await expect(page.getByRole("region", { name: "Dropped" })).toContainText("Customers can pay by card or wallet"); // the board, by default
+  await expect(page.getByRole("listitem", { name: "Dropped", exact: true })).toContainText("Customers can pay by card or wallet"); // the board, by default
   await page.getByRole("tab", { name: "Table" }).click();
   await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeHidden(); // Dropped starts folded
   await page.getByRole("button", { name: /^Dropped/ }).click();
@@ -285,7 +285,7 @@ test("requirements board: drag a draft to Confirmed, to Dropped (it asks why), a
   await page.locator(".requirement-panel").getByRole("button", { name: "Close" }).click();
   await expect(page.locator(".requirement-panel")).toHaveCount(0);
 
-  const column = (name: string) => page.getByRole("region", { name });
+  const column = (name: string) => page.getByRole("listitem", { name, exact: true }); // a board list, like the tickets'
   const drag = async (to: string) => {
     await page.locator(".requirement-card", { hasText: "Weekly report email" }).hover();
     await page.mouse.down();

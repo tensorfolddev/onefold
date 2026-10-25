@@ -72,7 +72,7 @@ export function RequirementsView({ productKey }: { productKey: string }) {
       ) : q && !shown.length ? (
         <EmptyState icon={<Search aria-hidden />} title="Nothing matches">Try another word.</EmptyState>
       ) : view === "board" ? (
-        <RequirementBoard items={shown} editable={editable} onOpen={openRequirement} />
+        <RequirementBoard productKey={productKey} items={shown} editable={editable} onOpen={openRequirement} />
       ) : (
         <div className="docs-board">
           {STATUS_ORDER.map((status) => {
