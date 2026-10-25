@@ -3,14 +3,16 @@ import type { Db } from "../../data/db.ts";
 import type { Requirement, RequirementPriority, RequirementSourceKind, RequirementStatus, Ticket, Tone } from "../types.ts";
 import { categoryOf } from "./product.ts";
 
-export const REQUIREMENT_STATUS: Record<RequirementStatus, { label: string; tone: Tone }> = {
-  draft: { label: "Draft", tone: "backlog" },
-  proposed: { label: "Proposed by client", tone: "sky" },
-  to_confirm: { label: "Waiting for client", tone: "review" },
-  changes_requested: { label: "Changes asked", tone: "stuck" },
-  confirmed: { label: "Confirmed", tone: "done" },
-  dropped: { label: "Dropped", tone: "cancelled" },
+export const REQUIREMENT_STATUS: Record<RequirementStatus, { label: string; tone: Tone; color: string }> = {
+  draft: { label: "Draft", tone: "backlog", color: "#9699a6" },
+  proposed: { label: "Proposed by client", tone: "sky", color: "#66ccff" },
+  to_confirm: { label: "Waiting for client", tone: "review", color: "#fdab3d" },
+  changes_requested: { label: "Changes asked", tone: "stuck", color: "#e2445c" },
+  confirmed: { label: "Confirmed", tone: "done", color: "#00c875" },
+  dropped: { label: "Dropped", tone: "cancelled", color: "#676879" },
 };
+/** Board order: what needs the team first, then what's with the client, then settled, then out of scope. */
+export const STATUS_ORDER: RequirementStatus[] = ["proposed", "draft", "changes_requested", "to_confirm", "confirmed", "dropped"];
 
 export const statusOfRequirement = (r: Requirement): RequirementStatus => r.status ?? "draft";
 

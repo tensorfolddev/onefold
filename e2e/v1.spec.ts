@@ -258,14 +258,14 @@ test("requirements: write one with acceptance criteria, link a ticket, confirm i
   await expect(panel).toContainText("Dropped: The client moved it to phase 2");
 
   await page.goto("/admin/products/LE/requirements"); // a fresh load: all of it was saved on the server
-  await page.getByRole("tab", { name: /Dropped/ }).click();
+  await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeHidden(); // Dropped starts folded
+  await page.getByRole("button", { name: /^Dropped/ }).click();
   await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeVisible();
   await expect(page.locator(".requirements-row")).toContainText("Must");
   await page.getByRole("button", { name: "Customers can pay by card or wallet" }).click();
   await expect(page.locator(".requirement-panel")).toContainText("From meeting: Kickoff call, 12 Oct");
   await page.locator(".requirement-panel").getByRole("button", { name: "Close" }).click();
-  await page.getByRole("tab", { name: /^All/ }).click();
-  await expect(page.getByText("Nothing here.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Draft/ })).toHaveCount(0); // no other group: it was the only one
 });
 
 const PNG_1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
