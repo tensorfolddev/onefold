@@ -139,8 +139,9 @@ export function Tabs({
           </>
         );
         const cls = `tab${isActive ? " is-active" : ""}`;
+        // A tab link prefetches its page in full, so switching tabs is instant.
         return t.href ? (
-          <Link key={t.label} href={t.href} className={cls} role="tab" aria-selected={isActive}>{inner}</Link>
+          <Link key={t.label} href={t.href} prefetch className={cls} role="tab" aria-selected={isActive}>{inner}</Link>
         ) : (
           <button key={t.label} type="button" className={cls} role="tab" aria-selected={isActive} onClick={() => onSelect?.(t.label)}>
             {inner}
