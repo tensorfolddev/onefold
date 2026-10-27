@@ -31,17 +31,31 @@ export const sessions = pgTable("sessions", {
   createdAt: ts("created_at").notNull().defaultNow(),
   expiresAt: ts("expires_at").notNull(),
   revokedAt: ts("revoked_at"),
+  kind: text("kind").notNull().default("team"), // team | client — a client session opens only the client space (/c)
 }, (t) => [index("sessions_user").on(t.userId)]);
 
 /** Links we email: "reset your password" (an hour, once) and "confirm your email" (a week). Only token hashes. */
 export const emailTokens = pgTable("email_tokens", {
   id: text("id").primaryKey(), // SHA-256 of the emailed token
   userId: text("user_id").notNull().references(() => users.id),
-  purpose: text("purpose").notNull(), // reset | verify
+  purpose: text("purpose").notNull(), // reset | verify | client (a client's sign-in link) | vault (a vault master password reset)
+  orgId: text("org_id"), // client links: the company they sign in to
   createdAt: ts("created_at").notNull().defaultNow(),
   expiresAt: ts("expires_at").notNull(),
   usedAt: ts("used_at"),
 }, (t) => [index("email_tokens_user").on(t.userId)]);
+
+/** A client person's permanent sign-in link (Client Space), until an admin makes a new one. The code is kept hashed
+ * (to sign in by — looked up before any company is known, like email_tokens) and sealed (auth/secrets.ts), so the
+ * team can copy it again. Never part of the company's data that browsers get. */
+export const clientLinks = pgTable("client_links", {
+  orgId: text("org_id").notNull(),
+  memberId: text("member_id").notNull(), // the client person
+  codeHash: text("code_hash").notNull(), // SHA-256 of the code
+  code: text("code").notNull(), // the code, sealed
+  createdAt: ts("created_at").notNull().defaultNow(),
+  createdBy: text("created_by"),
+}, (t) => [primaryKey({ columns: [t.orgId, t.memberId] }), uniqueIndex("client_links_code").on(t.codeHash)]);
 
 // ---------- company ----------
 
@@ -54,6 +68,7 @@ export const orgs = pgTable("orgs", {
   timezone: text("timezone").notNull().default("Asia/Karachi"),
   createdAt: day("created_at").notNull(),
   createdBy: text("created_by").notNull(),
+  clientSpace: boolean("client_space").notNull().default(false), // clients can sign in and see their projects
   version: integer("version").notNull().default(0), // bumped by every change; browsers refetch when it moves
 }, (t) => [uniqueIndex("orgs_slug").on(t.slug)]);
 
@@ -65,9 +80,10 @@ export const members = pgTable("members", {
   role: text("role").notNull(), // job title
   team: text("team").notNull(), // team id, "leadership", or "" for none
   capacityH: doublePrecision("capacity_h").notNull(),
-  panel: text("panel"), // admin | manager | developer; null = can't sign in
+  panel: text("panel"), // admin | manager | developer | client; null = can't sign in
   active: boolean("active").notNull(),
   photo: text("photo"), // "tpl:fox" or "file:<id>" (domain/avatars.ts); null = initials
+  clientCompany: text("client_company"), // a client person's company (panel = client)
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] }), uniqueIndex("members_org_user").on(t.orgId, t.userId), index("members_user").on(t.userId)]);
 
@@ -115,6 +131,8 @@ export const products = pgTable("products", {
   waitingApproval: text("waiting_approval"),
   icon: jsonb("icon"),
   priorities: jsonb("priorities"), // this project's own names/colours for the four priority levels
+  clientPhases: jsonb("client_phases"), // the Client tab: this project's own names/colours for requirement and request phases
+  requirementPriorities: jsonb("requirement_priorities"), // this project's requirement priorities: [{ id, name, color }]; null = Must / Should / Nice
   groupId: text("group_id"),
   createdAt: day("created_at").notNull(),
   archivedAt: ts("archived_at"), // set = archived: read-only, hidden from developers
@@ -129,6 +147,96 @@ export const productMembers = pgTable("product_members", {
   memberId: text("member_id").notNull(),
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("product_members_member").on(t.orgId, t.memberId)]);
+
+/** Client people on a product (Client Space), with their role there: sponsor | owner | tester. */
+export const productClients = pgTable("product_clients", {
+  ...keyed, // id = "<product>:<member>"
+  productId: text("product_id").notNull(),
+  memberId: text("member_id").notNull(),
+  role: text("role").notNull(),
+  position: position(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("product_clients_member").on(t.orgId, t.memberId), companyRows()]);
+
+/** What the team needs from a client (a request): each has its own chat. */
+export const clientAsks = pgTable("client_asks", {
+  ...keyed,
+  productId: text("product_id").notNull(),
+  code: text("code").notNull(), // Q1, Q2… per project
+  title: text("title").notNull(),
+  details: text("details").notNull(),
+  kind: text("kind").notNull(), // question | access | file | other
+  invite: text("invite"), // access: who to invite
+  assigneeId: text("assignee_id"), // a client person; null = anyone on the client side
+  due: day("due"),
+  state: text("state").notNull(), // open | answered | done | cancelled
+  createdBy: text("created_by").notNull(),
+  createdAt: ts("created_at").notNull(),
+  answeredBy: text("answered_by"),
+  answeredAt: ts("answered_at"),
+  closedAt: ts("closed_at"),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("client_asks_product").on(t.orgId, t.productId), companyRows()]);
+
+/** The client chats: a project's own ("chat:<key>"), a requirement's ("req:<id>") or a request's ("ask:<id>"). */
+export const clientMessages = pgTable("client_messages", {
+  ...keyed,
+  productId: text("product_id").notNull(),
+  subject: text("subject").notNull(),
+  authorId: text("author_id").notNull(),
+  at: ts("at").notNull(),
+  body: text("body").notNull(),
+  kind: text("kind"), // null = text both sides see | note (team only) | event | update | file
+  event: text("event"), // sent | confirmed | changes | proposed | taken | asked | answered | done | cancelled | reopened | reminded
+  rev: integer("rev"), // the requirement version an event was about
+  data: jsonb("data"), // { replyTo?, file?, update? }
+  via: text("via"), // null = 1Fold | whatsapp | email
+  deletedAt: ts("deleted_at"), // deleted for everyone by its author: "This message was deleted"
+  hiddenFor: jsonb("hidden_for"), // people who deleted it for themselves: [member id]
+  starredBy: jsonb("starred_by"), // people who starred it (just for them): [member id]
+  pinnedAt: ts("pinned_at"), // pinned to the top of its chat, for everyone
+  pinnedBy: text("pinned_by"),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("client_messages_subject").on(t.orgId, t.subject), companyRows()]);
+
+/** When each person last read each client chat: the read ticks, and unread counts that follow them to any device. */
+export const chatReads = pgTable("chat_reads", {
+  ...keyed, // id = "<member>|<subject>"
+  personId: text("person_id").notNull(),
+  subject: text("subject").notNull(),
+  at: ts("at").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("chat_reads_subject").on(t.orgId, t.subject), companyRows()]);
+
+/** The vault (features/vault): ciphertext only — the server can't read a password, and never needs to. One account
+ *  per member: their private key locked with their master password, and again with their recovery code. */
+export const vaultAccounts = pgTable("vault_accounts", {
+  ...keyed, // id = the member
+  salt: text("salt").notNull(),
+  iterations: integer("iterations").notNull(),
+  iv: text("iv").notNull(),
+  wrappedPrivateKey: text("wrapped_private_key").notNull(),
+  publicKey: text("public_key").notNull(),
+  recoverySalt: text("recovery_salt").notNull(),
+  recoveryIv: text("recovery_iv").notNull(),
+  recoveryWrappedPrivateKey: text("recovery_wrapped_private_key").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), companyRows()]);
+
+/** A personal vault, or one shared password: its key, encrypted for each member who holds it. */
+export const vaults = pgTable("vaults", {
+  ...keyed,
+  kind: text("kind").notNull(), // personal | shared
+  ownerId: text("owner_id"), // personal
+  keys: jsonb("keys").notNull(), // { memberId: base64 }
+  invited: jsonb("invited"), // member ids waiting for a vault of their own
+  createdBy: text("created_by").notNull(),
+  createdAt: day("created_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), companyRows()]);
+
+export const vaultItems = pgTable("vault_items", {
+  ...keyed,
+  vaultId: text("vault_id").notNull(),
+  iv: text("iv").notNull(),
+  ciphertext: text("ciphertext").notNull(), // AES-GCM(the vault's key, the item as JSON)
+  updatedBy: text("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] }), index("vault_items_vault").on(t.orgId, t.vaultId), companyRows()]);
 
 export const boardLists = pgTable("board_lists", {
   ...keyed,
@@ -154,10 +262,13 @@ export const requirements = pgTable("requirements", {
   rev: integer("rev"),
   confirmed: jsonb("confirmed"), // the version that was confirmed: { rev, title, description, criteria, by, at }
   proposedBy: text("proposed_by"),
+  sharedAt: ts("shared_at"), // when the client first saw it
   droppedReason: text("dropped_reason"),
   createdAt: ts("created_at"),
   createdBy: text("created_by"),
   updatedAt: ts("updated_at"),
+  archivedAt: ts("archived_at"), // off both boards, kept whole until restored
+  archivedBy: text("archived_by"),
   position: position(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 

@@ -4,7 +4,7 @@
 // ticket's current title and status. Anything you can't see (or that's gone) shows as its plain label.
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useRouter } from "next/navigation";
-import { Download, ExternalLink, File as FileIcon, FileArchive, FileImage, FileSpreadsheet, FileText, Link2, Presentation, Trash2 } from "lucide-react";
+import { Download, ExternalLink, File as FileIcon, FileArchive, FileImage, FileSpreadsheet, FileText, Link2, Presentation, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/data/api";
 import { useDb } from "@/data/StoreProvider";
@@ -18,8 +18,18 @@ import { safeHref } from "./links";
 import { FileCard, LinkCard, Mention, Ref } from "./nodes";
 
 function MentionView({ node }: NodeViewProps) {
-  const { personById } = useDb();
-  const p = personById(node.attrs.id);
+  const { db, personById } = useDb();
+  const id = String(node.attrs.id);
+  const group = id === "everyone" ? "everyone" : id.startsWith("team:") ? db.teams.find((t) => `team:${t.id}` === id)?.name : undefined;
+  if (group) {
+    return (
+      <NodeViewWrapper as="span" className={`doc-chip is-person${node.attrs.urgent ? " is-urgent" : ""}`}
+        data-tip={`${node.attrs.urgent ? "Urgent — " : ""}${group === "everyone" ? "Everyone who can see this page" : `The ${group} team`}`} data-tip-pos="top">
+        <Users aria-hidden />{node.attrs.urgent ? "@@" : "@"}{group}
+      </NodeViewWrapper>
+    );
+  }
+  const p = personById(id);
   return (
     <NodeViewWrapper as="span" className={`doc-chip is-person${p ? "" : " is-missing"}${node.attrs.urgent ? " is-urgent" : ""}`}
       data-tip={p ? `${node.attrs.urgent ? "Urgent — " : ""}${p.name} · ${p.role}` : undefined} data-tip-pos="top">

@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AccessError } from "../../domain/commands/index.ts";
 import { acceptInvitation, confirmEmail, readSession, sendVerification, signUpCompany, type SessionRow } from "../accounts.ts";
-import { applySteps, createInvites } from "../changes.ts";
+import { applySteps, createInvites, viewFor } from "../changes.ts";
 import type { Email } from "../email.ts";
 import { freshDatabase } from "../testing/db.ts";
 import { createLinkCode, handleMessage, myWhatsApp } from "./bot.ts";
@@ -303,15 +303,18 @@ test("admins set their company's WhatsApp — the brief's time and days (or off)
   await assert.rejects(saveSettings(dev, { briefAt: "07:30" }), AccessError); // only admins
   await assert.rejects(saveSettings(admin, { briefAt: "25:00" }), /time like 09:00/);
   await assert.rejects(saveSettings(admin, { briefDays: [] }), /at least one day/);
-  await saveSettings(admin, { briefAt: "07:30", briefDays: [6], words: ["Status", "1 Fold"], templates: { help: "Hi! Reply {words}. {signOff}", signOff: "— Acme" } });
+  await saveSettings(admin, { briefAt: "07:30", briefDays: [6], words: ["Status", "1 Fold"], templates: { help: "Hi! Reply {words}. {signOff}", signOff: "— Acme", briefEmpty: "No tasks today. Report to *Ayla*." } });
   // A teammate's own WhatsApp page says it the company's way at once — not "every working day at 9:00".
   assert.deepEqual(await myWhatsApp(dev).then((m) => [m.briefWhen, m.replyWord]), ["every Sat at 07:30", "STATUS"]);
 
   await applySteps(admin, [{ name: "setMember", args: ["CH", samId, true] }]); // back on Checkout
   const { key } = await applySteps(admin, [{ name: "createTicket", args: ["CH", "Weekend check"] }]);
   await applySteps(admin, [{ name: "updateTicket", args: [key, { assigneeId: samId }] }]); // something to tell Sam
+  const ayla = (await viewFor(admin)).db.tickets.filter((t) => t.assigneeIds?.includes(aylaId)).map((t) => t.key);
+  await applySteps(admin, ayla.map((k) => ({ name: "updateTicket", args: [k, { assigneeIds: [] }] }))); // Ayla: nothing pending
   assert.deepEqual(await briefsAt("2026-10-24T02:20:00Z"), NONE); // Saturday 7:20 in Pakistan: not yet
-  assert.ok((await briefsAt("2026-10-24T02:35:00Z")).whatsapp >= 1); // 7:35 on a Saturday, a brief day now (Ayla's linked too)
+  assert.deepEqual(await briefsAt("2026-10-24T02:35:00Z"), { ...NONE, whatsapp: 2 }); // 7:35 on a Saturday, a brief day now — Sam's, and Ayla's
+  assert.match(whatsapp.sent.filter((m) => m.jid === SAM).at(-1)?.text ?? "", /No tasks today\. Report to \*Ayla\*\./); // nothing pending: still a brief, in the company's words (FO-17)
   const toSam = whatsapp.sent.filter((m) => m.jid === SAM2).at(-1)?.text ?? "";
   assert.match(toSam, /Weekend check/);
   assert.match(toSam, /Reply \*STATUS\* anytime for updates\.\n\n— Acme$/); // the company's own words

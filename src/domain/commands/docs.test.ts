@@ -205,3 +205,68 @@ test("decisions: archived by whoever may record them — kept, hidden, and back 
   assert.equal(back.archivedAt, undefined);
   assert.equal(back.archivedBy, undefined);
 });
+
+// ---------- @mentions in a doc's body: people, @Team, @everyone; @@ is urgent ----------
+
+const at = (p: { id: string; name: string }, urgent = false) => `[@${urgent ? "@" : ""}${p.name}](mention:${p.id})`;
+const TEAM = (id: string, name: string, urgent = false) => `[@${urgent ? "@" : ""}${name}](mention:team:${id})`;
+const EVERYONE = "[@everyone](mention:everyone)";
+/** What saving a doc's body does (server/docs.ts): tell whoever the edit newly mentions. */
+async function save(db: typeof db0, by: typeof lead, docId: string, before: string, after: string) {
+  const { newDocMentions, notifyDocMentions } = await import("./docs.ts");
+  const n = newDocMentions(db, by, docId, before, after);
+  return notifyDocMentions(db, by, docId, n.mentioned, n.urgent);
+}
+const mentions = (db: typeof db0, docId: string) => db.notifications.filter((n) => n.kind === "mention" && n.target === `/d/${docId}` && !db0.notifications.some((o) => o.id === n.id));
+const told = (db: typeof db0, docId: string) => mentions(db, docId).map((n) => n.personId).sort();
+
+test("a doc tells whoever an edit newly mentions — once, never its author", async () => {
+  const doc = db0.docs.find((d) => d.productKey === "AP" && !d.archivedAt && !d.ownerId)!;
+  const first = `Ask ${at(sara)} and me ${at(lead)}`;
+  let db = await save(db0, lead, doc.id, "", first);
+  assert.deepEqual(mentions(db, doc.id).map((n) => [n.personId, n.kind, n.actorId, n.text, n.target, !!n.urgent]),
+    [[sara.id, "mention", lead.id, `mentioned you in ${doc.title}`, `/d/${doc.id}`, false]]); // not the author
+  db = await save(db, lead, doc.id, first, `${first} — again`);
+  assert.equal(mentions(db, doc.id).length, 1, "saving again doesn't tell her again");
+  const usman = who("u-usman");
+  db = await save(db, lead, doc.id, first, `${first} and ${at(usman)}`);
+  assert.deepEqual(told(db, doc.id), [sara.id, usman.id].sort(), "only the one newly mentioned");
+});
+
+test("@@ in a doc is urgent: told again, urgently, even if mentioned before — and only once", async () => {
+  const doc = db0.docs.find((d) => d.productKey === "AP" && !d.archivedAt && !d.ownerId)!;
+  let db = await save(db0, lead, doc.id, "", `Ask ${at(sara)}`);
+  db = await save(db, lead, doc.id, `Ask ${at(sara)}`, `Ask ${at(sara, true)} today`);
+  assert.deepEqual(mentions(db, doc.id).map((n) => !!n.urgent), [true, false]); // newest first
+  db = await save(db, lead, doc.id, `Ask ${at(sara, true)} today`, `Ask ${at(sara, true)} today!`);
+  assert.equal(mentions(db, doc.id).length, 2, "still urgent: not told again");
+  const code = await save(db0, lead, doc.id, "", `\`${at(sara)}\`\n\n\`\`\`\n${at(sara, true)}\n\`\`\``);
+  assert.deepEqual(told(code, doc.id), [], "a mention inside code tells nobody");
+});
+
+test("@Team and @everyone on a project's page reach its people — that team's, or all of them — and nobody off it", async () => {
+  const doc = db0.docs.find((d) => d.productKey === "AP" && !d.archivedAt && !d.ownerId)!;
+  const onAp = ["u-hina", "u-bilal", "u-sara", "u-daniyal", "u-usman", "u-zain"]; // Ayesha (the author) is on it too
+  assert.deepEqual(told(await save(db0, lead, doc.id, "", `Hi ${TEAM("frontend", "Frontend")}`), doc.id), ["u-daniyal", "u-sara"]);
+  assert.deepEqual(told(await save(db0, lead, doc.id, "", `Hi ${TEAM("ai", "AI")}`), doc.id), [], "the AI team isn't on this project");
+  const all = await save(db0, lead, doc.id, "", `Hi ${EVERYONE}`);
+  assert.deepEqual(told(all, doc.id), onAp.sort(), "not admins off the project, not other teams, not the author, not clients");
+  const again = await save(all, lead, doc.id, `Hi ${EVERYONE}`, `Hi ${EVERYONE} and ${at(sara)} and ${TEAM("backend", "Backend")}`);
+  assert.equal(mentions(again, doc.id).length, onAp.length, "already reached through @everyone: not told again");
+  const loud = await save(db0, lead, doc.id, "", `Now ${TEAM("frontend", "Frontend", true)}`);
+  assert.deepEqual(mentions(loud, doc.id).map((n) => [n.personId, !!n.urgent]).sort(), [["u-daniyal", true], ["u-sara", true]]);
+});
+
+test("@Team and @everyone on a company page reach the company's active people; a personal page, only whoever it's shared with", async () => {
+  const { createDoc: create, shareDoc } = await import("./docs.ts");
+  const company = create(db0, lead, { title: "Handbook" });
+  const everyoneElse = company.db.people.filter((p) => p.active && p.panel && p.id !== lead.id).map((p) => p.id).sort();
+  assert.deepEqual(told(await save(company.db, lead, company.key, "", EVERYONE), company.key), everyoneElse);
+  assert.deepEqual(told(await save(company.db, lead, company.key, "", TEAM("ai", "AI")), company.key), ["u-faraz", "u-maryam"]);
+
+  const mine = create(db0, sara, { title: "My notes", personal: true });
+  const shared = shareDoc(mine.db, sara, mine.key, { people: [{ personId: faraz.id }] });
+  const body = `${EVERYONE} ${TEAM("frontend", "Frontend")} ${at(lead)} ${at(admin, true)} ${at(faraz)}`;
+  assert.deepEqual(told(await save(shared, sara, mine.key, "", body), mine.key), [faraz.id], "nobody it isn't shared with — an admin included");
+  assert.deepEqual(told(await save(mine.db, sara, mine.key, "", body), mine.key), [], "shared with nobody: nobody is told");
+});

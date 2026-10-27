@@ -1,6 +1,6 @@
 // Requirements: what each status means, the next code, and how far along one is.
 import type { Db } from "../../data/db.ts";
-import type { Requirement, RequirementPriority, RequirementSourceKind, RequirementStatus, Ticket, Tone } from "../types.ts";
+import type { Requirement, RequirementSourceKind, RequirementStatus, Ticket, Tone } from "../types.ts";
 import { categoryOf } from "./product.ts";
 
 export const REQUIREMENT_STATUS: Record<RequirementStatus, { label: string; tone: Tone; color: string }> = {
@@ -16,13 +16,7 @@ export const STATUS_ORDER: RequirementStatus[] = ["proposed", "draft", "changes_
 
 export const statusOfRequirement = (r: Requirement): RequirementStatus => r.status ?? "draft";
 
-/** Must: it doesn't launch without it · Should: expected, but launch can happen without it · Nice: if there's time. */
-export const REQUIREMENT_PRIORITY: Record<RequirementPriority, { label: string; short: string; color: string }> = {
-  must: { label: "Must have", short: "Must", color: "#1f5fd1" },
-  should: { label: "Should have", short: "Should", color: "#7b4fd6" },
-  nice: { label: "Nice to have", short: "Nice", color: "#178a6a" },
-};
-export const PRIORITIES: RequirementPriority[] = ["must", "should", "nice"];
+// Priorities: the company's own, or the defaults (selectors/clientLook.ts).
 
 export const SOURCE_KINDS: Record<RequirementSourceKind, string> = {
   meeting: "Meeting", call: "Call", email: "Email", whatsapp: "WhatsApp", doc: "Document", other: "Other",

@@ -1,8 +1,41 @@
 # Client Space — design
 
 Status: approved 2026-10-25 (direction, roles, access, sign-in and phases decided with the product owner; FO-13).
+Revised 2026-10-26: the screens became one chat-style Client tab — see the revision below; it wins where they differ.
 Builds on `2026-10-15-backend-v1-design.md` — its §12 rules hold: additive migrations, commands only gain optional
 arguments, MCP tools are never renamed or removed.
+
+## Revision — 2026-10-26: one Client tab, built like WhatsApp
+
+After trying the first build, the product owner chose a chat design (mockups `client-room-1…4`, approved v4). It
+replaces §5's client page, §6's Requirements and Clients tabs, and the hours switch:
+
+- **One tab per project.** "Client" on a client's project with Client Space on, "Requirements" otherwise (the same
+  screen, team-only). The team and the client see the same rooms (`domain/selectors/room.ts`), each with their own
+  buttons.
+- **Laid out like the tickets board:** no box and no header of its own. The tickets board's toolbar (Main table /
+  Kanban, New, Search, Person, Quick filters for status, priority or type, whose move and needs-you/unread, and Sort),
+  with three sections on its right, like monday's view tabs: **Chat** (the project's own chat, `chat:<key>`, right
+  there, with Invite), **Requirements** and **Requests**. Those two show, full width, a table in status groups
+  (coloured group title and bar, solid status cells, priority and build progress, or who it's for and when; a 💬
+  count, blue when unread, per browser) or the tickets board's kanban (a column per status, ticket cards). A row or a
+  card opens its chat (`req:<id>`, `ask:<id>`) in a panel sliding in from the right, like a ticket's; Escape, ✕ or a
+  click outside closes it. (Revised 2026-10-26 from three columns, then a boxed header, which read as too busy.)
+- **Cards in the chat**, one template per kind, styled like ticket cards: a requirement (priority, done-when
+  checklist, build progress, confirmed stamp, Confirm / Ask for changes / Send to client / Take it on), a request
+  (Access: invite + why; File: a drop zone; Question), a weekly update (health, stage, this week / next / needs).
+  The card sits where it was sent; the app's own lines ("Ali confirmed it") are events in the chat.
+- **Internal notes** (`kind: "note"`): anyone on the project writes them in any chat; the client never receives them,
+  nor replies quoting them. Speaking to the client stays with whoever manages the project.
+- **Files** in any chat, both ways (stored like doc files; a client's file in an open request answers it).
+- **For the team:** a pulse line (waiting on the client / on us and for how long, scope confirmed, % built), header buttons (Remind, Create ticket, Edit, Weekly update) and per-message actions (reply,
+  make it a requirement, a request or a ticket). The requirement panel (§6) is the editor, opened from its chat.
+- **Removed:** the client note (the weekly update replaces it), the hours switch (clients see "2 of 3 parts done",
+  never hours), the Clients tab (people live in the project chat's details). Not built yet: the "Client can see"
+  switches for tickets, milestones, decisions and docs.
+- **Data:** `client_messages` gains `kind`, `event`, `rev`, `data` (replyTo, file, update) and `via` (for WhatsApp
+  later); `client_asks` gains `code` (Q1…) and `invite`; `orgs.client_hours` and `products.client_note` are gone.
+  Every message records where it came from, so a WhatsApp bot or an AI helper can post into the same chats later.
 
 ## 1. Goal
 
@@ -240,4 +273,38 @@ with screenshots or voice notes, WhatsApp replies landing in threads, an assista
 feature?" from what the client can see.
 
 **Before selling:** one email in several companies (a client of two agencies), SSO for enterprise clients, the
-agency's own domain and branding, MCP tools for requirements and asks.
+agency's own domain and branding.
+
+## 12. After the first client test (2026-10-27)
+
+What changed once a client had used it:
+
+- **The tab opens on Chat.** Requirements and Requests list every phase, even empty ones. Only the section scrolls;
+  the page never does (measured like the tickets board).
+- **Each project's own words.** In a project's Settings → Client tab, whoever shapes its board (`statuses.edit`, as
+  for its ticket priorities) renames and recolours any phase (`products.client_phases`) and edits the requirement
+  priorities: rename, recolour, reorder, add up to 8 (`products.requirement_priorities`). Both sides see the names.
+  A priority still on one of its requirements can't be removed. A priority changes in place from the table or a card,
+  without opening the chat.
+- **A chat like WhatsApp.**
+  - Messages render Markdown.
+  - `@name`, `@Team` and `@everyone` tell the team on the project, `@@` urgently (the send button turns red). A client's
+    mention reaches the team too; no other message makes a notification, only a tone ("Chat messages" in
+    Notifications & sounds).
+  - Delete for everyone (the author only) or for me. Stars are private; pins are for everyone, at most 3.
+  - Read marks live on the server (`chat_reads`), so unread counts follow a person between devices. The ticks turn
+    blue once the other side has read a line.
+  - Every line is its own row, so many people can write at once.
+- **The client's own link.** Each client person has one short, permanent link, `/c/l/<12 characters>`, in
+  `client_links`: hashed to look up, sealed to show the team again, never in backups.
+  - It signs them in until an admin makes a new one (Settings → Clients). The old one then stops working, and the
+    new one is emailed.
+  - Switching them off or turning Client Space off still shuts them out.
+  - The emailed one-time links (`/c/link/…`, from "Email me a link") stay as they were.
+- **Invite** is a centred dialog with a **Guide**: every phase, in the company's own words, and who does what.
+- **Weekly update:** fixed boxes that scroll, up to 2,000 characters each, Markdown, and "Draft from this week"
+  (what was confirmed, finished, in progress and still owed). The team words it before it goes.
+- **Developers** do everything in the Client tab except admin things and the client's people (`client.people`:
+  managers and admins).
+- **MCP:** tools to list, create and update requirements and requests, and to send a requirement to the client.
+  They never return chat content, invites, or client emails and links.

@@ -15,7 +15,7 @@ import { useAppState } from "@/features/shell/state";
 import { TypeIcon } from "@/features/tickets/TicketBits";
 import { EmojiGrid } from "@/ui/EmojiGrid";
 import { Popover } from "@/ui/Popover";
-import { Avatar } from "@/ui/primitives";
+import { Avatar, rem } from "@/ui/primitives";
 import type { Heading } from "./editor/DocEditor";
 import { useEditorLinks, useUpload } from "./editor/useEditorLinks";
 import { canDoc } from "@/domain/docAccess";
@@ -55,7 +55,12 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
     const keys = new Set(db.comments.filter((c) => c.body.includes(`(doc:${doc.id})`)).map((c) => c.ticketKey));
     return db.tickets.filter((t) => keys.has(t.key));
   }, [db.comments, db.tickets, doc.id]);
-  const links = useEditorLinks(doc.productKey, doc.id); // who can be mentioned (whoever can see this doc), what can be linked
+  const base = useEditorLinks(doc.productKey, doc.id); // who can be mentioned (whoever can see this doc), what can be linked
+  // A doc's mentions reach teams and @everyone too (newDocMentions): the teams with someone here to tell.
+  const links = useMemo(() => {
+    const here = new Set(base.people.map((p) => p.id).filter((pid) => pid !== me.id));
+    return { ...base, teams: db.teams.filter((t) => db.people.some((p) => p.team === t.id && here.has(p.id))) };
+  }, [base, db.teams, db.people, me.id]);
 
   const onChange = useCallback((md: string) => { setLatest(md); b.setDraft(md); }, [b]);
   const uploadFile = useUpload({ doc: doc.id });
@@ -276,8 +281,8 @@ function DocView({ doc, meId }: { doc: Doc; meId: string }) {
 function IconPicker({ query, setQuery, onPick, onRemove }: { query: string; setQuery: (q: string) => void; onPick: (e: string) => void; onRemove?: () => void }) {
   return (
     <div className="icon-picker">
-      <div className="icon-picker-search" style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-        <input type="search" className="input" placeholder="Search emoji" aria-label="Search emoji" value={query} onChange={(e) => setQuery(e.target.value)} style={{ flex: 1, height: 32, padding: "0 8px" }} />
+      <div className="icon-picker-search" style={{ display: "flex", gap: rem(6), marginBottom: rem(6) }}>
+        <input type="search" className="input" placeholder="Search emoji" aria-label="Search emoji" value={query} onChange={(e) => setQuery(e.target.value)} style={{ flex: 1, height: rem(32), padding: `0 ${rem(8)}` }} />
         {onRemove && <button type="button" className="btn btn-tertiary" onClick={onRemove}>Remove</button>}
       </div>
       <EmojiGrid query={query} onPick={onPick} />

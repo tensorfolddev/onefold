@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
-  Bell, BookOpen, Camera, Check, Home, LayoutGrid, ListChecks, LogOut, Menu, Moon, Plug,
+  Bell, BookOpen, Camera, Check, Home, KeyRound, LayoutGrid, ListChecks, LogOut, Menu, Moon, Plug,
   Settings, Sun, SunMoon, UserCog, Users, Volume2, VolumeX, type LucideIcon,
 } from "lucide-react";
 import { isSoundOn } from "@/features/tickets/sounds";
 import { SoundSettings } from "./SoundSettings";
 import { PhotoDialog } from "@/features/people/PhotoDialog";
-import { AppStateProvider, useAppState, type Theme } from "@/features/shell/state";
+import { AppStateProvider, useAppState } from "@/features/shell/state";
+import { THEMES } from "@/features/shell/themes";
 import { useAuth, useMe } from "@/data/StoreProvider";
 import type { Panel } from "@/domain/types";
 import { Avatar, EnvBadge, Tooltip } from "@/ui/primitives";
@@ -19,6 +20,7 @@ import { NotificationsPanel } from "./NotificationsPanel";
 import { ProductsSidebar } from "./ProductsSidebar";
 import { TicketPanelHost } from "@/features/tickets/TicketPanel";
 import { GlobalSearch } from "@/features/shell/GlobalSearch";
+import { useDocPrefetch } from "@/features/docs/useDocPrefetch";
 
 interface NavItem { path: string; label: string; icon: LucideIcon }
 
@@ -28,6 +30,7 @@ const NAV: Record<Panel, NavItem[]> = {
     { path: "", label: "Home", icon: Home },
     { path: "/products", label: "Products", icon: LayoutGrid },
     { path: "/docs", label: "Docs", icon: BookOpen },
+    { path: "/vault", label: "Vault", icon: KeyRound },
     { path: "/people", label: "People", icon: UserCog },
     { path: "/teams", label: "Teams", icon: Users },
     { path: "/settings", label: "Settings", icon: Settings },
@@ -37,12 +40,14 @@ const NAV: Record<Panel, NavItem[]> = {
     { path: "/my-work", label: "My Work", icon: ListChecks },
     { path: "/products", label: "Products", icon: LayoutGrid },
     { path: "/docs", label: "Docs", icon: BookOpen },
+    { path: "/vault", label: "Vault", icon: KeyRound },
     { path: "/teams", label: "Team", icon: Users },
   ],
   developer: [
     { path: "", label: "My Work", icon: ListChecks },
     { path: "/products", label: "Products", icon: LayoutGrid },
     { path: "/docs", label: "Docs", icon: BookOpen },
+    { path: "/vault", label: "Vault", icon: KeyRound },
   ],
 };
 
@@ -64,6 +69,7 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  useDocPrefetch();
   const pathname = usePathname();
   const hasSidebar = panelPath(pathname).startsWith("/products");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -134,11 +140,6 @@ function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   );
 }
 
-const THEMES: { id: Theme; label: string; icon: React.ReactNode }[] = [
-  { id: "light", label: "Light", icon: <Sun /> },
-  { id: "dark", label: "Dark", icon: <Moon /> },
-  { id: "night", label: "Night", icon: <SunMoon /> },
-];
 
 function UserMenu() {
   const { theme, setTheme } = useAppState();
@@ -171,20 +172,24 @@ function UserMenu() {
             </div>
           </div>
           <div className="menu-divider" />
-          <div className="menu-section-label">Theme</div>
-          {THEMES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`menu-item${theme === t.id ? " is-selected" : ""}`}
-              role="menuitemradio"
-              aria-checked={theme === t.id}
-              onClick={() => { setTheme(t.id); close(); }}
-            >
-              {t.icon}
-              {t.label}
-              {theme === t.id && <Check className="menu-item-end" />}
-            </button>
+          {[false, true].map((dark) => (
+            <Fragment key={String(dark)}>
+              <div className="menu-section-label">{dark ? "Dark themes" : "Light themes"}</div>
+              {THEMES.filter((t) => t.dark === dark).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`menu-item${theme === t.id ? " is-selected" : ""}`}
+                  role="menuitemradio"
+                  aria-checked={theme === t.id}
+                  onClick={() => { setTheme(t.id); close(); }}
+                >
+                  {t.id === "night" ? <SunMoon /> : dark ? <Moon /> : <Sun />}
+                  {t.label}
+                  {theme === t.id && <Check className="menu-item-end" />}
+                </button>
+              ))}
+            </Fragment>
           ))}
           <div className="menu-divider" />
           <button type="button" className="menu-item" onClick={() => { close(); setPhoto(true); }}>

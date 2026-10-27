@@ -1,9 +1,10 @@
-// The sound a new notification makes — and an urgent (@@) one — each picked by the person (admin or developer alike):
+// The sound a new notification makes — an urgent (@@) one, and a new chat message in the Client tab (a tone only, never
+// a notification) — each picked by the person (admin or developer alike):
 // one of these, made live with the Web Audio API (no files), or their own sound file. Kept in this browser, beside the
 // Sounds on/off switch; the volume is theirs too.
 import { audioContext, isSoundOn } from "@/features/tickets/sounds";
 
-export type NoticeKind = "notify" | "urgent";
+export type NoticeKind = "notify" | "urgent" | "chat";
 export const CUSTOM = "custom";
 export const MAX_CUSTOM_BYTES = 1024 * 1024;
 
@@ -59,7 +60,16 @@ export const URGENT_SOUNDS: NoticeSound[] = [
   { id: "rising", label: "Rising", play: (c, t, o) => { for (const k of [0, 0.55]) [784, 988, 1175, 1568, 1976].forEach((f, i) => note(c, t + k + i * 0.07, o, f, { ms: 200, volume: 0.12, wave: "triangle" })); } },
 ];
 
-const LIST: Record<NoticeKind, NoticeSound[]> = { notify: NOTIFY_SOUNDS, urgent: URGENT_SOUNDS };
+/** A new chat line from someone else: short and soft, like a messenger's — it comes often. */
+export const CHAT_SOUNDS: NoticeSound[] = [
+  { id: "bubble", label: "Bubble", play: (c, t, o) => { sweep(c, t, o, 600, 1100, 55, 0.18); note(c, t + 0.075, o, 1318, { ms: 160, volume: 0.09 }); } },
+  { id: "tick", label: "Tick-tick", play: (c, t, o) => { note(c, t, o, 1760, { ms: 90, volume: 0.1, wave: "triangle" }); note(c, t + 0.1, o, 2093, { ms: 120, volume: 0.09, wave: "triangle" }); } },
+  { id: "drop", label: "Drop", play: (c, t, o) => sweep(c, t, o, 1400, 520, 120, 0.16) },
+  { id: "soft", label: "Soft bell", play: (c, t, o) => note(c, t, o, 1175, { ms: 450, volume: 0.09, partials: BELL }) },
+  { id: "off", label: "Silent", play: () => {} },
+];
+
+const LIST: Record<NoticeKind, NoticeSound[]> = { notify: NOTIFY_SOUNDS, urgent: URGENT_SOUNDS, chat: CHAT_SOUNDS };
 const KEY = (k: NoticeKind) => `onefold.sound.${k}`;
 const CUSTOM_KEY = (k: NoticeKind) => `onefold.sound.custom.${k}`;
 const VOLUME_KEY = "onefold.sound.volume";

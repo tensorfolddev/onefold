@@ -92,6 +92,10 @@ const RECONNECT_MS = 1000; // live updates: the first wait before opening the co
 const RECONNECT_MAX_MS = 30_000;
 const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong — please try again");
 
+
+/** While a change is still on its way to the server, <html data-saving> says so (the e2e tests wait for it before leaving a page). */
+const markSaving = (pending: number) => document.documentElement.toggleAttribute("data-saving", pending > 0);
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -202,14 +206,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   /** Sends one change to the server, in order; a refusal puts the screen back to the server's version. */
   const send = useCallback((path: string, body: unknown) => {
-    pending.current += 1;
+    pending.current += 1; markSaving(pending.current);
     queue.current = queue.current.then(async () => {
       try {
         await api(path, body);
       } catch (e) {
         toast(message(e), undefined, "error");
       } finally {
-        pending.current -= 1;
+        pending.current -= 1; markSaving(pending.current);
         if (pending.current === 0) await refreshOrSay();
       }
     });
@@ -235,7 +239,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // In the same queue as changes, so an image added to a ticket made a moment ago arrives after that ticket.
   const createDoc = useCallback((input: NewDocInput) => {
-    pending.current += 1;
+    pending.current += 1; markSaving(pending.current);
     const done = queue.current.then(async () => {
       try {
         return (await api<{ id: string }>("/api/docs", input)).id;
@@ -243,7 +247,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         toast(message(e), undefined, "error");
         return null;
       } finally {
-        pending.current -= 1;
+        pending.current -= 1; markSaving(pending.current);
         if (pending.current === 0) await refreshOrSay();
       }
     });
@@ -262,7 +266,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [refreshOrSay]);
 
   const uploadImage = useCallback((ticketKey: string, file: Blob, name: string) => {
-    pending.current += 1;
+    pending.current += 1; markSaving(pending.current);
     const done = queue.current.then(async () => {
       try {
         await upload(`/api/files?ticket=${encodeURIComponent(ticketKey)}&name=${encodeURIComponent(name)}`, file);
@@ -270,7 +274,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         return message(e);
       } finally {
-        pending.current -= 1;
+        pending.current -= 1; markSaving(pending.current);
         if (pending.current === 0) await refreshOrSay();
       }
     });

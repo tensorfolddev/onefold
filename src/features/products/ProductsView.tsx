@@ -35,8 +35,9 @@ const TEAM_SHOWN = 5;
 /** Days from the demo "today" to an ISO date (negative = late). UTC so there's no timezone drift. */
 const daysUntil = (iso: string) => Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${today()}T00:00:00Z`)) / 86_400_000);
 
-/** % done as a ring in the product's colour (hand-written SVG; r chosen so the circumference is 100). */
-function ProgressRing({ pct, color }: { pct: number | null; color: string }) {
+/** % done as a ring in the product's colour (hand-written SVG; r chosen so the circumference is 100). The client's
+ *  dashboard shows one too. */
+export function ProgressRing({ pct, color }: { pct: number | null; color: string }) {
   const R = 15.915;
   return (
     <span className="pc-ring" role="img" aria-label={pct === null ? "No tickets yet" : `${pct}% done`}>

@@ -78,13 +78,22 @@ export function ImagesSection({ def, ticket, editable }: { def: SectionDef; tick
   );
 }
 
+/** An image that tries again once by itself when it doesn't load (the server was busy), then waits for a click. */
+function useRetry() {
+  const [tries, setTries] = useState(0);
+  const failed = tries > 1;
+  const onError = () => { if (tries === 0) setTimeout(() => setTries(1), 1500); else setTries(2); };
+  return { failed, again: () => setTries(0), src: (url: string) => (tries === 1 ? `${url}${url.includes("?") ? "&" : "?"}retry=1` : url), onError };
+}
+
 function Thumb({ att, onOpen }: { att: Attachment; onOpen: () => void }) {
-  const [failed, setFailed] = useState(false);
+  const img = useRetry();
   return (
-    <button type="button" className="tpl-thumb" onClick={onOpen} title={`${att.name} · ${att.width}×${att.height} · ${kb(att.size)}`}>
-      {failed ? <span className="tpl-thumb-missing"><ImageOff aria-hidden />Couldn&apos;t load</span>
+    <button type="button" className="tpl-thumb" onClick={img.failed ? img.again : onOpen}
+      title={img.failed ? "Couldn't load — click to try again" : `${att.name} · ${att.width}×${att.height} · ${kb(att.size)}`}>
+      {img.failed ? <span className="tpl-thumb-missing"><ImageOff aria-hidden />Couldn&apos;t load · Try again</span>
         // eslint-disable-next-line @next/next/no-img-element -- served by our own API with a permission check; next/image would bypass it
-        : <img src={fileUrl(att.id)} alt={att.name} width={att.width} height={att.height} loading="lazy" decoding="async" onError={() => setFailed(true)} />}
+        : <img src={img.src(fileUrl(att.id))} alt={att.name} width={att.width} height={att.height} loading="lazy" decoding="async" onError={img.onError} />}
       <span className="tpl-thumb-name">{att.name}</span>
     </button>
   );
@@ -93,7 +102,7 @@ function Thumb({ att, onOpen }: { att: Attachment; onOpen: () => void }) {
 /** Full-size view. Native <dialog>: focus stays inside, Esc closes. */
 function Lightbox({ att, onClose, onRemove }: { att: Attachment; onClose: () => void; onRemove?: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [failed, setFailed] = useState(false);
+  const img = useRetry();
   useEffect(() => {
     const d = ref.current;
     if (d && !d.open) d.showModal();
@@ -113,9 +122,9 @@ function Lightbox({ att, onClose, onRemove }: { att: Attachment; onClose: () => 
         <IconButton label="Close" onClick={onClose}><X /></IconButton>
       </header>
       <div className="tpl-lightbox-body">
-        {failed ? <p className="tpl-empty">This image couldn&apos;t be loaded.</p>
+        {img.failed ? <p className="tpl-empty">This image couldn&apos;t be loaded. <button type="button" className="btn btn-tertiary" onClick={img.again}>Try again</button></p>
           // eslint-disable-next-line @next/next/no-img-element -- served by our own API with a permission check
-          : <img src={fileUrl(att.id)} alt={att.name} width={att.width} height={att.height} onError={() => setFailed(true)} />}
+          : <img src={img.src(fileUrl(att.id))} alt={att.name} width={att.width} height={att.height} onError={img.onError} />}
       </div>
     </dialog>
   );

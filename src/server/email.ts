@@ -195,6 +195,43 @@ export const verifyEmail = (p: { to: string; link: string }) => message(
   "Didn't create a 1Fold account? Ignore this email.",
 );
 
+/** Client Space: the team added someone from the client's side to a project. */
+export const clientInviteEmail = (p: { to: string; orgName: string; inviterName: string; project: string; link: string }) => message(
+  p.to, `${p.inviterName} shared ${p.project} with you`,
+  [`${p.inviterName} at ${p.orgName} added you to ${p.project} on 1Fold, where you can follow the work, confirm what gets built, and answer the team's questions.`,
+    "No password needed: this link is yours, and signs you in whenever you open it. Keep it to yourself — anyone with it can sign in as you."],
+  { label: `Open ${p.project}`, url: p.link },
+  "Not expecting this? You can ignore this email — nothing happens unless you open the link.",
+);
+
+/** Client Space: a sign-in link (clients have no password). */
+/** The vault: "forgot my master password". The link alone opens nothing — they still need their recovery code. */
+export const vaultResetEmail = (p: { to: string; link: string; minutes: number }) => message(
+  p.to, "Reset your vault master password",
+  ["Someone (we hope you) asked to reset the master password of your 1Fold vault.",
+    `Open the link within ${p.minutes} minutes, then enter your recovery code and a new master password. Your passwords stay as they are — nobody else, not even an admin, can open them.`],
+  { label: "Reset my master password", url: p.link },
+  "Didn't ask for this? Ignore this email — without your recovery code nothing can be changed.",
+);
+
+/** No `minutes`: their own link, made anew by an admin — it lasts until the next one. */
+export const clientLinkEmail = (p: { to: string; orgName: string; link: string; minutes?: number }) => message(
+  p.to, `Your sign-in link for ${p.orgName}`,
+  [`Here's your link to sign in to ${p.orgName}'s projects on 1Fold.`,
+    p.minutes === undefined ? "It's yours, and signs you in whenever you open it — your old link no longer works. Keep it to yourself."
+      : `It works once, for ${p.minutes >= 1440 ? `${Math.round(p.minutes / 1440)} days` : `${p.minutes} minutes`}.`],
+  { label: "Sign in", url: p.link },
+  "Didn't ask for this? Ignore this email — nobody can sign in without the link.",
+);
+
+/** Client Space: the team needs something from a client. */
+export const clientNudgeEmail = (p: { to: string; orgName: string; project: string; what: string; link: string }) => message(
+  p.to, `${p.project}: ${p.what}`,
+  [`${p.what}.`, `Open ${p.project} to see it and reply.`],
+  { label: `Open ${p.project}`, url: p.link },
+  `You get this because you're on ${p.project} with ${p.orgName}.`,
+);
+
 /** The daily brief, when WhatsApp can't take it. `lines` is the WhatsApp text, kept as plain lines. */
 export const briefEmail = (p: { to: string; orgName: string; text: string; myWorkUrl: string }) => message(
   p.to, `Your tasks today at ${p.orgName}`,

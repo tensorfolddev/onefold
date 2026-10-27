@@ -133,7 +133,7 @@ button.priority-cell:hover { filter: brightness(0.94); }
   display: flex; align-items: stretch; gap: 12px; padding: 8px 0 0; height: var(--kanban-h, auto);
   overflow-x: auto; scroll-snap-type: x proximity;
 }
-.kanban-col { flex: 0 0 260px; display: flex; flex-direction: column; scroll-snap-align: start; }
+.kanban-col { flex: 0 0 280px; display: flex; flex-direction: column; scroll-snap-align: start; }
 .kanban-col-header {
   display: flex; align-items: center; justify-content: center; gap: 4px; height: 40px; padding: 0 12px;
   font-size: 16px; font-weight: 600; line-height: 24px; color: #fff;
@@ -188,11 +188,11 @@ button.priority-cell:hover { filter: brightness(0.94); }
 }
 .type-tag[data-type="bug"] { --t: var(--color-stuck-red); }
 .type-tag[data-type="epic"] { --t: var(--color-purple); }
-.kanban-card-title { padding: 0 8px 0 2px; font-size: 14px; line-height: 18px; }
+.kanban-card-title { margin-top: 10px; padding: 0 8px 0 2px; font-size: 14px; line-height: 18px; font-weight: 600; } /* margin-top moves the title down (bigger) or up (smaller, e.g. -4px); font-weight: 400 normal, 600 bold */
 .kanban-card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; margin-top: auto; }
 .kanban-card-meta > * { flex-shrink: 0; }
 /* Every card is one size, whatever its title: at most two lines of it, and nothing can stretch the card. */
-.kanban-card { box-sizing: border-box; height: 116px; overflow: hidden; }
+.kanban-card { box-sizing: border-box; height: 140px; overflow: hidden; }
 .kanban-card.is-epic { height: 172px; }
 .kanban-card > * { flex-shrink: 0; } /* the parts keep their size; the bottom row sits at the bottom */
 .kanban-card-title, .epic-card-title {
@@ -222,6 +222,8 @@ button.priority-cell:hover { filter: brightness(0.94); }
 .ticket-meta { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 8px 16px; align-items: center; margin-bottom: 16px; font-size: 14px; }
 .ticket-meta dt { color: var(--secondary-text-color); }
 .ticket-meta dd { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 32px; }
+.ticket-meta dd > .popover-anchor { min-width: 0; max-width: 100%; } /* a long epic or person name ends in "…", never past the panel (FO-16) */
+.ticket-meta .picker-trigger { min-width: 0; max-width: 100%; }
 .meta-status .popover-anchor.fill { width: 200px; height: 32px; }
 .meta-status .status-cell { min-height: 32px; border-radius: var(--border-radius-small); }
 .meta-priority .priority-cell { width: 140px; height: 28px; font-size: 14px; border-radius: var(--border-radius-small); }
@@ -272,7 +274,7 @@ button.priority-cell:hover { filter: brightness(0.94); }
 .update-author { font-size: 14px; font-weight: 700; }
 .update-time { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--secondary-text-color); }
 .update-time svg { width: 14px; height: 14px; }
-.update-body { font-size: 16px; line-height: 24px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.update-body { font-size: 16px; line-height: 24px; overflow-wrap: anywhere; }
 
 
 .activity-log { display: flex; flex-direction: column; }

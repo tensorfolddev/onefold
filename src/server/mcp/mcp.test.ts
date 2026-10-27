@@ -4,12 +4,16 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { acceptInvitation, readSession, setPassword, signUpCompany, type SessionRow } from "../accounts.ts";
 import { applySteps, createInvites, viewFor } from "../changes.ts";
+import { inviteClient } from "../clientSpace.ts";
 import { freshDatabase } from "../testing/db.ts";
 import { handleMcp } from "./server.ts";
 import { createApiToken, listApiTokens, revokeApiToken } from "./tokens.ts";
 
 let pg: Awaited<ReturnType<typeof freshDatabase>>;
-before(async () => { pg = await freshDatabase(); });
+before(async () => {
+  process.env.SESSION_SECRET ??= "a-test-session-secret-of-32-chars-or-more"; // seals client sign-in links
+  pg = await freshDatabase();
+});
 after(async () => { await pg.drop(); });
 
 const APP = "https://1fold.test";
@@ -74,10 +78,11 @@ test("only a token gets in, and never from another website", async () => {
   const names = (await rpc(adminToken, "tools/list")).body.result!.tools!.map((t) => t.name).sort();
   assert.deepEqual(names, [
     "add_comment", "add_dependency", "add_member", "archive_doc", "archive_product", "archive_ticket", "create_doc", "create_group",
-    "create_ticket", "delete_group", "get_decision", "get_doc", "get_ticket", "list_decisions", "list_doc_versions", "list_docs", "list_groups",
-    "list_members", "list_products", "list_tickets", "move_doc", "move_product", "move_ticket", "record_decision", "remove_member",
+    "create_request", "create_requirement", "create_ticket", "delete_group", "get_decision", "get_doc", "get_requirement", "get_ticket",
+    "list_decisions", "list_doc_versions", "list_docs", "list_groups", "list_members", "list_products", "list_requests", "list_requirements",
+    "list_tickets", "move_doc", "move_product", "move_ticket", "record_decision", "remove_member",
     "rename_group", "restore_doc", "restore_doc_version", "restore_product", "restore_ticket",
-    "search_docs", "set_section", "update_decision", "update_doc", "update_ticket",
+    "search_docs", "send_requirement_to_client", "set_section", "update_decision", "update_doc", "update_request", "update_requirement", "update_ticket",
   ]);
   assert.ok(!names.some((n) => /(delete|remove)_(ticket|product|doc)/.test(n))); // no ticket, product or doc is ever deleted over MCP
 });
@@ -145,9 +150,8 @@ test("a developer's token reaches only their products; another company's reaches
   const both = (await tool(adminToken, "update_ticket", { key: "CH-4", assignees: ["me", "Sam Dev"] })).data;
   assert.deepEqual([both.assignee, both.assignees], ["Ayla Khan", ["Ayla Khan", "Sam Dev"]]); // any number of people
   assert.ok((await tool(devToken, "list_tickets", { assignee: "me" })).data.tickets.some((t: { key: string }) => t.key === "CH-4"));
-  // Archive: off the lists, read-only, gone for the developer; restored, it's back. Developers can't archive.
-  assert.match((await tool(devToken, "archive_ticket", { key: "CH-4" })).refused!, /Not allowed/);
-  assert.equal((await tool(adminToken, "archive_ticket", { key: "CH-4" })).data.archived, true);
+  // Archive: off the lists, read-only, gone from the developer's lists; restored, it's back. A developer on the product archives too.
+  assert.equal((await tool(devToken, "archive_ticket", { key: "CH-4" })).data.archived, true);
   assert.ok(!(await tool(adminToken, "list_tickets", { product: "CH" })).data.tickets.some((t: { key: string }) => t.key === "CH-4"));
   assert.ok((await tool(adminToken, "list_tickets", { product: "CH", include_archived: true })).data.tickets.some((t: { key: string }) => t.key === "CH-4"));
   assert.match((await tool(adminToken, "update_ticket", { key: "CH-4", title: "x" })).refused!, /CH-4 is archived — restore it first/);
@@ -246,6 +250,74 @@ test("decisions over MCP: full records with links, superseding, filters; develop
   assert.match((await tool(adminToken, "get_decision", { decision: "nope" })).refused!, /No decision/);
   const written = (await tool(adminToken, "update_decision", { decision: newer.id, body: "## Why\n\nCash **up front**.\n\n| Plan | Price |\n| --- | --- |\n| Yearly | 10 |" })).data;
   assert.deepEqual([written.why, written.body.startsWith("## Why")], ["Cash up front.", true]); // written freely; the summary follows
+});
+
+test("Client Space over MCP: requirements and requests, written by a developer on the project, refused off it", async () => {
+  type Req = { key: string; status: string; priority: string | null; rev: number; criteria: { text: string; done: boolean }[]; tickets: { key: string }[] };
+  // A developer on CH writes a requirement; priorities are the company's own, by id or name.
+  const made: Req = (await tool(devToken, "create_requirement", { product: "CH", title: "Pay by card", priority: "Must have", criteria: ["Visa works", { text: "Refunds", done: false }] })).data;
+  assert.deepEqual([made.key, made.status, made.priority, made.rev, made.criteria.length], ["CH-R1", "draft", "must", 1, 2]);
+  assert.match((await tool(devToken, "create_requirement", { product: "CH", title: "x", priority: "urgent" })).refused!, /must \(Must have\), should/);
+  const listed = (await tool(devToken, "list_requirements", { product: "CH" })).data;
+  assert.deepEqual(listed.priorities.map((p: { id: string }) => p.id), ["must", "should", "nice"]);
+  assert.deepEqual(listed.requirements.map((r: Req) => r.key), ["CH-R1"]);
+  // Changing the words bumps the version; ticking a criterion doesn't (each line keeps its id).
+  const edited: Req = (await tool(devToken, "update_requirement", { requirement: "R1", title: "Pay by card or wallet", priority: "none" })).data;
+  assert.deepEqual([edited.rev, edited.priority], [2, null]);
+  const ticked: Req = (await tool(devToken, "update_requirement", { requirement: "ch-r1", criteria: [{ text: "Visa works", done: true }, "Refunds"] })).data;
+  assert.deepEqual([ticked.rev, ticked.criteria], [2, [{ text: "Visa works", done: true }, { text: "Refunds", done: false }]]);
+  const reqId = (await viewFor(admin)).db.requirements.find((r) => r.code === "R1" && r.productKey === "CH")!.id;
+  await applySteps(admin, [{ name: "createTicket", args: ["CH", "Card form"] }]);
+  const cardForm = (await viewFor(admin)).db.tickets.find((t) => t.title === "Card form")!.key;
+  await applySteps(admin, [{ name: "updateTicket", args: [cardForm, { requirementId: reqId }] }]);
+  assert.deepEqual((await tool(devToken, "get_requirement", { requirement: "CH-R1" })).data.tickets.map((t: { key: string }) => t.key), [cardForm]);
+
+  // Sending: Client Space on, and a Sponsor to confirm it.
+  assert.match((await tool(devToken, "send_requirement_to_client", { requirement: "CH-R1" })).refused!, /Client Space on first/);
+  await applySteps(admin, [{ name: "setClientSettings", args: [{ clientSpace: true }] }]);
+  assert.match((await tool(devToken, "send_requirement_to_client", { requirement: "CH-R1" })).refused!, /Sponsor or Product owner/);
+  const invited = await inviteClient(admin, "CH", { name: "Ali Raza", email: "ali@client.example", company: "2N5", role: "sponsor" }, APP);
+  assert.equal((await tool(devToken, "send_requirement_to_client", { requirement: "CH-R1" })).data.status, "to_confirm");
+
+  // Requests: asked, closed, opened again.
+  const ask = (await tool(devToken, "create_request", { product: "CH", kind: "question", title: "Which countries?", details: "For shipping", due: "2026-11-30", assignee: "ali raza" })).data;
+  assert.deepEqual([ask.key, ask.state, ask.assignee, ask.created_by, ask.due], ["CH-Q1", "open", "Ali Raza", "Sam Dev", "2026-11-30"]);
+  assert.match((await tool(devToken, "create_request", { product: "CH", kind: "file", title: "Logo", assignee: "Nobody" })).refused!, /No client called "Nobody" on CH\. Its clients: Ali Raza/);
+  assert.equal((await tool(devToken, "update_request", { request: "CH-Q1", state: "done" })).data.state, "done");
+  assert.match((await tool(devToken, "update_request", { request: "Q1", state: "done" })).refused!, /like that already/);
+  const reopened = (await tool(adminToken, "update_request", { request: "CH-Q1", state: "open", due: "", title: "Which countries do you ship to?" })).data;
+  assert.deepEqual([reopened.state, reopened.due, reopened.title], ["open", null, "Which countries do you ship to?"]);
+  assert.deepEqual((await tool(devToken, "list_requests", { product: "CH", state: "open" })).data.map((x: { key: string }) => x.key), ["CH-Q1"]);
+
+  // Not on the project: nothing to see, nothing to write.
+  await applySteps(admin, [{ name: "addRequirement", args: ["XY", { title: "Secret scope" }, "xy-r1"] }]);
+  assert.match((await tool(devToken, "list_requirements", { product: "XY" })).refused!, /No product "XY"/);
+  assert.match((await tool(devToken, "get_requirement", { requirement: "XY-R1" })).refused!, /No requirement XY-R1/);
+  assert.match((await tool(devToken, "create_requirement", { product: "XY", title: "Sneaky" })).refused!, /No product "XY"/);
+  assert.match((await tool(devToken, "create_request", { product: "XY", kind: "other", title: "Sneaky" })).refused!, /No product "XY"/);
+  assert.match((await tool(adminToken, "get_requirement", { requirement: "R1" })).refused!, /Several projects have a requirement R1: CH-R1, XY-R1/);
+
+  const audited = await pg.asOwner<{ command: string }>(`select command from audit_log where source = 'mcp' and command in ('addRequirement', 'updateRequirement', 'sendRequirementToClient', 'createAsk', 'updateAsk', 'setAskState') order by id`);
+  assert.deepEqual(audited.map((r) => r.command), ["addRequirement", "updateRequirement", "updateRequirement", "sendRequirementToClient", "createAsk", "setAskState", "updateAsk", "setAskState"]);
+
+  // Never the chats: messages, notes, an access request's login, the client's email or sign-in link.
+  await applySteps(admin, [
+    { name: "createAsk", args: ["CH", { kind: "access", title: "Stripe access", invite: "owner@stripe-secret.example" }, "ask-secret"] },
+    { name: "postThreadMessage", args: [`req:${reqId}`, "The password is hunter2", "msg-1"] },
+    { name: "postThreadMessage", args: ["ask:ask-secret", "Login: admin / hunter2", "msg-2"] },
+    { name: "postThreadMessage", args: ["chat:CH", "hunter2 for staging", "msg-3", { note: true }] },
+  ]);
+  assert.equal((await viewFor(admin)).db.clientMessages.filter((m) => m.body.includes("hunter2")).length, 3); // the chats do hold them
+  const secrets = ["hunter2", "stripe-secret", "ali@client.example", invited.link.split("/").pop()!, "msg-1"];
+  for (const token of [adminToken, devToken]) {
+    const answers = [
+      await tool(token, "list_requirements", { product: "CH" }), await tool(token, "get_requirement", { requirement: "CH-R1" }),
+      await tool(token, "list_requests", { product: "CH" }), await tool(token, "update_request", { request: "CH-Q2", details: "Read-only is fine" }),
+    ];
+    assert.ok(answers.every((x) => x.data), "every answer is data, not a refusal");
+    const text = JSON.stringify(answers);
+    for (const secret of secrets) assert.ok(!text.includes(secret), `${secret} leaked`);
+  }
 });
 
 test("a token stops working when its owner is turned off, or their password changes", async () => {

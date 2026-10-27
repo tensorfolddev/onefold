@@ -79,6 +79,7 @@ export function SignIn() {
             <button type="submit" className="btn btn-primary btn-lg auth-submit" disabled={busy}>
               {busy ? <><span className="auth-spinner" aria-hidden /> Signing in…</> : <>Sign in <ArrowRight aria-hidden /></>}
             </button>
+            <p className="auth-client-link">Following a project as a client? <Link href="/c/signin">Get a sign-in link</Link></p>
           </form>
         )}
 

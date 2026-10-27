@@ -16,6 +16,7 @@ import {
   isFilled, itemsOf, sectionRef, TEMPLATE_NAME, TEMPLATE_VERSION, TEMPLATES, textOf, ticketToMarkdown, type SectionDef,
 } from "@/domain/templates";
 import type { Ticket } from "@/domain/types";
+import { Markdown } from "@/ui/Markdown";
 import { IconButton } from "@/ui/primitives";
 import { DoneSection, ItemsSection } from "./TemplateItems";
 import { DependenciesSection, EpicTicketsSection, useIsDone } from "./TemplateRelations";
@@ -162,9 +163,9 @@ function SectionBody({ def, ticket, editable }: { def: SectionDef; ticket: Ticke
 }
 
 /** Plain text with clickable links. */
-function Linkified({ text }: { text: string }) {
-  return text.split(/(https?:\/\/[^\s)]+)/g).map((part, i) =>
-    i % 2 ? <a key={i} href={part} target="_blank" rel="noreferrer noopener" onClick={(e) => e.stopPropagation()}>{part}</a> : part);
+/** A section's text as Markdown; clicking a link opens it without starting an edit. */
+function SectionText({ text }: { text: string }) {
+  return <div onClickCapture={(e) => { if ((e.target as HTMLElement).closest("a")) e.stopPropagation(); }}><Markdown text={text} /></div>;
 }
 
 /** Click to write; leaving the box saves, Esc cancels. */
@@ -174,12 +175,12 @@ function TextSection({ def, ticket, editable }: { def: SectionDef; ticket: Ticke
   const [draft, setDraft] = useState<string | null>(null);
   const cancelled = useRef(false);
 
-  if (!editable) return value ? <p className="tpl-text"><Linkified text={value} /></p> : <p className="tpl-empty">Not filled in</p>;
+  if (!editable) return value ? <div className="tpl-text"><SectionText text={value} /></div> : <p className="tpl-empty">Not filled in</p>;
   if (draft === null) {
     return value ? (
       <div className="tpl-text is-editable" role="button" tabIndex={0} aria-label={`Edit ${def.title}`}
         onClick={() => setDraft(value)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDraft(value); } }}>
-        <Linkified text={value} />
+        <SectionText text={value} />
       </div>
     ) : (
       <button type="button" className="tpl-placeholder" onClick={() => setDraft("")}>{def.hint}</button>

@@ -7,6 +7,9 @@ import { photoFileOf, templateOf } from "@/domain/avatars";
 import type { Health, Product, Stage, Tone } from "@/domain/types";
 import { useDb } from "@/data/StoreProvider";
 
+/** A size from code, in design px, that scales with the screen like the styles do (base.css). */
+export const rem = (px: number) => `${px / 16}rem`;
+
 export function Avatar({ personId, size = "md" }: { personId?: string; size?: "sm" | "md" | "lg" | "xl" }) {
   const { personById } = useDb();
   const p = personById(personId);
@@ -157,6 +160,12 @@ export function EmptyState({ icon, title, children }: { icon?: React.ReactNode; 
     </div>
   );
 }
+
+/** The "@name" (or "@@name") being typed right before the caret, if any — for a composer's list of who to mention. */
+export const typingMention = (before: string) => {
+  const m = /(?:^|\s)(@@?)([^\s@][^@\n]{0,30}|)$/.exec(before);
+  return m && !/\s{2}$/.test(m[2]) ? { urgent: m[1] === "@@", q: m[2], at: before.length - m[1].length - m[2].length } : null;
+};
 
 /** Renders "@Full Name" mentions as highlighted chips. */
 export function WithMentions({ text }: { text: string }) {

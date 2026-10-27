@@ -127,6 +127,8 @@ test("mentions written by a model (an email or a name) become the person's id; u
   assert.equal(normalizeMentions(db, "Hi [@A](mention:ayla@docs.example)"), `Hi [@Ayla Khan](mention:${ayla.id})`);
   assert.equal(normalizeMentions(db, "Hi [@Ayla Khan](mention:Ayla Khan)"), `Hi [@Ayla Khan](mention:${ayla.id})`);
   assert.equal(normalizeMentions(db, "Hi [@Nobody](mention:nobody@x.y)"), "Hi @Nobody");
+  assert.equal(normalizeMentions(db, "Hi [@@A](mention:ayla@docs.example)"), `Hi [@@Ayla Khan](mention:${ayla.id})`); // still urgent
+  assert.equal(normalizeMentions(db, "Hi [@everyone](mention:everyone)"), "Hi [@everyone](mention:everyone)");
 });
 
 test("any file can go in a doc; only people who can see the doc fetch it; anything but an image only downloads", async () => {

@@ -23,7 +23,7 @@ const sara = who("u-sara"), admin = who("u-tayyab"), lead = who("u-ayesha"), far
 const ticketIn = (db: ReturnType<typeof seedDb>, key: string) => db.tickets.find((t) => t.key === key)!;
 const who2 = (db: ReturnType<typeof seedDb>, id: string) => db.people.find((p) => p.id === id)!;
 
-test("developer creates and edits a ticket on own product — but archiving or deleting is for others", () => {
+test("developer creates, edits and archives a ticket on own product — deleting is for admins", () => {
   const { db, key } = A.createTicket(db0, sara, "AP", "New thing");
   assert.equal(key, "AP-34");
   const t = db.tickets.find((x) => x.key === key)!;
@@ -32,9 +32,9 @@ test("developer creates and edits a ticket on own product — but archiving or d
   const db2 = A.updateTicket(db, sara, key, { title: "Renamed", statusId: "ap-dev" });
   const log = db2.activity.filter((a) => a.ticketKey === key).map((a) => `${a.field}:${a.from ?? ""}>${a.to}`);
   assert.deepEqual(log, ["Created:>Backlog", "Title:New thing>Renamed", "Status:Backlog>In Dev"]);
-  assert.throws(() => A.archiveTickets(db2, sara, [key]), A.AccessError);
-  assert.throws(() => A.deleteTickets(db2, sara, [key], `Delete ${key}`), A.AccessError);
-  const db3 = A.deleteTickets(A.archiveTickets(db2, admin, [key]), admin, [key], `Delete ${key}`);
+  const archived = A.archiveTickets(db2, sara, [key]);
+  assert.throws(() => A.deleteTickets(archived, sara, [key], `Delete ${key}`), A.AccessError);
+  const db3 = A.deleteTickets(archived, admin, [key], `Delete ${key}`);
   assert.equal(db3.tickets.some((x) => x.key === key), false);
   assert.equal(db3.activity.some((a) => a.ticketKey === key), false);
 });

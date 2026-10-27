@@ -1,14 +1,15 @@
 "use client";
 
 // Account menu → Notifications & sounds, for everyone: sounds on or off, how loud, and the sound a new notification
-// makes — and an urgent (@@) one: one of 1FOLD's (tap one to hear it), or your own file. Kept in this browser.
+// makes — an urgent (@@) one, and a new chat message: one of 1FOLD's (tap one to hear it), or your own file. Kept in
+// this browser.
 import { Check, Play, Upload, Volume2, VolumeX, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useMe } from "@/data/StoreProvider";
 import { isSoundOn, setSoundOn } from "@/features/tickets/sounds";
 import { IconButton } from "@/ui/primitives";
 import {
-  choose, chosen, CUSTOM, customSound, MAX_CUSTOM_BYTES, NOTIFY_SOUNDS, previewNotice, setCustomSound, setVolume, URGENT_SOUNDS, volume,
+  CHAT_SOUNDS, choose, chosen, CUSTOM, customSound, MAX_CUSTOM_BYTES, NOTIFY_SOUNDS, previewNotice, setCustomSound, setVolume, URGENT_SOUNDS, volume,
   type NoticeKind, type NoticeSound,
 } from "./noticeSounds";
 
@@ -50,6 +51,7 @@ export function SoundSettings({ onClose }: { onClose: () => void }) {
         </div>
         <SoundPicker kind="notify" title="New notification" hint="A mention, an assignment — anything new for you" sounds={NOTIFY_SOUNDS} disabled={!on} />
         <SoundPicker kind="urgent" title="Urgent (@@)" hint="When someone @@mentions you — made to be heard from another tab" sounds={URGENT_SOUNDS} disabled={!on} />
+        <SoundPicker kind="chat" title="Chat messages" hint="A new message in a Client tab chat — just the tone, no notification" sounds={CHAT_SOUNDS} disabled={!on} />
       </div>
       <footer className="inv-foot snd-foot">
         <button type="button" className="btn btn-primary" onClick={onClose}>Done</button>

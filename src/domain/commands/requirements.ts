@@ -3,7 +3,8 @@
 // never loses what was agreed — it just goes back to being a draft until it's confirmed again.
 import type { Db } from "../../data/db.ts";
 import { now } from "../clock.ts";
-import { nextRequirementCode, REQUIREMENT_PRIORITY, SOURCE_KINDS, statusOfRequirement } from "../selectors/requirements.ts";
+import { lookOf, prioritiesOf } from "../selectors/clientLook.ts";
+import { nextRequirementCode, SOURCE_KINDS, statusOfRequirement } from "../selectors/requirements.ts";
 import type { Person, Requirement, RequirementPriority, RequirementSource, RequirementStatus, SectionItem } from "../types.ts";
 import { check, fail, id, newIdError, productOf, replace, requiredError, ValidationError } from "./shared.ts";
 
@@ -45,9 +46,11 @@ function criteriaOf(v: unknown): SectionItem[] {
   });
 }
 
-function priorityOf(v: unknown): RequirementPriority {
-  if (typeof v !== "string" || !Object.hasOwn(REQUIREMENT_PRIORITY, v)) throw new ValidationError("Pick Must, Should or Nice to have");
-  return v as RequirementPriority;
+/** One of the project's priorities (its Settings → Client tab; Must / Should / Nice by default). */
+function priorityOf(db: Db, productKey: string, v: unknown): RequirementPriority {
+  const list = prioritiesOf(lookOf(db.products.find((p) => p.key === productKey)));
+  if (typeof v !== "string" || !list.some((p) => p.id === v)) throw new ValidationError(`Pick ${list.map((p) => p.name).join(", ")}`);
+  return v;
 }
 function sourceOf(v: unknown): RequirementSource {
   const kind = (v as RequirementSource | null)?.kind;
@@ -71,7 +74,7 @@ export function addRequirement(db: Db, me: Person, productKey: string, input: Re
   const r: Requirement = {
     id: requirementId, productKey, code: nextRequirementCode(db, productKey), title: titleOf(input.title),
     ...(description && { description }), ...(criteria.length > 0 && { criteria }),
-    ...(input.priority !== undefined && { priority: priorityOf(input.priority) }), ...(input.source !== undefined && { source: sourceOf(input.source) }),
+    ...(input.priority !== undefined && { priority: priorityOf(db, productKey, input.priority) }), ...(input.source !== undefined && { source: sourceOf(input.source) }),
     status: "draft", rev: 1, createdAt: at, createdBy: me.id, updatedAt: at,
   };
   return { ...db, requirements: [...db.requirements, r] };
@@ -95,7 +98,7 @@ export function updateRequirement(db: Db, me: Person, requirementId: string, pat
   }
   // Priority and source aren't its words: changing them doesn't undo a confirmation.
   if (patch.priority === null) delete next.priority;
-  else if (patch.priority !== undefined) next.priority = priorityOf(patch.priority);
+  else if (patch.priority !== undefined) next.priority = priorityOf(db, cur.productKey, patch.priority);
   if (patch.source === null) delete next.source;
   else if (patch.source !== undefined) next.source = sourceOf(patch.source);
   if (JSON.stringify(next) === JSON.stringify(cur)) return db;
@@ -138,6 +141,32 @@ export function restoreRequirement(db: Db, me: Person, requirementId: string): D
   const next: Requirement = { ...cur, status, updatedAt: now() };
   delete next.droppedReason;
   return save(db, next);
+}
+
+const mayArchive = (db: Db, me: Person, r: Requirement) => check(me, "requirement.archive", { product: productOf(db, r.productKey) });
+
+/** Off both boards — the team's and the client's — kept whole (chat and all) until restored. Admins only. */
+export function archiveRequirements(db: Db, me: Person, requirementIds: string[]): Db {
+  const ids = new Set(Array.isArray(requirementIds) ? requirementIds : []);
+  for (const rid of ids) mayArchive(db, me, requirementOf(db, rid));
+  const at = now();
+  return { ...db, requirements: db.requirements.map((r) => (ids.has(r.id) && !r.archivedAt ? { ...r, archivedAt: at, archivedBy: me.id } : r)) };
+}
+
+/** Back on the boards, as they were. Admins only, like archiving. */
+export function unarchiveRequirements(db: Db, me: Person, requirementIds: string[]): Db {
+  const ids = new Set(Array.isArray(requirementIds) ? requirementIds : []);
+  for (const rid of ids) mayArchive(db, me, requirementOf(db, rid));
+  return {
+    ...db,
+    requirements: db.requirements.map((r) => {
+      if (!ids.has(r.id) || !r.archivedAt) return r;
+      const back = { ...r };
+      delete back.archivedAt;
+      delete back.archivedBy;
+      return back;
+    }),
+  };
 }
 
 /** Only a mistake can go: never confirmed, and no ticket points at it. Anything else is dropped, so its record stays. */

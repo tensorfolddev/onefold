@@ -155,6 +155,8 @@ export function deleteProduct(db: Db, me: Person, key: string, typed: string): D
     docs: elsewhere(db.docs),
     docGroups: elsewhere(db.docGroups),
     stageRequests: elsewhere(db.stageRequests),
+    asks: elsewhere(db.asks), // its client chats go with it
+    clientMessages: elsewhere(db.clientMessages),
     activity: db.activity.filter((a) => !gone.has(a.ticketKey)),
     comments: db.comments.filter((c) => !gone.has(c.ticketKey)),
     notifications: db.notifications.filter((n) => n.target !== key && !gone.has(n.target)),

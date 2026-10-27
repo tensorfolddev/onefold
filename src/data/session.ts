@@ -9,17 +9,20 @@ export const ROUTE_COOKIE = "onefold_route";
 export const SESSION_MAX_AGE_S = 30 * 86400;
 export const PANEL_SLUG = { admin: "admin", manager: "manager", developer: "dev" } as const satisfies Record<Panel, string>;
 export type PanelSlug = (typeof PANEL_SLUG)[Panel];
-export interface Session { org: string; personId: string; panel: Panel }
+/** Where a session belongs: a team panel, or the client space (/c). */
+export type RoutePanel = Panel | "client";
+export const CLIENT_HOME = "/c";
+export interface Session { org: string; personId: string; panel: RoutePanel }
 
 export const panelFromSlug = (slug: string): Panel | null =>
   (Object.keys(PANEL_SLUG) as Panel[]).find((p) => PANEL_SLUG[p] === slug) ?? null;
-export const panelHome = (panel: Panel) => `/${PANEL_SLUG[panel]}`;
+export const panelHome = (panel: RoutePanel) => (panel === "client" ? CLIENT_HOME : `/${PANEL_SLUG[panel]}`);
 
 const SLUG_RE = /^[a-z0-9-]{3,32}$/;
 function parseRoute(v: string): Session | null {
   const [org, personId, panel, ...rest] = v.split(":");
-  return org && SLUG_RE.test(org) && personId && panel && !rest.length && panel in PANEL_SLUG
-    ? { org, personId, panel: panel as Panel } : null;
+  return org && SLUG_RE.test(org) && personId && panel && !rest.length && (panel in PANEL_SLUG || panel === "client")
+    ? { org, personId, panel: panel as RoutePanel } : null;
 }
 
 const enc = new TextEncoder();
@@ -49,7 +52,7 @@ export async function readRoute(value: string | undefined, secret: string | unde
 }
 
 /** Short links (WhatsApp briefs) that work for every panel: /t/AP-12 → /dev/t/AP-12. */
-const PANEL_LESS = /^\/(t\/[A-Za-z0-9-]+|my-work)$/;
+const PANEL_LESS = /^\/(t\/[A-Za-z0-9-]+|my-work|vault\/recover\/[A-Za-z0-9_-]+)$/; // vault/recover: the emailed vault reset link
 
 /**
  * Only same-panel paths survive a ?next= redirect, plus the short panel-less links (put inside your own panel);
@@ -62,6 +65,6 @@ export function safeNext(next: string | null, panel: Panel) {
 }
 
 /** Pages anyone can open without signing in (plus the emailed links below). "/" is the home page when signed out. */
-export const PUBLIC_PATHS = ["/signin", "/signup", "/forgot", "/privacy", "/terms"];
-const LINK_PAGES = ["/invite/", "/reset/", "/verify/", "/share/"]; // /share/: a page someone made public
+export const PUBLIC_PATHS = ["/signin", "/signup", "/forgot", "/privacy", "/terms", "/c/signin"];
+const LINK_PAGES = ["/invite/", "/reset/", "/verify/", "/share/", "/c/link/", "/c/l/"]; // /share/: a page someone made public; /c/l/: a client's own link
 export const isPublicPath = (p: string) => PUBLIC_PATHS.includes(p) || LINK_PAGES.some((prefix) => p.startsWith(prefix));

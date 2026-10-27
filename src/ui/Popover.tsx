@@ -2,20 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { rem } from "./primitives";
 
 const MENU_MIN_W = 220; // .menu min-width
 const GAP = 6;
+/** The app scales with the screen (base.css): a design px is this many screen px. */
+const scale = () => parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 || 1;
+const remOf = (px?: number) => (px === undefined ? undefined : rem(px));
 
 /** Fixed spot under (or, near the bottom of the screen, over) the anchor, kept on screen. */
 function place(r: DOMRect, align: "left" | "right", width?: number): React.CSSProperties {
-  const w = Math.max(width ?? 0, MENU_MIN_W);
+  const w = Math.max(width ?? 0, MENU_MIN_W) * scale();
   const left = Math.max(8, Math.min(align === "right" ? r.right - w : r.left, innerWidth - w - 8));
   const below = innerHeight - r.bottom;
   const vertical = below >= 240 || below >= r.top
     ? { top: r.bottom + GAP, maxHeight: below - GAP - 12 }
     : { bottom: innerHeight - r.top + GAP, maxHeight: r.top - GAP - 12 };
   // Above side panels and dialogs it may be opened from (a ticket's ⋯ lives inside the ticket panel).
-  return { position: "fixed", zIndex: 200, left, width, overflowY: "auto", ...vertical };
+  return { position: "fixed", zIndex: 200, left, width: remOf(width), overflowY: "auto", ...vertical };
 }
 
 /**
@@ -46,7 +50,7 @@ export function Popover({
   const close = () => setSpot(null);
   const toggle = () => {
     if (open || !anchor) return close();
-    setSpot(floating ? place(anchor.getBoundingClientRect(), align, width) : { top: `calc(100% + ${GAP}px)`, [align]: 0, width });
+    setSpot(floating ? place(anchor.getBoundingClientRect(), align, width) : { top: `calc(100% + ${GAP}px)`, [align]: 0, width: remOf(width) });
   };
 
   useEffect(() => {

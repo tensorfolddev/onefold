@@ -2,9 +2,11 @@
 // POST /api/files?doc=<id>&name=<file name>       body: any file's bytes (25 MB) — adds it to that doc.
 // POST /api/files?decision=<id>&name=<file name>  body: any file's bytes (25 MB) — adds it to that decision's text.
 // POST /api/files?avatar=<person id>              body: an image (2 MB) — becomes their photo (yours, or anyone's for an admin).
+// POST /api/files?thread=<subject>&name=…[&note=1] body: any file (25 MB) — a line in a client chat (a note: the team's only).
 import type { NextRequest } from "next/server";
 import { limit, MINUTE } from "@/server/auth/rateLimit";
 import { checkAvatarUpload, checkDocUpload, checkUpload, MAX_AVATAR_BYTES, MAX_DOC_FILE_BYTES, MAX_UPLOAD_BYTES, readUpTo, uploadAvatar, uploadDocFile, uploadImage } from "@/server/files";
+import { checkThreadUpload, uploadThreadFile } from "@/server/clientSpace";
 import { handle, ok, requireSession, str } from "@/server/http";
 
 export async function POST(req: NextRequest) {
@@ -17,6 +19,12 @@ export async function POST(req: NextRequest) {
     if (avatarOf) {
       await checkAvatarUpload(who, avatarOf); // before reading (and storing) anything
       return ok(await uploadAvatar(who, avatarOf, await readUpTo(req, MAX_AVATAR_BYTES)));
+    }
+    const subject = str(p.get("thread"), 120);
+    if (subject) {
+      const note = p.get("note") === "1";
+      await checkThreadUpload(who, subject, note); // before reading (and storing) anyone's 25 MB
+      return ok(await uploadThreadFile(who, subject, { name, note }, await readUpTo(req, MAX_DOC_FILE_BYTES, "Files")));
     }
     const docId = str(p.get("doc"), 100);
     const decisionId = str(p.get("decision"), 100);

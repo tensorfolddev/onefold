@@ -43,6 +43,7 @@
 .tp-side .meta-priority .popover-anchor, .tp-side .meta-priority .priority-cell { width: 100%; }
 .tp-side .meta-priority .priority-cell { height: 34px; border-radius: 8px; }
 .tp-side .meta-select { width: 100%; max-width: none; }
+.tp-side .ticket-meta dd > .popover-anchor:not(.fill) { flex: 1; }
 .tp-side .meta-input { flex: 1; width: auto; min-width: 0; }
 .tp-side .meta-trigger { width: 100%; }
 .tp-side .estimate-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; width: 100%; }
@@ -126,7 +127,7 @@
 .tpl-sec-body { padding-left: 40px; }
 
 /* text */
-.tpl-text { margin: 0 -10px; padding: 6px 10px; font-size: 15px; line-height: 23px; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: var(--border-radius-small); }
+.tpl-text { margin: 0 -10px; padding: 6px 10px; font-size: 15px; line-height: 23px; overflow-wrap: anywhere; border-radius: var(--border-radius-small); }
 .tpl-text a { color: var(--link-color); text-decoration: underline; text-underline-offset: 2px; }
 .tpl-text.is-editable { cursor: text; }
 .tpl-text.is-editable:hover { background: var(--primary-background-hover-color); }

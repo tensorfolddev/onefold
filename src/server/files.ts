@@ -12,6 +12,7 @@ import { canSetPhoto, withUploadedPhoto } from "../domain/commands/people.ts";
 import { canDoc } from "../domain/docAccess.ts";
 import { can } from "../domain/permissions.ts";
 import { snapshotFor } from "../domain/snapshot.ts";
+import type { Db } from "../data/db.ts";
 import { personFor, type SessionRow } from "./accounts.ts";
 import type { Loaded } from "./company/store.ts";
 import { newId } from "./auth/secrets.ts";
@@ -222,6 +223,36 @@ export function fileType(b: Buffer): string {
   return "application/octet-stream";
 }
 
+export interface StoredFile { id: string; name: string; type: string; size: number }
+
+/**
+ * Writes any file to disk (its type from its bytes), then records it with `record` — the file is removed again if that
+ * fails, so nothing is left that nobody refers to.
+ */
+export async function storeFile<T>(orgId: string, nameInput: string, bytes: Buffer, record: (file: StoredFile) => Promise<T>): Promise<T> {
+  if (!bytes.length) throw new ValidationError("That file is empty");
+  const file = { id: newId("file"), name: cleanName(nameInput), type: fileType(bytes), size: bytes.length };
+  const path = fileAt(orgId, file.id);
+  await mkdir(/*turbopackIgnore: true*/ dirname(path), { recursive: true, mode: 0o750 });
+  await writeFile(/*turbopackIgnore: true*/ path, bytes, { mode: 0o640, flag: "wx" });
+  try {
+    return await record(file);
+  } catch (e) {
+    await rm(/*turbopackIgnore: true*/ path, { force: true });
+    throw e;
+  }
+}
+
+/** Reads a stored file back; null if it's gone. */
+export async function storedBytes(orgId: string, id: string): Promise<Buffer | null> {
+  try {
+    return await readFile(/*turbopackIgnore: true*/ fileAt(orgId, id));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
+}
+
 /** Adds any file to a doc: written to disk, then recorded against the doc (removed again if that fails). */
 export async function uploadDocFile(who: SessionRow, input: FileOwner & { name: string }, bytes: Buffer): Promise<{ id: string; name: string; type: string; size: number }> {
   if (!bytes.length) throw new ValidationError("That file is empty");
@@ -249,21 +280,39 @@ export async function uploadDocFile(who: SessionRow, input: FileOwner & { name: 
  * A ticket image or doc file the signed-in person may see (it's on a ticket or in a doc they can see), or null.
  * `download`: not an image or a PDF, so it's only ever saved, never shown in the browser.
  */
+// A ticket with ten images asks for ten files at once: they share one load of the company while it hasn't changed
+// (its version moves with every change — adding someone to a project shows them its images at once). Bounded.
+const fileViews = new Map<string, { version: number; view: Promise<{ view: Db; photos: Set<string> }> }>();
+async function filesViewFor(who: SessionRow) {
+  const key = `${who.orgId}:${who.userId}`;
+  const [row] = await inScope({ orgId: who.orgId }, (tx) => tx.select({ version: s.orgs.version }).from(s.orgs).where(eq(s.orgs.id, who.orgId)));
+  const version = row?.version ?? -1;
+  const hit = fileViews.get(key);
+  if (hit && hit.version === version) return hit.view;
+  const view = inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+    const loaded = await mustLoad(tx, who);
+    const photos = new Set(loaded.db.people.map((p) => photoFileOf(p.photo)).filter((f): f is string => !!f));
+    return { view: snapshotFor(loaded.db, personFor(loaded, who.userId)), photos };
+  });
+  fileViews.set(key, { version, view });
+  view.catch(() => fileViews.delete(key));
+  if (fileViews.size > 500) fileViews.delete(fileViews.keys().next().value!);
+  return view;
+}
+
 export async function readImage(who: SessionRow, id: string): Promise<{ bytes: Buffer; type: string; name: string; download?: boolean } | null> {
   if (!ID_RE.test(id)) return null;
-  // ponytail: loads the whole company per image; browsers keep each image for an hour, so it stays rare.
-  const att = await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
-    const view = snapshotFor(loaded.db, personFor(loaded, who.userId));
-    const onTicket = view.tickets.flatMap((t) => t.attachments ?? []).find((a) => a.id === id);
-    if (onTicket) return onTicket;
-    if (loaded.db.people.some((p) => photoFileOf(p.photo) === id)) return { id, name: "photo", type: "" }; // someone's photo: the whole company sees it (its type: from its bytes)
-    const [f] = await tx.select().from(s.docFiles).where(and(eq(s.docFiles.orgId, who.orgId), eq(s.docFiles.id, id)));
-    if (f) return view.docs.some((d) => d.id === f.docId) ? { id: f.id, name: f.name, type: f.type, download: !opensInBrowser(f.type) } : null;
-    const [g] = await tx.select().from(s.decisionFiles).where(and(eq(s.decisionFiles.orgId, who.orgId), eq(s.decisionFiles.id, id)));
-    if (!g || !view.decisions.some((d) => d.id === g.decisionId)) return null;
-    return { id: g.id, name: g.name, type: g.type, download: !opensInBrowser(g.type) };
-  });
+  const { view, photos } = await filesViewFor(who);
+  const att = view.tickets.flatMap((t) => t.attachments ?? []).find((a) => a.id === id)
+    ?? (() => { const f = view.clientMessages.find((m) => m.data?.file?.id === id)?.data?.file; return f && { id, name: f.name, type: f.type, download: !opensInBrowser(f.type) }; })()
+    ?? (photos.has(id) ? { id, name: "photo", type: "" } : undefined) // someone's photo: the whole company sees it (its type: from its bytes)
+    ?? await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
+      const [f] = await tx.select().from(s.docFiles).where(and(eq(s.docFiles.orgId, who.orgId), eq(s.docFiles.id, id)));
+      if (f) return view.docs.some((d) => d.id === f.docId) ? { id: f.id, name: f.name, type: f.type, download: !opensInBrowser(f.type) } : null;
+      const [g] = await tx.select().from(s.decisionFiles).where(and(eq(s.decisionFiles.orgId, who.orgId), eq(s.decisionFiles.id, id)));
+      if (!g || !view.decisions.some((d) => d.id === g.decisionId)) return null;
+      return { id: g.id, name: g.name, type: g.type, download: !opensInBrowser(g.type) };
+    });
   if (!att) return null;
   try {
     const bytes = await readFile(/*turbopackIgnore: true*/ fileAt(who.orgId, id));
@@ -294,7 +343,8 @@ export async function cleanupFiles(now = Date.now()): Promise<number> {
       const inUndo = await tx.execute(sql`select distinct jsonb_path_query(before, '$.tickets[*].attachments[*].id') #>> '{}' as id
         from undo_points where org_id = ${orgId}`);
       const photos = await tx.select({ photo: s.members.photo }).from(s.members).where(eq(s.members.orgId, orgId));
-      const used = new Set([...onTickets.map((r) => r.id), ...inDocs.map((r) => r.id), ...inDecisions.map((r) => r.id), ...(inUndo.rows as { id: string }[]).map((r) => r.id),
+      const inChats = (await tx.execute(sql`select data->'file'->>'id' as id from client_messages where org_id = ${orgId} and data ? 'file'`)).rows as { id: string }[];
+      const used = new Set([...onTickets.map((r) => r.id), ...inDocs.map((r) => r.id), ...inDecisions.map((r) => r.id), ...(inUndo.rows as { id: string }[]).map((r) => r.id), ...inChats.map((r) => r.id),
         ...photos.flatMap((r) => photoFileOf(r.photo ?? undefined) ?? [])]);
       let n = 0;
       for (const name of names) {

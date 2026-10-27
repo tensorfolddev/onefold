@@ -269,7 +269,7 @@ export function RequirementField({ ticket }: { ticket: Ticket }) {
   const { updateTicket } = useAppState();
   const { db } = useDb();
   // Dropped ones are out of scope — still shown if this ticket already points at one.
-  const reqs = db.requirements.filter((r) => r.productKey === ticket.productKey && (r.status !== "dropped" || r.id === ticket.requirementId));
+  const reqs = db.requirements.filter((r) => r.productKey === ticket.productKey && ((r.status !== "dropped" && !r.archivedAt) || r.id === ticket.requirementId));
   return (
     <select
       className="meta-select" aria-label="Requirement" value={ticket.requirementId ?? ""}

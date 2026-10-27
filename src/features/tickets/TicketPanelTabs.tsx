@@ -9,7 +9,7 @@ import { useAppState } from "@/features/shell/state";
 import { relativeTime } from "@/domain/status";
 import type { Ticket } from "@/domain/types";
 import { RichText } from "@/features/docs/RichText";
-import { Avatar, EmptyState, IconButton, Tabs } from "@/ui/primitives";
+import { Avatar, EmptyState, IconButton, Tabs, typingMention } from "@/ui/primitives";
 import { TemplateSections } from "./TemplateSections";
 
 export const OVERVIEW = "Overview";
@@ -62,7 +62,7 @@ export function TicketPanelTabs({ ticket, editable, tab, onTab }: {
                       <span className="spacer" />
                       <span className="update-time"><Clock aria-hidden /> {relativeTime(c.at)}</span>
                     </header>
-                    <p className="update-body"><RichText text={c.body} /></p>
+                    <div className="update-body"><RichText text={c.body} /></div>
                   </li>
                 ))}
               </ul>
@@ -94,11 +94,6 @@ export function TicketPanelTabs({ ticket, editable, tab, onTab }: {
 }
 
 const SHOWN_PEOPLE = 6;
-/** The "@name" (or "@@name") being typed right before the caret, if any. */
-const typingMention = (before: string) => {
-  const m = /(?:^|\s)(@@?)([^\s@][^@\n]{0,30}|)$/.exec(before);
-  return m && !/\s{2}$/.test(m[2]) ? { urgent: m[1] === "@@", q: m[2], at: before.length - m[1].length - m[2].length } : null;
-};
 
 /** monday-style composer: focus reveals a formatting toolbar; buttons insert markdown-ish tokens. @ (or @@ for urgent)
  * lists the people who can see the ticket; a pick goes in as "@Full Name", which is what tells them. */

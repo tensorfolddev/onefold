@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, BellOff, BellRing, CheckCheck, CircleCheck, MonitorOff, Share2, Trash2, UserPlus, Users, X } from "lucide-react";
+import { AtSign, BellOff, BellRing, CheckCheck, CircleCheck, Handshake, KeyRound, MonitorOff, Share2, Trash2, UserPlus, Users, X } from "lucide-react";
 import { deleteNotifications, markNotificationsRead } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { playNotice } from "./noticeSounds";
 import { alertDesktop, desktopOn, desktopSupported, setDesktop } from "./desktopAlerts";
 import { useAppState } from "@/features/shell/state";
 import { relativeTime } from "@/domain/status";
-import { Avatar, EmptyState, IconButton, Tabs } from "@/ui/primitives";
+import { EmptyState, IconButton, rem, Tabs } from "@/ui/primitives";
 import type { Notification } from "@/domain/types";
+import { AnyAvatar } from "@/features/room/team/AnyAvatar";
 
 const KIND_ICON: Record<Notification["kind"], React.ReactNode> = {
   mention: <AtSign />,
@@ -19,13 +20,20 @@ const KIND_ICON: Record<Notification["kind"], React.ReactNode> = {
   status: <CheckCheck />,
   invite: <Users />,
   shared: <Share2 />,
+  client: <Handshake />, // the client did something: confirmed, asked for changes, answered
+  vault: <KeyRound />, // a teammate shared a password
 };
 
 export function NotificationsPanel() {
   const { notificationsOpen, setNotificationsOpen, openTicket } = useAppState();
   const [tab, setTab] = useState("All");
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const { db, me, act, personById, href, toast } = useMe();
+  const { db, me, act, personById, clientById, href, toast } = useMe();
+  // A teammate, or someone from a client (Client Space) — with their company.
+  const actorName = useCallback((id: string) => {
+    const c = personById(id) ? undefined : clientById(id);
+    return personById(id)?.name ?? (c ? `${c.name}${c.company ? ` (${c.company})` : ""}` : undefined);
+  }, [personById, clientById]);
   const router = useRouter();
   const [desktop, setDesktopState] = useState(false);
   useEffect(() => setDesktopState(desktopOn()), []); // eslint-disable-line react-hooks/set-state-in-effect -- the browser's permission
@@ -64,12 +72,12 @@ export function NotificationsPanel() {
       if (seen.current.has(n.id)) continue;
       seen.current.add(n.id);
       if (n.read) continue;
-      const who = personById(n.actorId)?.name ?? "Someone";
+      const who = actorName(n.actorId) ?? "Someone";
       playNotice(n.urgent ? "urgent" : "notify");
       toast(`${n.urgent ? "🚨 Urgent: " : "🔔 "}${who} ${n.text}`, undefined, n.urgent ? "error" : "info");
       alertDesktop(n.urgent ? `🚨 ${who} needs you` : `${who} · 1Fold`, n.text, n.id, () => openRef.current(n));
     }
-  }, [db.notifications, me.id, personById, toast]);
+  }, [db.notifications, me.id, actorName, toast]);
 
   if (!notificationsOpen) return null;
 
@@ -95,7 +103,7 @@ export function NotificationsPanel() {
           <IconButton label="Close" onClick={() => setNotificationsOpen(false)}><X /></IconButton>
         </div>
         <Tabs ariaLabel="Notification filter" items={[{ label: "All" }, { label: "Mentioned" }, { label: "Assigned to me" }]} active={tab} onSelect={setTab} />
-        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "12px 0", fontSize: 14 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: rem(8), padding: `${rem(12)} 0`, fontSize: rem(14) }}>
           <button type="button" role="switch" aria-checked={unreadOnly} aria-label="Unread only" className="switch" onClick={() => setUnreadOnly((u) => !u)} />
           Unread only
         </div>
@@ -108,10 +116,10 @@ export function NotificationsPanel() {
             {visible.map((n) => (
               <li key={n.id} className="notification-item">
                 <button type="button" className="notification-row" data-unread={!n.read} onClick={() => open(n)}>
-                  <Avatar personId={n.actorId} />
+                  <AnyAvatar id={n.actorId} size="md" />
                   <span style={{ flex: 1, textAlign: "left" }}>
                     {n.urgent && <span className="notification-urgent">Urgent</span>}
-                    <strong style={{ fontWeight: 500 }}>{personById(n.actorId)?.name}</strong> {n.text}
+                    <strong style={{ fontWeight: 500 }}>{actorName(n.actorId)}</strong> {n.text}
                     <span className="notification-meta">
                       {KIND_ICON[n.kind]} {relativeTime(n.at)}
                     </span>

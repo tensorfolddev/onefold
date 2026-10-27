@@ -18,6 +18,7 @@ import { InlineName } from "@/features/shell/ProductsSidebar";
 import { Popover } from "@/ui/Popover";
 import { getDoc } from "./api";
 import { ancestorsOf, childrenOf, docPath, downloadMarkdown, MY_DOCS, spaceDocs, topLevel } from "./tree";
+import { rem } from "@/ui/primitives";
 
 type Zone = "before" | "inside" | "after";
 const storeKey = (space: string, what: string) => `onefold.docs.${what}.${space || "company"}`;
@@ -113,7 +114,7 @@ export function DocTree({ productKey, activeId, onNewPage }: { productKey: strin
           {editable(doc) && <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setRenaming(doc.id); }}><Pencil aria-hidden /> Rename</button>}
           {canEdit && !personal && !doc.parentId && (
             <>
-              <p className="menu-section-label"><FolderInput aria-hidden style={{ width: 13, height: 13, verticalAlign: -2 }} /> Move to group</p>
+              <p className="menu-section-label"><FolderInput aria-hidden style={{ width: rem(13), height: rem(13), verticalAlign: rem(-2) }} /> Move to group</p>
               {groups.filter((g) => g.id !== doc.groupId).map((g) => (
                 <button key={g.id} type="button" role="menuitem" className="menu-item" onClick={() => { close(); act((d, m) => setDocGroup(d, m, doc.id, g.id)); }}>{g.name}</button>
               ))}

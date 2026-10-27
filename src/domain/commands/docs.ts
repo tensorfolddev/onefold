@@ -408,6 +408,39 @@ export function shareDoc(db: Db, me: Person, docId: string, input: DocSharing): 
   return { ...db, docs: replace(db.docs, (d) => d.id === root.id, () => next), notifications: [...told, ...db.notifications] };
 }
 
+// In a doc's body: [@Name](mention:<personId>), [@Frontend](mention:team:<teamId>) or [@everyone](mention:everyone);
+// "[@@…]" is urgent. Inside code it's just text.
+const DOC_MENTION = /\[(@@?)[^\]\n]*\]\(mention:([^)\s]+)\)/g;
+
+/**
+ * Whom a doc body's mentions reach, and whether urgently: people by name; @everyone and @Team (its people) — on a
+ * project's page, the project's people; on a company page, the company's; on a personal one, whoever it's shared with.
+ * Only people who can see the doc, and never you.
+ */
+function mentionReach(db: Db, me: Person, docId: string, body: string): Map<string, boolean> {
+  const product = spaceOf(db, docOf(db, docId));
+  const crowd = db.people.filter((p) => !product || isOnProduct(p.id, product)); // mentionable() narrows a personal page
+  const reach = new Map<string, boolean>(); // person → urgent
+  const text = body.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
+  for (const [, marks, target] of text.matchAll(DOC_MENTION)) {
+    const team = target.startsWith("team:") ? target.slice(5) : undefined;
+    const ids = target === "everyone" ? crowd.map((p) => p.id) : team ? crowd.filter((p) => p.team === team).map((p) => p.id) : [target];
+    for (const pid of ids) reach.set(pid, !!reach.get(pid) || marks === "@@");
+  }
+  const sees = new Set(mentionable(db, me, docId, [...reach.keys()]).map((p) => p.id));
+  return new Map([...reach].filter(([pid]) => sees.has(pid)));
+}
+
+/** Whom an edit (`before` → `after`) newly mentions, and whom it newly mentions urgently: who's told. */
+export function newDocMentions(db: Db, me: Person, docId: string, before: string, after: string): { mentioned: string[]; urgent: string[] } {
+  const was = mentionReach(db, me, docId, before);
+  const is = [...mentionReach(db, me, docId, after)];
+  return {
+    mentioned: is.filter(([pid]) => !was.has(pid)).map(([pid]) => pid),
+    urgent: is.filter(([pid, urgent]) => urgent && !was.get(pid)).map(([pid]) => pid),
+  };
+}
+
 /** Server only: tells the people newly mentioned in a doc — urgently those newly @@mentioned — if they can see it,
  * and never you. */
 export function notifyDocMentions(db: Db, me: Person, docId: string, personIds: string[], urgentIds: string[] = []): Db {

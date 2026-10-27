@@ -14,7 +14,7 @@ import type { Db } from "../../data/db.ts";
 fixClock(`${SEED_TODAY}T10:00:00`);
 const db0 = demoDb();
 const who = (id: string) => db0.people.find((p) => p.id === id)!;
-const admin = who("u-tayyab"), lead = who("u-ayesha"), sara = who("u-sara");
+const admin = who("u-tayyab"), lead = who("u-ayesha"), sara = who("u-sara"), faraz = who("u-faraz"); // Faraz: a developer not on AP
 const req = (db: Db, id: string) => db.requirements.find((r) => r.id === id)!;
 const line = (id: string, text: string) => ({ id, text, done: false });
 
@@ -30,10 +30,11 @@ test("a requirement gets the project's next code, its fields trimmed, and starts
   assert.equal(nextRequirementCode(db, "OR"), "R1"); // a project with none yet
 });
 
-test("adding refuses an empty title, a taken id, and anyone who doesn't manage the project", () => {
+test("adding refuses an empty title, a taken id, and anyone not on the project", () => {
   assert.throws(() => addRequirement(db0, lead, "AP", { title: "   " }, "rq-2"), ValidationError);
   assert.throws(() => addRequirement(db0, lead, "AP", { title: "Again" }, "AP-R1"), ValidationError);
-  assert.throws(() => addRequirement(db0, sara, "AP", { title: "Mine" }, "rq-3"), AccessError); // a developer reads, doesn't write
+  assert.doesNotThrow(() => addRequirement(db0, sara, "AP", { title: "Mine" }, "rq-3")); // a developer on the project writes them too
+  assert.throws(() => addRequirement(db0, faraz, "AP", { title: "Not mine" }, "rq-3"), AccessError); // a developer who isn't on it doesn't
   assert.doesNotThrow(() => addRequirement(db0, admin, "AP", { title: "Admin's" }, "rq-4"));
 });
 
@@ -44,7 +45,7 @@ test("editing bumps the revision only when the words change", () => {
   db = updateRequirement(db, lead, "rq-5", { title: "Export to CSV", criteria: [line("c1", "Has headers")] });
   assert.equal(req(db, "rq-5").rev, 2);
   assert.throws(() => updateRequirement(db, lead, "rq-5", { title: "" }), ValidationError);
-  assert.throws(() => updateRequirement(db, sara, "rq-5", { title: "Hm" }), AccessError);
+  assert.throws(() => updateRequirement(db, faraz, "rq-5", { title: "Hm" }), AccessError); // not on the project
 });
 
 test("marking confirmed keeps the version as it read; changing it afterwards keeps that version and makes it a draft", () => {

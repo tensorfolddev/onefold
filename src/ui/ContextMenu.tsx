@@ -5,6 +5,7 @@
 // or resizing; scrolling closes it too, except inside the menu itself (so a long list in it can scroll).
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { rem } from "./primitives";
 
 const EDGE = 8;
 
@@ -43,7 +44,7 @@ export function ContextMenu({ x, y, label, width = 256, className = "", onClose,
 
   return createPortal(
     <div ref={ref} className={`menu context-menu ${className}`} role="menu" aria-label={label}
-      style={{ position: "fixed", left: x, top: y, width, maxHeight: `calc(100vh - ${EDGE * 2}px)`, zIndex: 200 }}>
+      style={{ position: "fixed", left: x, top: y, width: rem(width), maxHeight: `calc(100vh - ${EDGE * 2}px)`, zIndex: 200 }}>
       {children}
     </div>,
     document.body,
