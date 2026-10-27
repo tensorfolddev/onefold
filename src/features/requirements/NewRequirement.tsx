@@ -5,14 +5,15 @@ import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { addRequirement } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
-import { nextRequirementCode, PRIORITIES, REQUIREMENT_PRIORITY } from "@/domain/selectors/requirements";
-import type { RequirementPriority } from "@/domain/types";
+import { lookOf, prioritiesOf } from "@/domain/selectors/clientLook";
+import { nextRequirementCode } from "@/domain/selectors/requirements";
 
 export function NewRequirement({ productKey, onClose, onCreated }: { productKey: string; onClose: () => void; onCreated: (id: string) => void }) {
-  const { db, act } = useMe();
+  const { db, act, productByKey } = useMe();
   const ref = useRef<HTMLDialogElement>(null);
   const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState<RequirementPriority>("should");
+  const priorities = prioritiesOf(lookOf(productByKey(productKey))); // the project's own (its Settings → Client tab)
+  const [priority, setPriority] = useState(() => (priorities.find((p) => p.id === "should") ?? priorities[0]).id);
   const [error, setError] = useState<string>();
   useEffect(() => {
     const d = ref.current;
@@ -28,7 +29,7 @@ export function NewRequirement({ productKey, onClose, onCreated }: { productKey:
   };
 
   return (
-    <dialog ref={ref} className="confirm-dialog decision-dialog" aria-labelledby="new-requirement-title" onCancel={(e) => { e.preventDefault(); onClose(); }}>
+    <dialog ref={ref} className="confirm-dialog decision-dialog room-dialog" aria-labelledby="new-requirement-title" onCancel={(e) => { e.preventDefault(); onClose(); }}>
       <form onSubmit={submit} noValidate>
         <h2 id="new-requirement-title" className="confirm-title">New requirement <span className="key">{code}</span></h2>
         <label className="field">
@@ -39,11 +40,14 @@ export function NewRequirement({ productKey, onClose, onCreated }: { productKey:
           </span>
           {error && <span className="field-error" role="alert">{error}</span>}
         </label>
-        <div className="requirement-priority-pick" role="radiogroup" aria-label="Priority">
-          {PRIORITIES.map((p) => (
-            <button key={p} type="button" role="radio" aria-checked={priority === p} className="requirement-priority" style={{ "--p": REQUIREMENT_PRIORITY[p].color } as React.CSSProperties}
-              onClick={() => setPriority(p)}>{REQUIREMENT_PRIORITY[p].label}</button>
-          ))}
+        <div className="field">
+          <span className="field-label" id="new-requirement-priority">Priority</span>
+          <div className="requirement-priority-pick" role="radiogroup" aria-labelledby="new-requirement-priority">
+            {priorities.map((p) => (
+              <button key={p.id} type="button" role="radio" aria-checked={priority === p.id} className="requirement-priority" style={{ "--p": p.color } as React.CSSProperties}
+                onClick={() => setPriority(p.id)}>{p.name}</button>
+            ))}
+          </div>
         </div>
         <p className="decision-dialog-hint">Next: describe it, say where it came from, and list what must be true for it to count as done.</p>
         <div className="confirm-actions">

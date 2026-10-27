@@ -15,7 +15,8 @@ const TABLE = {
   products: s.products, productMembers: s.productMembers, boardLists: s.boardLists, requirements: s.requirements,
   decisions: s.decisions, milestones: s.milestones, docs: s.docs, docGroups: s.docGroups, stageRequests: s.stageRequests, tickets: s.tickets,
   ticketDependencies: s.ticketDependencies, attachments: s.attachments, comments: s.comments, activity: s.activity,
-  notifications: s.notifications,
+  notifications: s.notifications, productClients: s.productClients, clientAsks: s.clientAsks, clientMessages: s.clientMessages, chatReads: s.chatReads,
+  vaultAccounts: s.vaultAccounts, vaults: s.vaults, vaultItems: s.vaultItems,
 } as unknown as Record<TableName, CompanyTable>;
 const CHUNK = 500; // rows per insert statement (well under Postgres' parameter limit)
 
@@ -46,7 +47,7 @@ export async function loadCompany(tx: Tx, orgId: string): Promise<Loaded | null>
     .from(s.members).innerJoin(s.users, eq(s.users.id, s.members.userId)).where(eq(s.members.orgId, orgId));
   const orgData: OrgRow = {
     id: org.id, slug: org.slug, name: org.name, emailDomain: org.emailDomain, domainLock: org.domainLock,
-    createdAt: org.createdAt, createdBy: org.createdBy,
+    createdAt: org.createdAt, createdBy: org.createdBy, clientSpace: org.clientSpace,
   };
   return {
     db: fromRows(orgData, rows, new Map(logins.map((l) => [l.id, l.email]))),

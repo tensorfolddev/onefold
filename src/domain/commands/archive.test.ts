@@ -94,14 +94,20 @@ test("only an admin deletes a project, only once it's archived, and only by typi
   assert.throws(() => A.deleteProduct(archived, admin, "AP", "delete it"), /Type "Delete Acme Portal"/);
 
   const apTickets = new Set(db0.tickets.filter((t) => t.productKey === "AP").map((t) => t.key));
-  const gone = A.deleteProduct(archived, admin, "AP", "  Delete Acme Portal ");
+  const at = "2026-10-20T09:00:00Z";
+  const withChats = {
+    ...archived,
+    asks: [{ id: "q1", productKey: "AP", code: "Q1", title: "Logo", details: "", kind: "file" as const, state: "open" as const, createdBy: "u-ayesha", createdAt: at }],
+    clientMessages: [{ id: "m1", productKey: "AP", subject: "chat:AP", authorId: "u-ayesha", at, body: "Hello" }],
+  };
+  const gone = A.deleteProduct(withChats, admin, "AP", "  Delete Acme Portal ");
   assert.equal(ap(gone), undefined);
   assert.equal(gone.statusesByProduct.AP, undefined);
   assert.equal(gone.tickets.filter((t) => apTickets.has(t.key)).length, 0);
   assert.ok(!gone.tickets.some((t) => t.dependsOn?.some((k) => apTickets.has(k))));
   assert.ok(!gone.comments.some((c) => apTickets.has(c.ticketKey)) && !gone.activity.some((a) => apTickets.has(a.ticketKey)));
   assert.ok(!gone.notifications.some((n) => n.target === "AP" || apTickets.has(n.target)));
-  for (const list of [gone.requirements, gone.decisions, gone.milestones, gone.docs, gone.stageRequests]) {
+  for (const list of [gone.requirements, gone.decisions, gone.milestones, gone.docs, gone.stageRequests, gone.asks, gone.clientMessages]) {
     assert.ok(!list.some((x) => x.productKey === "AP"));
   }
   assert.equal(gone.products.length, db0.products.length - 1);

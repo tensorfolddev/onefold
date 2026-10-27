@@ -5,14 +5,15 @@
 // it and marks it confirmed; a confirmed one is locked until they choose to change it (it then needs confirming again,
 // and the confirmed version is kept). Everyone on the project reads it.
 import dynamic from "next/dynamic";
-import { Check, Pencil, RotateCcw, Trash2, X } from "lucide-react";
+import { Archive, Ban, Check, History, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { deleteRequirement, dropRequirement, markRequirementConfirmed, restoreRequirement, updateRequirement, type RequirementPatch } from "@/data/commands";
+import { archiveRequirements, deleteRequirement, dropRequirement, markRequirementConfirmed, restoreRequirement, updateRequirement, type RequirementPatch } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { coverage } from "@/domain/selectors/product";
-import { PRIORITIES, REQUIREMENT_PRIORITY, REQUIREMENT_STATUS, requirementProgress, SOURCE_KINDS, statusOfRequirement } from "@/domain/selectors/requirements";
+import { lookOf, prioritiesOf, priorityLook, reqPhase } from "@/domain/selectors/clientLook";
+import { requirementProgress, SOURCE_KINDS, statusOfRequirement } from "@/domain/selectors/requirements";
 import { shortDate } from "@/domain/status";
-import type { Requirement, RequirementPriority, RequirementSource, RequirementSourceKind } from "@/domain/types";
+import type { Product, Requirement, RequirementPriority, RequirementSource, RequirementSourceKind } from "@/domain/types";
 import { useEditorLinks } from "@/features/docs/editor/useEditorLinks";
 import { AddLink, EditableText } from "@/features/products/DecisionPanel";
 import { useAppState } from "@/features/shell/state";
@@ -20,8 +21,11 @@ import { TicketPickerList } from "@/features/tickets/TemplateRelations";
 import { ItemsEditor } from "@/features/tickets/TemplateItems";
 import { TypeIcon } from "@/features/tickets/TicketBits";
 import { ConfirmDialog } from "@/ui/ConfirmDialog";
+import { Popover } from "@/ui/Popover";
 import { Battery, StatusPill } from "@/ui/primitives";
-import { hoursText } from "./RequirementsView";
+import { ClientShareButton } from "@/features/room/team/ClientShareButton";
+
+const hoursText = (done: number, total: number) => (total ? `${done} / ${total} h` : "—");
 
 const DocEditor = dynamic(() => import("@/features/docs/editor/DocEditor"), { ssr: false, loading: () => <div className="doc-skeleton" aria-busy="true" /> });
 const SAVE_AFTER_MS = 800;
@@ -49,13 +53,13 @@ function Description({ requirement, editable, onSave }: { requirement: Requireme
   return (
     <div className="decision-body requirement-description">
       <DocEditor body={initial} editable={editable} onChange={onChange} links={links}
-        placeholder={editable ? "Who is it for, what do they need to do, and why? e.g. Sales reps export a customer's orders, so accounting can bill them. Type / for more." : "No description yet."} />
+        placeholder={editable ? "Who is it for, what do they need, and why? Type / for headings and lists" : "No description yet."} />
     </div>
   );
 }
 
 export function RequirementPanel({ requirement: r, onClose }: { requirement: Requirement; onClose: () => void }) {
-  const { db, act, can, personById, productByKey, statusById } = useMe();
+  const { db, act, can, personById, clientById, productByKey, statusById } = useMe();
   const { openTicket, updateTicket } = useAppState();
   const product = productByKey(r.productKey);
   const editable = !!product && can("requirement.edit", { product });
@@ -80,8 +84,9 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
   const linked = db.tickets.filter((t) => t.requirementId === r.id && !t.archivedAt); // epics too: they can be unlinked here
   const linkable = db.tickets.filter((t) => t.productKey === r.productKey && !t.archivedAt && t.requirementId !== r.id);
   const created = personById(r.createdBy);
-  const confirmedBy = personById(r.confirmed?.by);
+  const confirmedBy = personById(r.confirmed?.by) ?? clientById(r.confirmed?.by); // a teammate, or the client (Client Space)
   const changedSince = status === "draft" && !!r.confirmed;
+  const phase = reqPhase(lookOf(product), status, "team"); // the project's own name and colour for it
 
   return (
     <>
@@ -89,9 +94,10 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
       <aside className="side-panel decision-panel requirement-panel" role="dialog" aria-modal="true" aria-labelledby="requirement-panel-title">
         <header className="decision-panel-head">
           <div className="decision-panel-bar">
-            <StatusPill name={REQUIREMENT_STATUS[status].label} tone={REQUIREMENT_STATUS[status].tone} />
+            <span className="room-status requirement-phase" style={{ "--c": phase.color } as React.CSSProperties}>{phase.label}</span>
             <span className="key">{r.code}</span>
             <span className="spacer" />
+            <ClientShareButton r={r} />
             {editable && status === "draft" && (
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setUnlocked(false); act((d, m) => markRequirementConfirmed(d, m, r.id), { success: `${r.code} marked confirmed` }); }}>
                 <Check aria-hidden /> Mark confirmed
@@ -106,18 +112,43 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
               </button>
             )}
             {editable && status !== "dropped" && (
-              <button type="button" className="docs-topbar-btn" aria-label="Drop requirement" data-tip="Drop (out of scope)" onClick={() => { setReason(""); setAsking("drop"); }}><X aria-hidden /></button>
+              <button type="button" className="btn btn-tertiary btn-sm requirement-drop" onClick={() => { setReason(""); setAsking("drop"); }}><Ban aria-hidden /> Drop</button>
             )}
-            {editable && !r.confirmed && !linked.length && (
-              <button type="button" className="docs-topbar-btn" aria-label="Delete requirement" data-tip="Delete" onClick={() => setAsking("delete")}><Trash2 aria-hidden /></button>
+            {!!product && can("requirement.archive", { product }) && (
+              <button type="button" className="btn btn-tertiary btn-sm" onClick={() => { if (act((d, m) => archiveRequirements(d, m, [r.id]), { success: `${r.code} archived — it's in Settings → Archived`, undoable: true })) onClose(); }}>
+                <Archive aria-hidden /> Archive
+              </button>
             )}
+            <Popover
+              floating // the panel clips what overflows it
+              width={300}
+              align="right"
+              trigger={({ open, toggle }) => (
+                <button type="button" className={`docs-topbar-btn${open ? " is-open" : ""}`} aria-label="More: history" aria-haspopup="menu" aria-expanded={open} data-tip="History and more" onClick={toggle}><MoreHorizontal aria-hidden /></button>
+              )}
+            >
+              {(close) => (
+                <div className="requirement-more">
+                  <div className="menu-section-label"><History aria-hidden /> History</div>
+                  <ul className="requirement-history">
+                    {r.createdAt && <li>Added{created ? ` by ${created.name}` : ""} · {shortDate(r.createdAt)}</li>}
+                    {r.confirmed && <li>Confirmed{confirmedBy ? ` by ${confirmedBy.name}` : ""} · {shortDate(r.confirmed.at)} · version {r.confirmed.rev}</li>}
+                    {(r.rev ?? 1) > (r.confirmed?.rev ?? 1) && <li>Now on version {r.rev}{r.updatedAt ? ` · last changed ${shortDate(r.updatedAt)}` : ""}</li>}
+                    {status === "dropped" && <li>Dropped · {r.droppedReason}</li>}
+                  </ul>
+                  {editable && !r.confirmed && !linked.length && (
+                    <button type="button" role="menuitem" className="menu-item is-danger" onClick={() => { close(); setAsking("delete"); }}><Trash2 aria-hidden /> Delete {r.code}</button>
+                  )}
+                </div>
+              )}
+            </Popover>
             <button type="button" className="docs-topbar-btn" aria-label="Close" data-tip="Close" onClick={onClose}><X aria-hidden /></button>
           </div>
           <h2 id="requirement-panel-title" className="decision-panel-title">
             <EditableText key={`${r.title}:${canWrite}`} title label="Requirement" value={r.title} editable={canWrite} required onSave={(v) => save({ title: v })} />
           </h2>
           <div className="requirement-meta">
-            <PriorityPicker value={r.priority} editable={editable && status !== "dropped"} onPick={(p) => save({ priority: p })} />
+            <PriorityPicker product={product} value={r.priority} editable={editable && status !== "dropped"} onPick={(p) => save({ priority: p })} />
             <SourceField key={JSON.stringify(r.source ?? null)} source={r.source} editable={editable && status !== "dropped"} onSave={(s) => save({ source: s })} />
           </div>
           {status === "dropped" && <p className="decision-banner is-quiet requirement-banner">Dropped: {r.droppedReason}</p>}
@@ -169,16 +200,6 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
           </section>
 
           {changedSince && <ConfirmedVersion requirement={r} />}
-
-          <section className="decision-section">
-            <h3 className="decision-section-label">History</h3>
-            <ul className="requirement-history">
-              {r.createdAt && <li>Added{created ? ` by ${created.name}` : ""} · {shortDate(r.createdAt)}</li>}
-              {r.confirmed && <li>Confirmed{confirmedBy ? ` by ${confirmedBy.name}` : ""} · {shortDate(r.confirmed.at)} · version {r.confirmed.rev}</li>}
-              {(r.rev ?? 1) > (r.confirmed?.rev ?? 1) && <li>Now on version {r.rev}{r.updatedAt ? ` · last changed ${shortDate(r.updatedAt)}` : ""}</li>}
-              {status === "dropped" && <li>Dropped · {r.droppedReason}</li>}
-            </ul>
-          </section>
         </div>
       </aside>
 
@@ -207,17 +228,20 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
   );
 }
 
-/** Must / Should / Nice to have — what's essential, and what can wait. Changing it isn't a change to the words. */
-function PriorityPicker({ value, editable, onPick }: { value?: RequirementPriority; editable: boolean; onPick: (p: RequirementPriority) => void }) {
+/** Must / Should / Nice to have (or the project's own) — what's essential, and what can wait. Changing it isn't a
+ *  change to the words. */
+function PriorityPicker({ product, value, editable, onPick }: { product?: Product; value?: RequirementPriority; editable: boolean; onPick: (p: RequirementPriority) => void }) {
+  const look = lookOf(product);
   if (!editable) {
-    return value ? <span className="requirement-priority is-static" style={{ "--p": REQUIREMENT_PRIORITY[value].color } as React.CSSProperties}>{REQUIREMENT_PRIORITY[value].label}</span>
+    const p = priorityLook(look, value);
+    return p ? <span className="requirement-priority is-static" style={{ "--p": p.color } as React.CSSProperties}>{p.name}</span>
       : <span className="muted">No priority yet</span>;
   }
   return (
     <div className="requirement-priority-pick" role="radiogroup" aria-label="Priority">
-      {PRIORITIES.map((p) => (
-        <button key={p} type="button" role="radio" aria-checked={value === p} className="requirement-priority" style={{ "--p": REQUIREMENT_PRIORITY[p].color } as React.CSSProperties}
-          onClick={() => value !== p && onPick(p)}>{REQUIREMENT_PRIORITY[p].label}</button>
+      {prioritiesOf(look).map((p) => (
+        <button key={p.id} type="button" role="radio" aria-checked={value === p.id} className="requirement-priority" style={{ "--p": p.color } as React.CSSProperties}
+          onClick={() => value !== p.id && onPick(p.id)}>{p.name}</button>
       ))}
     </div>
   );

@@ -5,7 +5,7 @@
 // as `staleBy` when something is. Tells the server who has the doc open and who's typing.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { message } from "@/data/api";
-import { getDoc, pingPresence, saveDoc, type DocLink, type DocSaved, type Latest, type Presence, type PresenceChanged } from "./api";
+import { getDoc, pingPresence, saveDoc, type DocLink, type DocSaved, type Latest, type OpenDoc, type Presence, type PresenceChanged } from "./api";
 import { nextSaveDelay } from "./autosave";
 
 const PRESENCE_EVERY_MS = 15_000;
@@ -32,20 +32,34 @@ export interface DocBody {
   reload: () => Promise<void>;
 }
 
+/**
+ * This tab's last copy of each doc it opened (or a link to it was pointed at): shown at once, no loading, while the
+ * latest is fetched. Saving still sends the revision it started from, so a stale copy can't overwrite a newer save.
+ */
+const copies = new Map<string, OpenDoc>();
+const fetching = new Set<string>();
+export function prefetchDoc(id: string) {
+  if (copies.has(id) || fetching.has(id)) return;
+  fetching.add(id);
+  getDoc(id).then((d) => { copies.set(id, d); }, () => { /* opening it fetches again and shows the error */ }).finally(() => fetching.delete(id));
+}
+const keepCopy = (id: string, body: string, rev: number) => { const kept = copies.get(id); if (kept) copies.set(id, { ...kept, body, rev }); };
+
 export function useDocBody(id: string, meId: string, editable: boolean): DocBody {
-  const [status, setStatus] = useState<DocBody["status"]>("loading");
+  const [copy] = useState(() => copies.get(id));
+  const [status, setStatus] = useState<DocBody["status"]>(copy ? "ready" : "loading");
   const [error, setError] = useState("");
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(copy?.body ?? "");
   const [reloadKey, setReloadKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [conflict, setConflict] = useState<Latest | null>(null);
-  const [presence, setPresence] = useState<Presence[]>([]);
-  const [backlinks, setBacklinks] = useState<DocLink[]>([]);
+  const [presence, setPresence] = useState<Presence[]>(copy?.presence ?? []);
+  const [backlinks, setBacklinks] = useState<DocLink[]>(copy?.backlinks ?? []);
   const [staleBy, setStaleBy] = useState<string | null>(null);
 
-  const rev = useRef(0);
+  const rev = useRef(copy?.rev ?? 0);
   const draft = useRef<string | null>(null);
   const firstUnsaved = useRef(0);
   const lastChange = useRef(0);
@@ -55,6 +69,7 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
 
   const load = useCallback(async () => {
     const open = await getDoc(id);
+    copies.set(id, open);
     rev.current = open.rev;
     draft.current = null;
     setBody(open.body);
@@ -66,11 +81,23 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
     setStatus("ready");
   }, [id]);
 
-  // Mounted once per doc (keyed by id), so it starts out "loading".
+  // Mounted once per doc (keyed by id): "loading" — or, with a copy from before, that copy until the latest answers.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads from the server; state is set when it answers
-    load().catch((e: unknown) => { setError(message(e)); setStatus("error"); });
-  }, [load]);
+    if (!copy) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- loads from the server; state is set when it answers
+      load().catch((e: unknown) => { setError(message(e)); setStatus("error"); });
+      return;
+    }
+    getDoc(id).then((open) => {
+      copies.set(id, open);
+      setPresence(open.presence);
+      setBacklinks(open.backlinks);
+      if (open.rev === rev.current || draft.current !== null || inFlight.current) return; // same text — or typing: saving finds out
+      rev.current = open.rev;
+      setBody(open.body);
+      setReloadKey((k) => k + 1);
+    }, () => { /* the copy stays; the next save still checks its revision */ });
+  }, [copy, id, load]);
 
   const saveSoon = useRef<(delay: number) => void>(() => {});
 
@@ -82,6 +109,7 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
     setSaving(true);
     try {
       if (keepalive) { // leaving the page: best effort, the browser finishes it after we're gone
+        copies.delete(id); // no answer to keep: next time, fetch it fresh
         void fetch(`/api/docs/${encodeURIComponent(id)}`, {
           method: "POST", keepalive: true, credentials: "same-origin", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ body: text, baseRev: rev.current }),
@@ -96,6 +124,7 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
         return;
       }
       rev.current = r.rev;
+      keepCopy(id, text, r.rev);
       setSavedAt(Date.now());
       setError("");
     } catch (e) {
@@ -133,11 +162,13 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
       if (draft.current) await navigator.clipboard?.writeText(draft.current).catch(() => {});
       draft.current = null;
       rev.current = latest.rev;
+      keepCopy(id, latest.body, latest.rev);
       setBody(latest.body);
       setReloadKey((k) => k + 1);
     } else {
-      const r = await saveDoc(id, draft.current ?? "", rev.current, true);
-      if ("rev" in r) { rev.current = r.rev; draft.current = null; setSavedAt(Date.now()); }
+      const mine = draft.current ?? "";
+      const r = await saveDoc(id, mine, rev.current, true);
+      if ("rev" in r) { keepCopy(id, mine, r.rev); rev.current = r.rev; draft.current = null; setSavedAt(Date.now()); }
     }
     blocked.current = false;
     setConflict(null);

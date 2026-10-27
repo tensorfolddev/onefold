@@ -68,8 +68,8 @@ export function pendingByProject(db: Db, personId: string): ProjectTasks[] {
 
 /**
  * The brief as a WhatsApp message, built from what this person may see in the app (never a ticket on a product
- * they're no longer on). With nothing pending it's null — the 9:00 brief is then skipped — unless `whenEmpty`
- * (someone asked for it), which says so instead.
+ * they're no longer on). With nothing pending it says so (the company's "no tasks" message) when `whenEmpty` — the
+ * daily brief and a reply of 1FOLD both do (FO-17) — and is null otherwise.
  */
 export function briefText(company: Db, person: Person, clock: { day: string; hour: number }, appUrl: string,
   opts: { whenEmpty?: boolean; settings?: WhatsAppSettings } = {}): string | null {
@@ -159,7 +159,7 @@ export async function sendDueBriefs(opts: {
         })
         .returning();
       if (!claimed.length) continue;
-      const text = briefText(company.db, person, clock, opts.appUrl, { settings });
+      const text = briefText(company.db, person, clock, opts.appUrl, { settings, whenEmpty: true }); // nothing pending: the "no tasks" message (FO-17)
       const { channel, error } = text === null ? { channel: "none" as const, error: null }
         : await deliver({ ...opts, whatsapp }, link.jid, person, orgId, company.db.org.name, text);
       run[channel] += 1;

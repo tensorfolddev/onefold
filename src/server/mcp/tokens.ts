@@ -54,5 +54,5 @@ export async function tokenSession(token: string): Promise<SessionRow | null> {
   try { await activeMemberId(row); } catch { return null; } // turned off in that company: the token is too
   await database().update(s.apiTokens).set({ lastUsedAt: sql`now()` }) // at most once a minute
     .where(and(eq(s.apiTokens.id, id), or(isNull(s.apiTokens.lastUsedAt), lt(s.apiTokens.lastUsedAt, sql`now() - interval '1 minute'`))));
-  return { sessionId: `token:${id}`, userId: row.userId, orgId: row.orgId };
+  return { sessionId: `token:${id}`, userId: row.userId, orgId: row.orgId, kind: "team" };
 }

@@ -4,8 +4,9 @@
 import { DB_VERSION, normalize, type Db } from "../../data/db.ts";
 import { initialsOf } from "../../domain/commands/shared.ts";
 import type {
-  Activity, Attachment, Comment, Decision, Doc, DocShare, Invite, Milestone, Notification, Person, Product, ProductIcon, PullRequest,
-  Requirement, RequirementPriority, RequirementSourceKind, RequirementStatus, RequirementVersion, SectionItem, StageRequest, Status, Team, Ticket, TicketSections,
+  Activity, Ask, Attachment, ChatRead, ClientMessage, ClientPhases, ClientPerson, ClientRole, Comment, Decision, Doc, DocShare, Invite, Milestone, Notification, Person, Product, ProductIcon, PullRequest,
+  PriorityDef, Requirement, RequirementPriority, RequirementSourceKind, RequirementStatus, RequirementVersion, SectionItem, StageRequest, Status, Team, Ticket, TicketSections,
+  VaultAccount, VaultItemRecord, VaultRecord,
 } from "../../domain/types.ts";
 
 export type Row = Record<string, unknown> & { orgId: string; id: string };
@@ -14,13 +15,14 @@ export type Row = Record<string, unknown> & { orgId: string; id: string };
 export const TABLES = [
   "members", "invites", "teams", "jobTitles", "productGroups", "products", "productMembers", "boardLists",
   "requirements", "decisions", "milestones", "docs", "stageRequests", "tickets", "ticketDependencies", "attachments",
-  "comments", "activity", "notifications", "docGroups",
+  "comments", "activity", "notifications", "docGroups", "productClients", "clientAsks", "clientMessages", "chatReads",
+  "vaultAccounts", "vaults", "vaultItems",
 ] as const;
 export type TableName = (typeof TABLES)[number];
 /** Lists whose order matters and is kept in `position`. The rest (logs) are ordered by time. */
 export const POSITIONED: ReadonlySet<TableName> = new Set([
   "members", "invites", "teams", "jobTitles", "productGroups", "products", "productMembers", "boardLists",
-  "requirements", "decisions", "milestones", "docs", "tickets", "ticketDependencies", "attachments", "docGroups",
+  "requirements", "decisions", "milestones", "docs", "tickets", "ticketDependencies", "attachments", "docGroups", "productClients",
 ]);
 
 /** One instant, one spelling: "2026-10-15T04:41:07Z". Accepts a zoneless time (read as UTC) or any offset. */
@@ -40,10 +42,16 @@ export function toRows(db: Db): Record<TableName, Row[]> {
   const r = <T extends object>(id: string, fields: T): Row => ({ orgId, id, ...fields });
   const productKeys = db.products.map((p) => p.key);
   return {
-    members: db.people.map((p) => r(p.id, {
-      name: p.name, color: p.color, role: p.role, team: p.team, capacityH: p.capacityH, panel: opt(p.panel), active: p.active,
-      photo: opt(p.photo),
-    })),
+    members: [
+      ...db.people.map((p) => r(p.id, {
+        name: p.name, color: p.color, role: p.role, team: p.team, capacityH: p.capacityH, panel: opt(p.panel), active: p.active,
+        photo: opt(p.photo), clientCompany: null,
+      })),
+      // Client people are members too (their login, their photo), with the panel "client" — kept apart from the team.
+      ...db.clientPeople.map((c) => r(c.id, {
+        name: c.name, color: c.color, role: "Client", team: "", capacityH: 0, panel: "client", active: c.active, photo: opt(c.photo), clientCompany: c.company,
+      })),
+    ],
     invites: db.invites.map((i) => r(i.id, {
       tokenHash: i.tokenHash, email: i.email, panel: i.panel, role: i.role, invitedBy: i.invitedBy,
       createdAt: instant(i.createdAt), acceptedAt: instantOrNull(i.acceptedAt), revokedAt: instantOrNull(i.revokedAt),
@@ -56,16 +64,19 @@ export function toRows(db: Db): Record<TableName, Row[]> {
       name: p.name, type: p.type, client: opt(p.client), stage: p.stage, health: p.health, pmId: p.pmId,
       projectManagerId: p.projectManagerId, color: p.color, description: p.description, waitingApproval: opt(p.waitingApproval),
       icon: opt(p.icon), priorities: p.priorities && Object.keys(p.priorities).length ? p.priorities : null, groupId: opt(p.groupId), createdAt: p.createdAt,
+      clientPhases: p.clientPhases && Object.keys(p.clientPhases).length ? p.clientPhases : null, requirementPriorities: p.requirementPriorities?.length ? p.requirementPriorities : null,
       archivedAt: instantOrNull(p.archivedAt), archivedBy: opt(p.archivedBy),
     })),
+    productClients: db.products.flatMap((p) => (p.clients ?? []).map((c) => r(`${p.key}:${c.personId}`, { productId: p.key, memberId: c.personId, role: c.role }))),
     productMembers: db.products.flatMap((p) => p.memberIds.map((m) => r(`${p.key}:${m}`, { productId: p.key, memberId: m }))),
     boardLists: productKeys.flatMap((key) => (db.statusesByProduct[key] ?? []).map((s) => r(s.id, {
       productId: key, name: s.name, category: s.category, tone: s.tone, system: opt(s.system),
     }))),
     requirements: db.requirements.map((q) => r(q.id, {
       productId: q.productKey, code: q.code, title: q.title, description: opt(q.description), criteria: q.criteria?.length ? q.criteria : null,
-      status: opt(q.status), priority: opt(q.priority), sourceKind: opt(q.source?.kind), sourceNote: opt(q.source?.note), rev: q.rev ?? null, confirmed: q.confirmed ?? null, proposedBy: opt(q.proposedBy), droppedReason: opt(q.droppedReason),
+      sharedAt: instantOrNull(q.sharedAt), status: opt(q.status), priority: opt(q.priority), sourceKind: opt(q.source?.kind), sourceNote: opt(q.source?.note), rev: q.rev ?? null, confirmed: q.confirmed ?? null, proposedBy: opt(q.proposedBy), droppedReason: opt(q.droppedReason),
       createdAt: instantOrNull(q.createdAt), createdBy: opt(q.createdBy), updatedAt: instantOrNull(q.updatedAt),
+      archivedAt: instantOrNull(q.archivedAt), archivedBy: opt(q.archivedBy),
     })),
     decisions: db.decisions.map((d) => r(d.id, {
       productId: d.productKey, title: d.title, why: d.why, byId: d.byId, date: d.date, status: opt(d.status), context: opt(d.context),
@@ -103,13 +114,34 @@ export function toRows(db: Db): Record<TableName, Row[]> {
       personId: n.personId, kind: n.kind, actorId: n.actorId, text: n.text, target: n.target, at: instant(n.at), read: n.read,
       urgent: n.urgent ? true : null,
     })),
+    clientAsks: db.asks.map((a) => r(a.id, {
+      productId: a.productKey, code: a.code, title: a.title, details: a.details, kind: a.kind, invite: opt(a.invite), assigneeId: opt(a.assigneeId), due: opt(a.due), state: a.state,
+      createdBy: a.createdBy, createdAt: instant(a.createdAt), answeredBy: opt(a.answeredBy), answeredAt: instantOrNull(a.answeredAt), closedAt: instantOrNull(a.closedAt),
+    })),
+    clientMessages: db.clientMessages.map((m) => r(m.id, {
+      productId: m.productKey, subject: m.subject, authorId: m.authorId, at: instant(m.at), body: m.body,
+      kind: opt(m.kind), event: opt(m.event), rev: m.rev ?? null, data: m.data && Object.keys(m.data).length ? m.data : null, via: opt(m.via),
+      deletedAt: instantOrNull(m.deletedAt), hiddenFor: m.hiddenFor?.length ? m.hiddenFor : null, starredBy: m.starredBy?.length ? m.starredBy : null,
+      pinnedAt: instantOrNull(m.pinnedAt), pinnedBy: m.pinnedAt ? opt(m.pinnedBy) : null,
+    })),
+    chatReads: db.chatReads.map((c) => r(`${c.personId}|${c.subject}`, { personId: c.personId, subject: c.subject, at: instant(c.at) })),
+    vaultAccounts: Object.entries(db.vaultAccounts).map(([personId, a]) => r(personId, { ...a })),
+    vaults: db.vaults.map((v) => r(v.id, {
+      kind: v.kind, ownerId: opt(v.ownerId), keys: v.keys, invited: v.invited?.length ? v.invited : null, createdBy: v.createdBy, createdAt: v.createdAt,
+    })),
+    vaultItems: db.vaultItems.map((i) => r(i.id, { vaultId: i.vaultId, iv: i.iv, ciphertext: i.ciphertext, updatedBy: i.updatedBy, updatedAt: instant(i.updatedAt) })),
   };
 }
 
-export interface OrgRow { id: string; slug: string; name: string; emailDomain: string; domainLock: boolean; createdAt: string; createdBy: string }
+export interface OrgRow {
+  id: string; slug: string; name: string; emailDomain: string; domainLock: boolean; createdAt: string; createdBy: string;
+  clientSpace: boolean;
+}
 export const orgRow = (db: Db): OrgRow => {
   const { id, slug, name, emailDomain, domainLock, createdAt, createdBy } = db.org;
-  return { id, slug, name, emailDomain, domainLock, createdAt, createdBy };
+  return {
+    id, slug, name, emailDomain, domainLock, createdAt, createdBy, clientSpace: !!db.org.clientSpace,
+  };
 };
 
 const str = (v: unknown) => v as string;
@@ -133,7 +165,13 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
   const depsOf = byParent(t.ticketDependencies, "ticketId");
   const filesOf = byParent(t.attachments, "ticketId");
 
-  const people: Person[] = t.members.map((m) => ({
+  const clientsOf = byParent(t.productClients ?? [], "productId");
+  const isClient = (m: Row) => m.panel === "client";
+  const clientPeople: ClientPerson[] = t.members.filter(isClient).map((m) => ({
+    id: m.id, name: str(m.name), initials: initialsOf(str(m.name)), color: str(m.color), email: emails.get(m.id) ?? "",
+    company: str(m.clientCompany ?? ""), active: m.active as boolean, ...(m.photo ? { photo: str(m.photo) } : {}),
+  }));
+  const people: Person[] = t.members.filter((m) => !isClient(m)).map((m) => ({
     id: m.id, name: str(m.name), initials: initialsOf(str(m.name)), color: str(m.color), role: str(m.role), team: str(m.team),
     capacityH: m.capacityH as number, email: emails.get(m.id) ?? "", panel: und(m.panel), active: m.active as boolean,
     ...(m.photo ? { photo: str(m.photo) } : {}),
@@ -145,7 +183,10 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
     memberIds: (membersOf.get(p.id) ?? []).map((m) => str(m.memberId)), icon: und<ProductIcon>(p.icon), groupId: und(p.groupId),
     createdAt: str(p.createdAt),
     ...(p.priorities ? { priorities: p.priorities as Product["priorities"] } : {}),
+    ...(p.clientPhases ? { clientPhases: p.clientPhases as ClientPhases } : {}),
+    ...(p.requirementPriorities ? { requirementPriorities: p.requirementPriorities as PriorityDef[] } : {}),
     ...(p.archivedAt ? { archivedAt: instant(str(p.archivedAt)), archivedBy: und<string>(p.archivedBy) } : {}),
+    ...(clientsOf.has(p.id) ? { clients: clientsOf.get(p.id)!.map((c) => ({ personId: str(c.memberId), role: c.role as ClientRole })) } : {}),
   }));
   const statusesByProduct: Record<string, Status[]> = Object.fromEntries(products.map((p) => [p.key, (listsOf.get(p.key) ?? []).map((s) => ({
     id: s.id, name: str(s.name), category: s.category as Status["category"], tone: s.tone as Status["tone"], system: und<Status["system"]>(s.system),
@@ -165,7 +206,7 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
 
   return normalize({
     version: DB_VERSION,
-    org: { ...org },
+    org,
     invites: t.invites.map((i): Invite => ({
       id: i.id, tokenHash: str(i.tokenHash), email: str(i.email), panel: i.panel as Invite["panel"], role: str(i.role),
       invitedBy: str(i.invitedBy), createdAt: str(i.createdAt), acceptedAt: und(i.acceptedAt), revokedAt: und(i.revokedAt),
@@ -188,10 +229,12 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
       ...(typeof q.rev === "number" ? { rev: q.rev } : {}),
       ...(q.confirmed ? { confirmed: q.confirmed as RequirementVersion } : {}),
       ...(q.proposedBy ? { proposedBy: str(q.proposedBy) } : {}),
+      ...(q.sharedAt ? { sharedAt: instant(str(q.sharedAt)) } : {}),
       ...(q.droppedReason ? { droppedReason: str(q.droppedReason) } : {}),
       ...(q.createdAt ? { createdAt: instant(str(q.createdAt)) } : {}),
       ...(q.createdBy ? { createdBy: str(q.createdBy) } : {}),
       ...(q.updatedAt ? { updatedAt: instant(str(q.updatedAt)) } : {}),
+      ...(q.archivedAt ? { archivedAt: instant(str(q.archivedAt)), archivedBy: und<string>(q.archivedBy) } : {}),
     })),
     decisions: t.decisions.map((d): Decision => ({
       id: d.id, productKey: str(d.productId), title: str(d.title), why: str(d.why), byId: str(d.byId), date: str(d.date),
@@ -237,6 +280,36 @@ export function fromRows(org: OrgRow, tables: Record<TableName, Row[]>, emails: 
       target: str(n.target), at: str(n.at), read: n.read as boolean, ...(n.urgent ? { urgent: true } : {}),
     })),
     stageRequests: t.stageRequests.map((s): StageRequest => ({ id: s.id, productKey: str(s.productId), stage: s.stage as StageRequest["stage"], requestedBy: str(s.requestedBy), at: str(s.at) })),
+    clientPeople,
+    asks: (t.clientAsks ?? []).map((a): Ask => ({
+      id: a.id, productKey: str(a.productId), code: str(a.code), title: str(a.title), details: str(a.details), kind: a.kind as Ask["kind"], state: a.state as Ask["state"],
+      ...(a.invite ? { invite: str(a.invite) } : {}),
+      createdBy: str(a.createdBy), createdAt: instant(str(a.createdAt)),
+      ...(a.assigneeId ? { assigneeId: str(a.assigneeId) } : {}), ...(a.due ? { due: str(a.due) } : {}),
+      ...(a.answeredBy ? { answeredBy: str(a.answeredBy) } : {}), ...(a.answeredAt ? { answeredAt: instant(str(a.answeredAt)) } : {}),
+      ...(a.closedAt ? { closedAt: instant(str(a.closedAt)) } : {}),
+    })),
+    clientMessages: (t.clientMessages ?? []).map((m): ClientMessage => ({
+      id: m.id, productKey: str(m.productId), subject: str(m.subject), authorId: str(m.authorId), at: instant(str(m.at)), body: str(m.body),
+      ...(m.kind ? { kind: m.kind as ClientMessage["kind"] } : {}), ...(m.event ? { event: m.event as ClientMessage["event"] } : {}),
+      ...(m.rev ? { rev: m.rev as number } : {}), ...(m.data ? { data: m.data as ClientMessage["data"] } : {}), ...(m.via ? { via: m.via as ClientMessage["via"] } : {}),
+      ...(m.deletedAt ? { deletedAt: instant(str(m.deletedAt)) } : {}),
+      ...((m.hiddenFor as string[] | null)?.length ? { hiddenFor: m.hiddenFor as string[] } : {}),
+      ...((m.starredBy as string[] | null)?.length ? { starredBy: m.starredBy as string[] } : {}),
+      ...(m.pinnedAt ? { pinnedAt: instant(str(m.pinnedAt)), ...(m.pinnedBy ? { pinnedBy: str(m.pinnedBy) } : {}) } : {}),
+    })),
+    chatReads: (t.chatReads ?? []).map((c): ChatRead => ({ personId: str(c.personId), subject: str(c.subject), at: instant(str(c.at)) })),
+    vaultAccounts: Object.fromEntries((t.vaultAccounts ?? []).map((a): [string, VaultAccount] => [a.id, {
+      salt: str(a.salt), iterations: a.iterations as number, iv: str(a.iv), wrappedPrivateKey: str(a.wrappedPrivateKey), publicKey: str(a.publicKey),
+      recoverySalt: str(a.recoverySalt), recoveryIv: str(a.recoveryIv), recoveryWrappedPrivateKey: str(a.recoveryWrappedPrivateKey),
+    }])),
+    vaults: (t.vaults ?? []).map((v): VaultRecord => ({
+      id: v.id, kind: v.kind as VaultRecord["kind"], ...(v.ownerId ? { ownerId: str(v.ownerId) } : {}), keys: v.keys as Record<string, string>,
+      ...((v.invited as string[] | null)?.length ? { invited: v.invited as string[] } : {}), createdBy: str(v.createdBy), createdAt: str(v.createdAt),
+    })),
+    vaultItems: (t.vaultItems ?? []).map((i): VaultItemRecord => ({
+      id: i.id, vaultId: str(i.vaultId), iv: str(i.iv), ciphertext: str(i.ciphertext), updatedBy: str(i.updatedBy), updatedAt: instant(str(i.updatedAt)),
+    })),
   });
 }
 

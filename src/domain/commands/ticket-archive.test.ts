@@ -14,19 +14,21 @@ fixClock(`${SEED_TODAY}T10:00:00`);
 const db0 = demoDb();
 const who = (id: string) => db0.people.find((p) => p.id === id)!;
 // Ayesha manages AP; Sara develops on it.
-const admin = who("u-tayyab"), ayesha = who("u-ayesha"), sara = who("u-sara");
+const admin = who("u-tayyab"), ayesha = who("u-ayesha"), sara = who("u-sara"), faraz = who("u-faraz"); // Faraz: a developer not on AP
 const t = (db: typeof db0, key: string) => db.tickets.find((x) => x.key === key);
 const epicTickets = db0.tickets.filter((x) => x.epicKey === "AP-3").map((x) => x.key); // AP-3 is an epic
 
-test("admins and the product's managers archive and restore tickets; developers can't", () => {
+test("anyone on the product archives and restores its tickets — developers too; nobody else", () => {
   const db = archiveTickets(db0, ayesha, ["AP-25"]);
   assert.equal(t(db, "AP-25")!.archivedBy, "u-ayesha");
   assert.equal(db.activity.at(-1)!.to, "Archived");
-  assert.throws(() => archiveTickets(db0, sara, ["AP-25"]), AccessError);
+  assert.equal(t(archiveTickets(db0, sara, ["AP-25"]), "AP-25")!.archivedBy, "u-sara");
+  assert.throws(() => archiveTickets(db0, faraz, ["AP-25"]), AccessError);
   assert.throws(() => archiveTickets(db, admin, ["AP-25"]), /Already archived/);
   const back = restoreTickets(db, admin, ["AP-25"]);
   assert.deepEqual(t(back, "AP-25"), t(db0, "AP-25")); // exactly as it was
-  assert.throws(() => restoreTickets(db, sara, ["AP-25"]), AccessError);
+  assert.deepEqual(t(restoreTickets(db, sara, ["AP-25"]), "AP-25"), t(db0, "AP-25"));
+  assert.throws(() => restoreTickets(db, faraz, ["AP-25"]), AccessError);
 });
 
 test("archiving an epic archives its tickets, and restoring it brings them all back", () => {

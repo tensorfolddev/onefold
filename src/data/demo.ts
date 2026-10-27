@@ -30,6 +30,7 @@ export function demoDb(shiftTo: string = seed.SEED_TODAY): Db {
     comments: seed.comments,
     notifications: seed.notifications,
     stageRequests: seed.stageRequests,
+    clientPeople: [], asks: [], clientMessages: [], chatReads: [], vaultAccounts: {}, vaults: [], vaultItems: [],
   };
   return normalize(shiftDates(raw, days));
 }

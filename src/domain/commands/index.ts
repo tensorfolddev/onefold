@@ -15,9 +15,16 @@ import {
   restoreProduct, setMember, setPriority, setProductLook, updateProduct,
 } from "./products.ts";
 import {
-  addRequirement, deleteRequirement, dropRequirement, markRequirementConfirmed, restoreRequirement, updateRequirement,
+  addRequirement, archiveRequirements, deleteRequirement, dropRequirement, markRequirementConfirmed, restoreRequirement, unarchiveRequirements, updateRequirement,
 } from "./requirements.ts";
+import {
+  acceptProposal, addClientPerson, addThreadFile, createAsk, deleteChatMessage, pinChatMessage, postThreadMessage, postUpdate, readChat, remindClient,
+  sendRequirementToClient, setAskState, setClientActive, setClientLook, setClientSettings, setProductClient, starChatMessage, updateAsk,
+} from "./clients.ts";
 import { addAttachment, addDependency, removeAttachment, removeDependency, setSection } from "./template.ts";
+import {
+  cancelVaultInvite, deleteVaultItem, grantVault, inviteToVault, rekeyVault, resetVault, rewrapVault, setupVault, shareItems, upsertVaultItem,
+} from "./vault.ts";
 import { addComment, archiveTickets, createTicket, deleteTickets, moveTicket, restoreTickets, updateTicket } from "./tickets.ts";
 
 export const commands = {
@@ -33,7 +40,12 @@ export const commands = {
   addDoc, deleteDoc, addDecision, updateDecision, archiveDecisions, restoreDecisions, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, setDocPublic, shareDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
   // requirements
-  addRequirement, updateRequirement, markRequirementConfirmed, dropRequirement, restoreRequirement, deleteRequirement,
+  addRequirement, updateRequirement, markRequirementConfirmed, dropRequirement, restoreRequirement, deleteRequirement, archiveRequirements, unarchiveRequirements,
+  // Client Space (the team's side)
+  setClientSettings, setClientLook, addClientPerson, setProductClient, setClientActive, createAsk, updateAsk, setAskState, postThreadMessage, addThreadFile, remindClient, postUpdate, sendRequirementToClient, acceptProposal,
+  deleteChatMessage, starChatMessage, pinChatMessage, readChat,
+  // the vault (ciphertext only)
+  setupVault, rewrapVault, shareItems, grantVault, inviteToVault, cancelVaultInvite, rekeyVault, upsertVaultItem, deleteVaultItem, resetVault,
   // people + company
   updatePerson, setPhoto, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
@@ -51,7 +63,11 @@ export {
   addDoc, deleteDoc, addDecision, updateDecision, archiveDecisions, restoreDecisions, upsertMilestone, createDoc, updateDoc, moveDoc, archiveDocs, restoreDocs, deleteDocs, touchDoc, setDocLink, setDocPublic, shareDoc, notifyDocMentions,
   addDocGroup, renameDocGroup, deleteDocGroup, setDocGroup,
   // requirements
-  addRequirement, updateRequirement, markRequirementConfirmed, dropRequirement, restoreRequirement, deleteRequirement,
+  addRequirement, updateRequirement, markRequirementConfirmed, dropRequirement, restoreRequirement, deleteRequirement, archiveRequirements, unarchiveRequirements,
+  // Client Space (the team's side)
+  setClientSettings, setClientLook, addClientPerson, setProductClient, setClientActive, createAsk, updateAsk, setAskState, postThreadMessage, addThreadFile, remindClient, postUpdate, sendRequirementToClient, acceptProposal,
+  deleteChatMessage, starChatMessage, pinChatMessage, readChat,
+  setupVault, rewrapVault, shareItems, grantVault, inviteToVault, cancelVaultInvite, rekeyVault, upsertVaultItem, deleteVaultItem, resetVault,
   updatePerson, setPhoto, addJobTitle, renameJobTitle, deleteJobTitle, addTeam, updateTeam, deleteTeam,
   inviteMembers, revokeInvite, updateOrg,
   // notifications
@@ -67,11 +83,14 @@ export { ticketDeletePhrase } from "./tickets.ts";
 export { DECISION_STATUSES, docDeletePhrase, mentionable, withSubpages } from "./docs.ts";
 export type { DecisionInput, DecisionPatch } from "./docs.ts";
 export type { DocPatch, NewDoc } from "./docs.ts";
+export { VAULT_COMMANDS, type ShareInput } from "./vault.ts";
 export { acceptInvite, inviteProblem, inviteState, isFreeMail, signUp, slugError, slugify, INVITE_DAYS } from "./org.ts";
 export { EMAIL_RE, MIN_PASSWORD, domainOf } from "./shared.ts";
 export type { InviteInput, NewInvite, SignUpInput } from "./org.ts";
 export type { TicketPatch } from "./tickets.ts";
 export type { RequirementInput, RequirementPatch } from "./requirements.ts";
+export { ASK_KINDS, CLIENT_ROLES } from "./clients.ts";
+export type { AskInput } from "./clients.ts";
 export type { StatusPatch } from "./lists.ts";
 export type { PersonPatch } from "./people.ts";
 export type { ProductInput } from "./products.ts";

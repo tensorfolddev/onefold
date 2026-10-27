@@ -2,7 +2,7 @@
 // changes, the session cookies, and errors that tell the person what happened without leaking internals.
 import type { NextRequest } from "next/server";
 import { AccessError, ValidationError } from "../domain/commands/index.ts";
-import { ROUTE_COOKIE, SESSION_COOKIE, SESSION_MAX_AGE_S, signRoute } from "../data/session.ts";
+import { ROUTE_COOKIE, SESSION_COOKIE, SESSION_MAX_AGE_S, signRoute, type RoutePanel } from "../data/session.ts";
 import { readSession, type SessionRow, type SignedIn } from "./accounts.ts";
 
 export class NotSignedIn extends Error {}
@@ -49,9 +49,19 @@ export function appUrl(req: NextRequest): string {
 /** The person's real IP. Behind Caddy, the last X-Forwarded-For entry is the one Caddy added. */
 export const clientIp = (req: NextRequest) => req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "local";
 
+/** A teammate's session. A client's opens only the client space's routes (/api/client/…). */
 export async function requireSession(req: NextRequest): Promise<SessionRow> {
   const session = await readSession(req.cookies.get(SESSION_COOKIE)?.value);
   if (!session) throw new NotSignedIn();
+  if (session.kind !== "team") throw new AccessError();
+  return session;
+}
+
+/** A client's session (Client Space) — never a teammate's. */
+export async function requireClientSession(req: NextRequest): Promise<SessionRow> {
+  const session = await readSession(req.cookies.get(SESSION_COOKIE)?.value);
+  if (!session) throw new NotSignedIn();
+  if (session.kind !== "client") throw new AccessError();
   return session;
 }
 
@@ -82,10 +92,10 @@ function sessionSecret() {
 }
 
 /** The route cookie proxy.ts uses to send people to their panel (signed; grants nothing by itself). */
-export const routeCookie = async (orgSlug: string, personId: string, panel: SignedIn["panel"]) =>
+export const routeCookie = async (orgSlug: string, personId: string, panel: RoutePanel) =>
   `${ROUTE_COOKIE}=${await signRoute({ org: orgSlug, personId, panel }, sessionSecret())}; ${attrs(SESSION_MAX_AGE_S)}`;
 
-export async function signedInCookies(s: SignedIn): Promise<Headers> {
+export async function signedInCookies(s: Pick<SignedIn, "token" | "orgSlug" | "personId"> & { panel: RoutePanel }): Promise<Headers> {
   const h = new Headers();
   h.append("Set-Cookie", `${SESSION_COOKIE}=${s.token}; ${attrs(SESSION_MAX_AGE_S)}`);
   h.append("Set-Cookie", await routeCookie(s.orgSlug, s.personId, s.panel));

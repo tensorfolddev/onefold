@@ -5,7 +5,7 @@
 import { Extension, InputRule, type Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
-import { Bug, FileText, Layers, SquareCheck } from "lucide-react";
+import { Bug, FileText, Layers, SquareCheck, Users } from "lucide-react";
 import { Avatar } from "@/ui/primitives";
 import { safeHref } from "./links";
 import { toDocJson } from "./markdown";
@@ -24,6 +24,8 @@ import { suggestMenu, type MenuItem } from "./SuggestMenu";
 
 export interface DocLinks {
   people: { id: string; name: string; role?: string }[];
+  /** A doc's: its teams, so "@" offers @everyone and @Team too (whoever of them can see the doc is told). */
+  teams?: { id: string; name: string }[];
   tickets: { key: string; title: string; type?: "task" | "bug" | "epic"; status?: { name: string; color: string } }[];
   docs: { id: string; title: string; icon?: string; space?: string }[];
   /** Uploads files into the doc and inserts them (images inline, other files as cards) at `pos`, or the caret. */
@@ -53,12 +55,23 @@ function refItems(get: Get, q: string, limit = LIMIT): MenuItem[] {
     })),
   ];
 }
+/** @everyone and the teams (when the editor offers them), as mention picks: `<prefix><id>`, the id "everyone" or "team:<id>". */
+function groupItems(get: Get, q: string, prefix: string, hint?: string, limit = LIMIT): MenuItem[] {
+  const { teams } = get();
+  if (!teams) return [];
+  return [{ id: "everyone", name: "everyone", about: "Everyone who can see this page" }, ...teams.map((t) => ({ id: `team:${t.id}`, name: t.name, about: "Team" }))]
+    .filter((g) => has(g.name, q)).slice(0, limit)
+    .map((g) => ({ key: `${prefix}${g.id}`, label: g.name, hint: hint ?? g.about, group: hint ? "🚨 Urgent mention" : "Teams", icon: <Users /> }));
+}
+const insertMention = (editor: Editor, range: { from: number; to: number }, attrs: { id: string; label: string; urgent?: boolean }) =>
+  editor.chain().focus().insertContentAt(range, [{ type: "mention", attrs }, { type: "text", text: " " }]).run();
+
 const pickRef = (editor: Editor, range: { from: number; to: number }, item: MenuItem) => {
   const [kind, ...rest] = item.key.split(":");
   insertRef(editor, range.from, range.to, { kind: kind as "ticket" | "doc", id: rest.join(":"), label: item.label });
 };
 
-/** "@" — a person (who can see the doc), a doc or a ticket. */
+/** "@" — a person (who can see the doc), @everyone or a team (in a doc), a doc or a ticket. */
 const MentionPicker = (get: Get) => Extension.create({
   name: "mentionPicker",
   addProseMirrorPlugins() {
@@ -67,29 +80,31 @@ const MentionPicker = (get: Get) => Extension.create({
       allow: ({ editor, range }) => !editor.isActive("codeBlock") && /(^|[\s(])$/.test(editor.state.doc.textBetween(Math.max(0, range.from - 1), range.from, "\n", " ")),
       items: (q) => [
         ...get().people.filter((p) => has(p.name, q)).slice(0, q.trim() ? LIMIT : 4)
-          .map((p) => ({ key: `person:${p.id}`, label: p.name, hint: p.role, group: "People", icon: <Avatar personId={p.id} size="sm" /> })),
+          .map((p) => ({ key: `mention:${p.id}`, label: p.name, hint: p.role, group: "People", icon: <Avatar personId={p.id} size="sm" /> })),
+        ...groupItems(get, q, "mention:", undefined, q.trim() ? LIMIT : 2),
         ...refItems(get, q, q.trim() ? LIMIT : 4),
       ],
       pick: (editor, range, item: MenuItem) => {
-        if (!item.key.startsWith("person:")) return pickRef(editor, range, item);
-        editor.chain().focus().insertContentAt(range, [{ type: "mention", attrs: { id: item.key.slice(7), label: item.label } }, { type: "text", text: " " }]).run();
+        if (!item.key.startsWith("mention:")) return pickRef(editor, range, item);
+        insertMention(editor, range, { id: item.key.slice(8), label: item.label });
       },
     }), pluginKey: new PluginKey("mentionPicker") })];
   },
 });
 
-/** "@@" — an urgent mention: a person only, who's also sent it on WhatsApp. */
+/** "@@" — an urgent mention: a person (or, in a doc, @everyone or a team), also sent on WhatsApp. */
 const UrgentMentionPicker = (get: Get) => Extension.create({
   name: "urgentMentionPicker",
   addProseMirrorPlugins() {
     return [Suggestion({ ...suggestMenu({
       editor: this.editor, char: "@@", empty: "Nobody by that name",
       allow: ({ editor, range }) => !editor.isActive("codeBlock") && /(^|[\s(])$/.test(editor.state.doc.textBetween(Math.max(0, range.from - 1), range.from, "\n", " ")),
-      items: (q) => get().people.filter((p) => has(p.name, q)).slice(0, LIMIT)
-        .map((p) => ({ key: `urgent:${p.id}`, label: p.name, hint: "Urgent · WhatsApp too", group: "🚨 Urgent mention", icon: <Avatar personId={p.id} size="sm" /> })),
-      pick: (editor, range, item: MenuItem) => {
-        editor.chain().focus().insertContentAt(range, [{ type: "mention", attrs: { id: item.key.slice(7), label: item.label, urgent: true } }, { type: "text", text: " " }]).run();
-      },
+      items: (q) => [
+        ...get().people.filter((p) => has(p.name, q)).slice(0, LIMIT)
+          .map((p) => ({ key: `urgent:${p.id}`, label: p.name, hint: "Urgent · WhatsApp too", group: "🚨 Urgent mention", icon: <Avatar personId={p.id} size="sm" /> })),
+        ...groupItems(get, q, "urgent:", "Urgent · WhatsApp too"),
+      ],
+      pick: (editor, range, item: MenuItem) => insertMention(editor, range, { id: item.key.slice(7), label: item.label, urgent: true }),
     }), pluginKey: new PluginKey("urgentMentionPicker") })];
   },
 });

@@ -79,6 +79,41 @@ test("a requirement keeps its words, criteria, status and confirmed version thro
   assert.deepEqual(back.requirements[0], db.requirements[0]); // an old one (code and title only) stays just that
 });
 
+test("client people, their project roles, requests, every kind of chat line and the Client Space switch survive rows and back", () => {
+  const db = demoDb();
+  const client = { id: "c-ali", name: "Ali Raza", initials: "AR", color: "var(--color-berry)", email: "ali@2n5.example", company: "2N5 Global", active: true };
+  const ask = { id: "ask-1", productKey: "AP", code: "Q1", title: "Staging database access", details: "Read-only is enough", kind: "access" as const, invite: "dev@acme.example",
+    assigneeId: "c-ali", due: "2026-10-30", state: "answered" as const, createdBy: "u-ayesha", createdAt: "2026-10-20T09:00:00Z", answeredBy: "c-ali", answeredAt: "2026-10-21T10:00:00Z" };
+  const at = "2026-10-21T10:00:00Z";
+  const msgs = [
+    { id: "m-1", productKey: "AP", subject: "ask:ask-1", authorId: "c-ali", at, body: "Sent the credentials by email." },
+    { id: "m-2", productKey: "AP", subject: "ask:ask-1", authorId: "u-sara", at, body: "Check the VPN too", kind: "note" as const, data: { replyTo: "m-1" } },
+    { id: "m-3", productKey: "AP", subject: "req:r-1", authorId: "u-ayesha", at, body: "", kind: "event" as const, event: "sent" as const, rev: 2 },
+    { id: "m-4", productKey: "AP", subject: "chat:AP", authorId: "u-ayesha", at, body: "", kind: "update" as const,
+      data: { update: { health: "good" as const, stage: "BUILD" as const, week: "Payments in testing", next: "Beta", needs: "" } } },
+    { id: "m-5", productKey: "AP", subject: "chat:AP", authorId: "c-ali", at, body: "Our logo", kind: "file" as const, via: "whatsapp" as const,
+      data: { file: { id: "file-1", name: "logo.svg", type: "image/svg+xml", size: 900 } } },
+    { id: "m-6", productKey: "AP", subject: "chat:AP", authorId: "u-ayesha", at, body: "Typo", deletedAt: at, hiddenFor: ["c-ali"], starredBy: ["u-sara"] },
+    { id: "m-7", productKey: "AP", subject: "chat:AP", authorId: "u-ayesha", at, body: "Read this first", pinnedAt: at, pinnedBy: "c-ali" },
+  ];
+  const chatReads = [{ personId: "c-ali", subject: "chat:AP", at }];
+  const look = { clientPhases: { req: { to_confirm: { name: "Awaiting approval" } } }, requirementPriorities: [{ id: "critical", name: "Critical", color: "#d83a52" }] };
+  const products = db.products.map((p) => (p.key === "AP" ? { ...p, clients: [{ personId: "c-ali", role: "sponsor" as const }], ...look } : p));
+  const withClients = { ...db, org: { ...db.org, clientSpace: true }, clientPeople: [client], asks: [ask], clientMessages: msgs, chatReads, products };
+  const emails = new Map([...db.people.map((p) => [p.id, p.email] as const), [client.id, client.email] as const]);
+  const back = fromRows(orgRow(withClients), withPositions(toRows(withClients)), emails);
+  assert.deepEqual(back.clientPeople, [client]);
+  assert.equal(back.people.some((p) => p.id === "c-ali"), false); // never in the team
+  assert.deepEqual(back.products.find((p) => p.key === "AP")?.clients, [{ personId: "c-ali", role: "sponsor" }]);
+  assert.deepEqual(back.asks, [ask]);
+  assert.deepEqual(back.clientMessages, msgs);
+  assert.deepEqual(back.chatReads, chatReads);
+  assert.equal(back.org.clientSpace, true);
+  const ap = back.products.find((p) => p.key === "AP")!;
+  assert.deepEqual([ap.clientPhases, ap.requirementPriorities], [look.clientPhases, look.requirementPriorities]); // the project's own look
+  assert.equal(back.products.find((p) => p.key === "OF")!.clientPhases, undefined);
+});
+
 test("a project keeps its own priority names and colours through rows and back", () => {
   const db = demoDb();
   const priorities = { critical: { name: "Urgent", color: "#ff0055" }, low: { name: "Someday" } };

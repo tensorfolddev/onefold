@@ -5,6 +5,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../data/db.ts";
 import { AccessError, createDoc as createDocCommand, notifyDocMentions, setDocLink, touchDoc, ValidationError, type NewDoc } from "../domain/commands/index.ts";
+import { newDocMentions } from "../domain/commands/docs.ts";
 import { refsIn, topLink } from "../features/docs/editor/links.ts";
 import { templateFor } from "../domain/docTemplates.ts";
 import { canDoc } from "../domain/docAccess.ts";
@@ -45,10 +46,8 @@ async function notify(tx: Tx, orgId: string, kind: "doc" | "presence", data: obj
   await tx.execute(sql`select pg_notify(${CHANNEL}, ${`${orgId}:${kind}:${JSON.stringify(data)}`})`);
 }
 
-/** Rewrites a doc's link index from its body; returns the people it mentions now that it didn't before. */
-async function relink(tx: Tx, orgId: string, docId: string, body: string): Promise<string[]> {
-  const before = new Set((await tx.select({ target: s.docLinks.target }).from(s.docLinks)
-    .where(and(eq(s.docLinks.orgId, orgId), eq(s.docLinks.docId, docId), eq(s.docLinks.kind, "person")))).map((r) => r.target));
+/** Rewrites a doc's link index from its body. */
+async function relink(tx: Tx, orgId: string, docId: string, body: string) {
   const refs = refsIn(body);
   await tx.delete(s.docLinks).where(and(eq(s.docLinks.orgId, orgId), eq(s.docLinks.docId, docId)));
   const rows = [
@@ -57,7 +56,6 @@ async function relink(tx: Tx, orgId: string, docId: string, body: string): Promi
     ...refs.docs.filter((t) => t !== docId).map((target) => ({ orgId, docId, kind: "doc", target })),
   ];
   if (rows.length) await tx.insert(s.docLinks).values(rows);
-  return refs.people.filter((p) => !before.has(p));
 }
 
 /** Docs (visible to this person, not archived) whose body links to `target`. */
@@ -67,13 +65,15 @@ async function linkedFrom(tx: Tx, db: Db, me: Person, orgId: string, kind: "doc"
   return snapshotFor(db, me).docs.filter((d) => ids.has(d.id) && !d.archivedAt).map((d) => ({ id: d.id, title: d.title, icon: d.icon, productKey: d.productKey, ownerId: d.ownerId }));
 }
 
-/** A model's "[@Hina](mention:hina@acme.com)" → the person's id; someone unknown stays plain "@Hina". */
+/** A model's "[@Hina](mention:hina@acme.com)" → the person's id (@@ stays urgent); someone unknown stays plain "@Hina".
+ * @everyone and a team ([@Frontend](mention:team:<id>)) are kept as they are. */
 export function normalizeMentions(db: Db, markdown: string): string {
-  return markdown.replace(/\[@([^\]\n]*)\]\(mention:([^)\n]+)\)/g, (_m, label: string, who: string) => {
+  return markdown.replace(/\[(@@?)([^\]\n]*)\]\(mention:([^)\n]+)\)/g, (m, at: string, label: string, who: string) => {
+    if (who === "everyone" || db.teams.some((t) => who === `team:${t.id}`)) return m;
     const w = who.trim().toLowerCase();
     const p = db.people.find((x) => x.id === who) ?? db.people.find((x) => x.email && x.email.toLowerCase() === w)
       ?? db.people.find((x) => x.name.toLowerCase() === w || x.name.toLowerCase() === label.trim().toLowerCase());
-    return p?.active ? `[@${p.name}](mention:${p.id})` : `@${label}`;
+    return p?.active ? `[${at}${p.name}](mention:${p.id})` : `${at}${label}`;
   });
 }
 
@@ -97,10 +97,8 @@ export async function createDoc(who: SessionRow, input: NewDoc & { body?: string
       icon: input.icon ?? template?.icon, template: template?.id, kind: template?.kind ?? input.kind,
     });
     const id = made.key;
-    const refs = refsIn(body);
-    const mentioned = refs.people;
-    const linked = setDocLink(made.db, me, id, topLink(body));
-    const db = mentioned.length ? notifyDocMentions(linked, me, id, mentioned, refs.urgent) : linked;
+    const told = newDocMentions(made.db, me, id, "", body);
+    const db = notifyDocMentions(setDocLink(made.db, me, id, topLink(body)), me, id, told.mentioned, told.urgent);
     const version = await saveCompany(tx, loaded, db);
     await tx.insert(s.docBodies).values({ orgId: who.orgId, docId: id, body, rev: 1, updatedBy: me.id });
     await relink(tx, who.orgId, id, body);
@@ -159,9 +157,8 @@ export async function saveBody(who: SessionRow, id: string, input: { body: strin
     await tx.update(s.docBodies).set({ body: input.body, rev, updatedAt: now.toISOString(), updatedBy: me.id })
       .where(and(eq(s.docBodies.orgId, who.orgId), eq(s.docBodies.docId, id)));
     await addVersion(tx, who.orgId, id, rev, doc.title, input.body, me.id, now, true);
-    const mentioned = await relink(tx, who.orgId, id, input.body);
-    const wasUrgent = new Set(refsIn(cur.body).urgent);
-    const urgent = refsIn(input.body).urgent.filter((p) => !wasUrgent.has(p)); // newly @@mentioned
+    await relink(tx, who.orgId, id, input.body);
+    const { mentioned, urgent } = newDocMentions(loaded.db, me, id, cur.body, input.body); // newly (or newly @@) mentioned
     await notify(tx, who.orgId, "doc", { docId: id, productKey: doc.productKey, rev, personId: me.id });
     return { rev, doc, me, db: loaded.db, changed: true, mentioned, urgent };
   });

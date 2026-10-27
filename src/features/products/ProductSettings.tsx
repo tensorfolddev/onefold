@@ -1,13 +1,16 @@
 "use client";
 
 // A project's settings: General (name, key, people, look), Statuses (its board's lists), Priorities (its names and
-// colours for the four levels) and Archived (tickets and docs to bring back or delete for good). A menu on the side
-// jumps between them and follows you as you scroll.
-import { Archive, CircleDot, Flag, Settings2 } from "lucide-react";
+// colours for the four levels), Client tab (its requirement and request phases, and requirement priorities) and
+// Archived (tickets and docs to bring back or delete for good). A menu on the side jumps between them and follows you
+// as you scroll.
+import { Archive, CircleDot, ClipboardCheck, Flag, Settings2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { useMe } from "@/data/StoreProvider";
 import type { Product } from "@/domain/types";
 import { ArchivedDocsBucket } from "@/features/docs/ArchivedDocs";
+import { ArchivedRequirementsBucket } from "@/features/requirements/ArchivedRequirements";
+import { ClientLookSettings } from "@/features/room/team/ClientLookSettings";
 import { ArchivedTicketsBucket } from "./ArchivedTickets";
 import { PrioritySettings } from "./PrioritySettings";
 import { ProductForm } from "./ProductForm";
@@ -27,8 +30,10 @@ export function ProductSettings({ productKey }: { productKey: string }) {
         body: <StatusSettings product={product} /> },
       { id: "priorities", label: "Priorities", icon: Flag, hint: "Rename and recolour the four levels for this project.",
         body: <PrioritySettings product={product} /> },
-      { id: "archived", label: "Archived", icon: Archive, hint: "Archived tickets and docs: bring them back, or delete them for good.",
-        body: <div className="buckets"><ArchivedTicketsBucket product={product} /><ArchivedDocsBucket productKey={product.key} /></div> },
+      { id: "client-tab", label: "Client tab", icon: ClipboardCheck, hint: "What this project's requirement and request phases are called, their colours, and its requirement priorities.",
+        body: <ClientLookSettings product={product} /> },
+      { id: "archived", label: "Archived", icon: Archive, hint: "Archived tickets, docs and requirements: bring them back, or delete them for good.",
+        body: <div className="buckets"><ArchivedTicketsBucket product={product} /><ArchivedDocsBucket productKey={product.key} /><ArchivedRequirementsBucket productKey={product.key} /></div> },
     ]} />
   );
 }

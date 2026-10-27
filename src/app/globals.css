@@ -1,5 +1,6 @@
 /* 1Fold styles: tokens first, then shared UI, then one file per feature. CSS variables only. */
 @import "../styles/tokens.css";
+@import "../styles/themes.css";
 @import "../styles/base.css";
 @import "../styles/ui.css";
 @import "../styles/shell.css";
@@ -15,6 +16,8 @@
 @import "../styles/docs.css";
 @import "../styles/decisions.css";
 @import "../styles/requirements.css";
+@import "../styles/room.css";
 @import "../styles/overview.css";
 @import "../styles/settings.css";
 @import "../styles/integrations.css";
+@import "../styles/vault.css";

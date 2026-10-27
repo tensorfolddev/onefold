@@ -10,7 +10,15 @@ export interface Org {
   domainLock: boolean;
   createdAt: string; // ISO date
   createdBy: string; // founder's person id
+  /** Client Space: clients can sign in and see their projects (off until an admin turns it on). */
+  clientSpace?: boolean;
 }
+
+/** A phase's own look; whatever isn't set keeps the default. Both the team and the client see it. */
+export interface PhaseLook { name?: string; color?: string }
+export interface ClientPhases { req?: Partial<Record<RequirementStatus, PhaseLook>>; ask?: Partial<Record<AskState, PhaseLook>> }
+/** A requirement priority: Must have, or a company's own. `id` is what a requirement keeps. */
+export interface PriorityDef { id: string; name: string; color: string }
 
 /** Someone invited to join. They accept at /invite/<token>, choosing their name and password.
  *  The token itself is a secret: only its SHA-256 hash is stored, and the server never sends it to browsers. */
@@ -45,6 +53,24 @@ export interface Person {
   photo?: string; // "tpl:fox" (a ready-made one) or "file:<id>" (uploaded); none = initials (domain/avatars.ts)
 }
 
+/** A client's person: someone at the client company, signed in by emailed links only (no password). Kept apart from the
+ *  team (db.clientPeople), so no team list, picker or brief ever shows them. They see only what's built for them
+ *  (domain/clientView.ts). */
+export interface ClientPerson {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  email: string;
+  company: string; // "2N5 Global"
+  active: boolean;
+  photo?: string;
+}
+
+/** What a client person does on one project: Sponsor and Product owner confirm and propose; a Tester follows along. */
+export type ClientRole = "sponsor" | "owner" | "tester";
+export interface ProductClient { personId: string; role: ClientRole }
+
 export interface Team {
   id: TeamId;
   name: string;
@@ -75,8 +101,14 @@ export interface Product {
   memberIds: string[]; // besides PM + project manager, who can open this product
   icon?: ProductIcon;
   groupId?: string; // unset = "Ungrouped"
+  /** Client people on this project and their roles (Client Space). */
+  clients?: ProductClient[];
   /** This project's own names and colours for the four priority levels; a level not here keeps the default. */
   priorities?: Partial<Record<Priority, PriorityLook>>;
+  /** The Client tab: this project's own names and colours for the phases of requirements and requests. */
+  clientPhases?: ClientPhases;
+  /** This project's requirement priorities, most important first. None = Must have / Should have / Nice to have. */
+  requirementPriorities?: PriorityDef[];
   createdAt: string; // ISO date
   // Archived: read-only, out of every list and everyone's work, invisible to developers — until it's restored.
   archivedAt?: string; // ISO time
@@ -154,7 +186,8 @@ export interface Attachment {
  *  with the client · confirmed · dropped: out of scope, kept. */
 export type RequirementStatus = "draft" | "proposed" | "to_confirm" | "changes_requested" | "confirmed" | "dropped";
 
-export type RequirementPriority = "must" | "should" | "nice";
+/** A priority id: "must" | "should" | "nice" by default, or one of the project's own (Product.requirementPriorities). */
+export type RequirementPriority = string;
 /** Where a requirement came from — so "we never asked for that" has an answer. */
 export type RequirementSourceKind = "meeting" | "call" | "email" | "whatsapp" | "doc" | "other";
 export interface RequirementSource { kind: RequirementSourceKind; note?: string } // note: "Kickoff call, 12 Oct"
@@ -176,10 +209,13 @@ export interface Requirement {
   rev?: number; // bumped by every change to title, description or criteria; none = 1
   confirmed?: RequirementVersion;
   proposedBy?: string; // a client person, when the client asked for it
+  sharedAt?: string; // when the client first saw it (sent to confirm, or proposed by them); never shared = team only
   droppedReason?: string;
   createdAt?: string;
   createdBy?: string;
   updatedAt?: string;
+  archivedAt?: string; // set = archived: off both boards (the team's and the client's), kept whole until restored
+  archivedBy?: string;
 }
 
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "superseded";
@@ -281,7 +317,7 @@ export interface Comment {
 export interface Notification {
   id: string;
   personId: string; // whose inbox
-  kind: "mention" | "assigned" | "approval" | "status" | "invite" | "shared";
+  kind: "mention" | "assigned" | "approval" | "status" | "invite" | "shared" | "client" | "vault";
   actorId: string;
   text: string;
   target: string; // ticket key, product key, or a page path ("/people")
@@ -289,3 +325,81 @@ export interface Notification {
   read: boolean;
   urgent?: boolean; // an @@mention: louder, and sent on WhatsApp too
 }
+
+/** Something the team needs from the client ("Needs from you"): an answer, access, a file, a decision. */
+export type AskKind = "question" | "access" | "file" | "other";
+export type AskState = "open" | "answered" | "done" | "cancelled";
+export interface Ask {
+  id: string;
+  productKey: string;
+  code: string; // Q1, Q2… per project
+  title: string;
+  details: string;
+  kind: AskKind;
+  invite?: string; // access: who to invite (an email or a username)
+  assigneeId?: string; // one client person; none = anyone on the client side
+  due?: string; // ISO date
+  state: AskState;
+  createdBy: string; // a teammate
+  createdAt: string;
+  answeredBy?: string;
+  answeredAt?: string;
+  closedAt?: string;
+}
+
+/**
+ * One line in a project's client chats (the Client tab): the project's own chat ("chat:<productKey>"), or one
+ * requirement's ("req:<id>") or request's ("ask:<id>"). Text both sides see; a note only the team sees; an event (sent,
+ * confirmed…) the app writes; a weekly update; a file.
+ */
+export type ClientMessageKind = "text" | "note" | "event" | "update" | "file";
+export type ClientEvent = "sent" | "confirmed" | "changes" | "proposed" | "taken" | "asked" | "answered" | "done" | "cancelled" | "reopened" | "reminded";
+export interface ThreadFile { id: string; name: string; type: string; size: number }
+export interface WeeklyUpdate { health: Health; stage: Stage; week: string; next: string; needs: string }
+/** A requirement as it was sent to the client — every version stays in its chat, the newest with Confirm. */
+export interface SentVersion { title: string; description: string; criteria: string[] }
+export interface ClientMessageData { replyTo?: string; file?: ThreadFile; update?: WeeklyUpdate; sent?: SentVersion }
+export interface ClientMessage {
+  id: string;
+  productKey: string;
+  subject: string;
+  authorId: string; // a teammate or a client person
+  at: string;
+  body: string;
+  kind?: ClientMessageKind; // none = text
+  event?: ClientEvent;
+  rev?: number; // the requirement's version an event was about (sent, confirmed)
+  data?: ClientMessageData;
+  via?: "whatsapp" | "email"; // where it came from, when not 1Fold itself
+  deletedAt?: string; // deleted for everyone by its author: "This message was deleted"
+  hiddenFor?: string[]; // people who deleted it just for themselves
+  starredBy?: string[]; // people who starred it — each sees only their own star
+  pinnedAt?: string; // pinned to the top of its chat, for everyone
+  pinnedBy?: string;
+}
+
+/** When someone last read a client chat: the read ticks, and unread counts that follow them to any device. */
+export interface ChatRead { personId: string; subject: string; at: string }
+
+// ---------- the vault (1Password-like): only ciphertext here — the browser encrypts and decrypts (features/vault/crypto.ts) ----------
+
+/** One person's vault account. Their RSA private key is stored only encrypted: with their master password, and once more
+ *  with their recovery code (which only they keep). The public key is shared, so others can give them a vault key. */
+export interface VaultAccount {
+  salt: string; iterations: number; iv: string; wrappedPrivateKey: string; // master password → AES-GCM(private key)
+  publicKey: string;
+  recoverySalt: string; recoveryIv: string; recoveryWrappedPrivateKey: string; // recovery code → AES-GCM(private key)
+}
+/** An encrypted vault: someone's personal one, or one shared password. `keys[personId]` = its key, encrypted with that
+ *  person's public key. */
+export interface VaultRecord {
+  id: string;
+  kind: "personal" | "shared";
+  ownerId?: string; // personal
+  keys: Record<string, string>;
+  /** Shared with someone who has no vault yet: the next key holder to unlock finishes it for them. */
+  invited?: string[];
+  createdBy: string;
+  createdAt: string;
+}
+export interface VaultItemRecord { id: string; vaultId: string; iv: string; ciphertext: string; updatedBy: string; updatedAt: string }

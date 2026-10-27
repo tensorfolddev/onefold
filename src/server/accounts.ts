@@ -11,6 +11,7 @@ import { database, inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
 import { deliverEmail, resetEmail, sendEmail, verifyEmail, type Sent } from "./email.ts";
 import { journal } from "./journal.ts";
+import { sendClientLinks } from "./clientSpace.ts";
 
 const DAY_MS = 86_400_000;
 const SESSION_MS = 30 * DAY_MS; // sliding: renewed when fewer than 15 days are left
@@ -18,14 +19,15 @@ const RENEW_MS = 15 * DAY_MS;
 
 export interface SignedIn { token: string; userId: string; orgId: string; orgSlug: string; personId: string; panel: Panel }
 export type SignInResult = { kind: "signed-in"; session: SignedIn } | { kind: "choose"; companies: { slug: string; name: string }[] };
-/** A valid session, as the API sees it: which login, which company. */
-export interface SessionRow { sessionId: string; userId: string; orgId: string }
+/** A valid session, as the API sees it: which login, which company — and whether it's a client's (Client Space only). */
+export interface SessionRow { sessionId: string; userId: string; orgId: string; kind: SessionKind }
+export type SessionKind = "team" | "client";
 
 export const passwordError = (pw: unknown) =>
   typeof pw !== "string" || pw.length < MIN_PASSWORD ? `Use at least ${MIN_PASSWORD} characters`
     : pw.length > MAX_PASSWORD ? "That password is too long" : null;
 const pgCode = (e: unknown) => ((e as { cause?: { code?: string } }).cause ?? (e as { code?: string }))?.code;
-const findUser = async (email: string) =>
+export const findUser = async (email: string) =>
   (await database().select().from(s.users).where(eq(s.users.email, email.trim().toLowerCase())))[0] ?? null;
 
 /** One email, one company: a login already in a company can't start, join or be invited to another. */
@@ -33,9 +35,13 @@ export const ONE_COMPANY = "already belongs to a company on 1Fold — one email,
 
 const inACompany = async (userId: string) => !!(await companyOf(userId));
 
-/** The company this login is in (the first, for logins from before one-company-each). */
+/** On a team (not a company's client): the rule is about teams — a client of one company can work at another. */
+export const onATeam = sql`${s.members.panel} is distinct from 'client'`;
+
+/** The company this login is on the team of (the first, for logins from before one-company-each). */
 const companyOf = async (userId: string): Promise<string | undefined> =>
-  (await inScope({ userId }, (tx) => tx.select({ orgId: s.members.orgId }).from(s.members).where(eq(s.members.userId, userId)).limit(1)))[0]?.orgId;
+  (await inScope({ userId }, (tx) => tx.select({ orgId: s.members.orgId }).from(s.members)
+    .where(and(eq(s.members.userId, userId), onATeam)).limit(1)))[0]?.orgId;
 
 /** Whether this email's login is in a company already (logins from before the rule may be in more than one). */
 export async function emailInACompany(email: string): Promise<boolean> {
@@ -48,9 +54,9 @@ export async function slugTaken(slug: string): Promise<boolean> {
   return (rows[0] as { taken: boolean }).taken;
 }
 
-async function openSession(tx: Tx, userId: string, orgId: string) {
+export async function openSession(tx: Tx, userId: string, orgId: string, kind: SessionKind = "team") {
   const token = newToken();
-  await tx.insert(s.sessions).values({ id: sha256(token), userId, orgId, expiresAt: new Date(Date.now() + SESSION_MS).toISOString() });
+  await tx.insert(s.sessions).values({ id: sha256(token), userId, orgId, kind, expiresAt: new Date(Date.now() + SESSION_MS).toISOString() });
   return token;
 }
 
@@ -65,7 +71,7 @@ export function personFor(loaded: Loaded, userId: string): Person {
 /** The signed-in person's member id in their company — refused if they're turned off or can't sign in. */
 export async function activeMemberId(who: { userId: string; orgId: string }): Promise<string> {
   const [m] = await inScope({ orgId: who.orgId }, (tx) => tx.select({ id: s.members.id, active: s.members.active, panel: s.members.panel })
-    .from(s.members).where(and(eq(s.members.orgId, who.orgId), eq(s.members.userId, who.userId))));
+    .from(s.members).where(and(eq(s.members.orgId, who.orgId), eq(s.members.userId, who.userId), onATeam)));
   if (!m || !m.active || !m.panel) throw new AccessError();
   return m.id;
 }
@@ -106,7 +112,7 @@ export async function signIn(emailInput: string, password: string, slug?: string
   if (!user || !ok) throw new ValidationError("Wrong email or password");
   const memberships = await inScope({ userId: user.id }, (tx) => tx
     .select({ orgId: s.orgs.id, slug: s.orgs.slug, name: s.orgs.name, personId: s.members.id, panel: s.members.panel, active: s.members.active })
-    .from(s.members).innerJoin(s.orgs, eq(s.orgs.id, s.members.orgId)).where(eq(s.members.userId, user.id)));
+    .from(s.members).innerJoin(s.orgs, eq(s.orgs.id, s.members.orgId)).where(and(eq(s.members.userId, user.id), onATeam)));
   const usable = memberships.filter((m) => m.active && m.panel);
   if (!usable.length) throw new ValidationError(memberships.length ? "Your account is turned off — ask your admin" : "Wrong email or password");
   const chosen = slug ? usable.filter((m) => m.slug === slug) : usable;
@@ -127,7 +133,7 @@ export async function readSession(token: string | undefined): Promise<SessionRow
   if (Date.parse(instant(row.expiresAt)) - Date.now() < SESSION_MS - RENEW_MS) {
     await database().update(s.sessions).set({ expiresAt: new Date(Date.now() + SESSION_MS).toISOString() }).where(eq(s.sessions.id, id));
   }
-  return { sessionId: id, userId: row.userId, orgId: row.orgId };
+  return { sessionId: id, userId: row.userId, orgId: row.orgId, kind: row.kind === "client" ? "client" : "team" };
 }
 
 export async function endSession(token: string | undefined) {
@@ -222,24 +228,28 @@ export async function setPassword(who: SessionRow, personId: string, password: s
 
 // ---------- emailed links: reset a password, confirm an email ----------
 
-type LinkPurpose = "reset" | "verify";
+type LinkPurpose = "reset" | "verify" | "client" | "vault"; // vault: "forgot my vault master password"
 export const RESET_MINUTES = 60;
 const VERIFY_MS = 7 * DAY_MS;
 const LINK_GONE = "This link has expired or was already used — ask for a new one.";
 
-async function issueLink(userId: string, purpose: LinkPurpose, ttlMs: number): Promise<string> {
+export async function issueLink(userId: string, purpose: LinkPurpose, ttlMs: number, orgId?: string): Promise<string> {
   const token = newToken();
-  await database().insert(s.emailTokens).values({ id: sha256(token), userId, purpose, expiresAt: new Date(Date.now() + ttlMs).toISOString() });
+  await database().insert(s.emailTokens).values({ id: sha256(token), userId, purpose, orgId, expiresAt: new Date(Date.now() + ttlMs).toISOString() });
   return token;
 }
 
-const liveLink = (token: string, purpose: LinkPurpose) => and(
+export const liveLink = (token: string, purpose: LinkPurpose) => and(
   eq(s.emailTokens.id, sha256(token)), eq(s.emailTokens.purpose, purpose), gt(s.emailTokens.expiresAt, sql`now()`));
 
-/** "Forgot password": emails a reset link if the address has a login. The caller answers the same either way. */
+/**
+ * "Forgot password": emails a reset link if the address has a login. The caller answers the same either way. A client
+ * has no password: they get their sign-in link instead.
+ */
 export async function requestPasswordReset(emailInput: string, appUrl: string): Promise<void> {
   const user = await findUser(emailInput);
   if (!user) return;
+  if (!(await inACompany(user.id)) && await sendClientLinks(user.id, user.email, appUrl)) return;
   const token = await issueLink(user.id, "reset", RESET_MINUTES * 60_000);
   await sendEmail(resetEmail({ to: user.email, link: `${appUrl}/reset/${token}`, minutes: RESET_MINUTES })); // the platform's: nobody's ever locked out
 }

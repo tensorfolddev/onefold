@@ -3,6 +3,7 @@ import { Figtree, Poppins } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "@/data/StoreProvider";
 import { TooltipLayer } from "@/ui/TooltipLayer";
+import { THEME_SCRIPT } from "@/features/shell/themes";
 
 const figtree = Figtree({
   variable: "--font-figtree",
@@ -24,7 +25,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${figtree.variable} ${poppins.variable}`}>
-      <body className="light-app-theme">
+      {/* The saved theme is applied before the first paint, so React finds the body already themed. */}
+      <body className="light-app-theme" suppressHydrationWarning>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <StoreProvider>{children}</StoreProvider>
         <TooltipLayer />
       </body>

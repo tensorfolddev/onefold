@@ -4,7 +4,21 @@
 // folder the server writes them to (playwright.config.ts).
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test as base, type Browser, type BrowserContext, type Page, type Request } from "@playwright/test";
+
+/**
+ * Before a page is left (goto, reload), the app has sent what was just changed: it marks <html data-saving> while a
+ * change is on its way. Leaving sooner would drop that change — a race that shows up only when the machine is busy.
+ */
+function settleBeforeLeaving(page: Page) {
+  const settled = () => page.waitForFunction(() => !document.documentElement.hasAttribute("data-saving"), undefined, { timeout: 15_000 })
+    .catch(() => { /* still saving after 15 s: go anyway — the test's own checks will say what's missing */ });
+  const goto = page.goto.bind(page), reload = page.reload.bind(page);
+  page.goto = (async (...args: Parameters<Page["goto"]>) => { await settled(); return goto(...args); }) as Page["goto"];
+  page.reload = (async (...args: Parameters<Page["reload"]>) => { await settled(); return reload(...args); }) as Page["reload"];
+}
+const settling = (context: BrowserContext) => { context.on("page", settleBeforeLeaving); return context; };
+const test = base.extend({ context: async ({ context }, provide) => { await provide(settling(context)); } });
 
 const PASSWORD = "Correct-Horse-42";
 const NEW_PASSWORD = "Battery-Staple-77";
@@ -34,7 +48,7 @@ async function signUp(page: Page, company: string, founderEmail: string) {
 }
 
 /** Settings → Archived: opens a bucket ("products", "tickets" or "docs") into its window, and gives that window. */
-async function openArchive(page: Page, what: "products" | "tickets" | "docs" | "decisions") {
+async function openArchive(page: Page, what: "products" | "tickets" | "docs" | "decisions" | "requirements") {
   await page.getByRole("button", { name: new RegExp(`^Archived ${what}`) }).click();
   return page.getByRole("dialog", { name: new RegExp(`^Archived ${what}`) });
 }
@@ -53,7 +67,7 @@ async function emailedLink(to: string, page: string): Promise<string> {
     const files = (await readdir(OUTBOX).catch(() => [] as string[])).sort().reverse();
     for (const f of files) {
       const mail = JSON.parse(await readFile(join(OUTBOX, f), "utf8")) as { to: string; text: string };
-      const found = mail.to === to && mail.text.match(new RegExp(`https?://[^\\s]+(/${page}/[A-Za-z0-9_-]{43})`));
+      const found = mail.to === to && mail.text.match(new RegExp(`https?://[^\\s]+(/${page}/[A-Za-z0-9_-]{12,43})`)); // a one-time token, or a client's own code
       if (found) return (link = found[1]);
     }
     return "";
@@ -75,7 +89,32 @@ async function signOut(page: Page) {
   await expect(page).toHaveURL(/\/signin/);
 }
 
-const freshPage = async (browser: Browser) => (await browser.newContext()).newPage();
+const freshPage = async (browser: Browser) => settling(await browser.newContext()).newPage();
+
+/**
+ * Does `act`, then waits for the server to have the change it sends — going to another page first would drop it.
+ * The app sends changes one at a time, in order: so it waits for every save that starts after `act`, all answered —
+ * not just the next answer, which may be an earlier change's still on its way under load.
+ */
+async function andSaved(page: Page, act: () => Promise<unknown>) {
+  const open = new Set<Request>();
+  let started = 0, failed = false;
+  const onStart = (r: Request) => { if (r.url().endsWith("/api/org/changes") && r.method() === "POST") { started += 1; open.add(r); } };
+  const onEnd = async (r: Request) => {
+    if (!open.has(r)) return;
+    if (!(await r.response())?.ok()) failed = true;
+    open.delete(r);
+  };
+  const onFail = (r: Request) => { if (open.delete(r)) failed = true; };
+  page.on("request", onStart); page.on("requestfinished", onEnd); page.on("requestfailed", onFail);
+  try {
+    await act();
+    await expect.poll(() => started > 0 && open.size === 0, { timeout: 15_000 }).toBe(true);
+    expect(failed).toBe(false);
+  } finally {
+    page.off("request", onStart); page.off("requestfinished", onEnd); page.off("requestfailed", onFail);
+  }
+}
 
 test("sign-up asks for the company first, then the admin account — and validates each step before moving on", async ({ page }) => {
   await page.goto("/signup");
@@ -211,8 +250,16 @@ test("requirements: write one with acceptance criteria, link a ticket, confirm i
   await expect(page.getByRole("dialog")).toBeVisible();
 
   await page.goto("/admin/products/LE/requirements");
-  await expect(page.getByText("No requirements yet")).toBeVisible();
-  await page.getByRole("button", { name: "New requirement" }).click();
+  await page.locator(".room-sections").getByRole("tab", { name: "Requirements" }).click(); // the tab opens on its chat
+  await expect(page.locator(".room-kanban")).toContainText("No requirements"); // the kanban first: every phase, empty
+  const reqBoard = page.locator(".room-kanban");
+  const reqCol = (await reqBoard.locator(".kanban-col-body").first().boundingBox())!;
+  await page.mouse.move(reqCol.x + reqCol.width / 2, reqCol.y + 60);
+  await page.mouse.wheel(400, 0); // a sideways scroll over a column moves the board, as on the tickets board
+  await expect.poll(() => reqBoard.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  await page.mouse.wheel(-400, 0);
+  await expect.poll(() => reqBoard.evaluate((el) => el.scrollLeft)).toBe(0);
+  await page.getByRole("button", { name: "New requirement" }).first().click();
   await page.getByLabel("Requirement", { exact: true }).fill("Customers can pay by card");
   await page.getByRole("button", { name: "Add and write" }).click();
   const panel = page.locator(".requirement-panel");
@@ -252,57 +299,34 @@ test("requirements: write one with acceptance criteria, link a ticket, confirm i
   await expect(panel).toContainText("Confirmed version (version 3"); // the title and its two criteria were three versions
   await expect(panel.locator(".requirement-confirmed")).toContainText("Customers can pay by card"); // what was agreed, kept
 
-  await panel.getByRole("button", { name: "Drop requirement" }).click();
+  await panel.getByRole("button", { name: "Drop", exact: true }).click(); // never at once: it asks why first
   await page.getByLabel("Why is it out of scope?").fill("The client moved it to phase 2");
-  await page.getByRole("button", { name: "Drop it" }).click();
+  await andSaved(page, () => page.getByRole("button", { name: "Drop it" }).click()); // saved before the reload below
   await expect(panel).toContainText("Dropped: The client moved it to phase 2");
 
   await page.goto("/admin/products/LE/requirements"); // a fresh load: all of it was saved on the server
-  await expect(page.getByRole("listitem", { name: "Dropped", exact: true })).toContainText("Customers can pay by card or wallet"); // the board, by default
-  await page.getByRole("tab", { name: "Table" }).click();
-  await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeHidden(); // Dropped starts folded
-  await page.getByRole("button", { name: /^Dropped/ }).click();
-  await expect(page.getByRole("button", { name: "Customers can pay by card or wallet" })).toBeVisible();
-  await expect(page.locator(".requirements-row")).toContainText("Must");
-  await page.getByRole("button", { name: "Customers can pay by card or wallet" }).click();
+  await page.locator(".room-sections").getByRole("tab", { name: "Requirements" }).click();
+  await page.getByRole("region", { name: "Dropped" }).locator(".room-kcard", { hasText: "Customers can pay by card or wallet" }).click();
+  await expect(page.locator(".room-card")).toContainText("Dropped: The client moved it to phase 2");
+  await page.locator(".room-chat-actions").getByRole("button", { name: "Edit" }).click();
   await expect(page.locator(".requirement-panel")).toContainText("From meeting: Kickoff call, 12 Oct");
-  await page.locator(".requirement-panel").getByRole("button", { name: "Close" }).click();
-  await expect(page.getByRole("button", { name: /^Draft/ })).toHaveCount(0); // no other group: it was the only one
-});
+  await expect(page.locator(".requirement-panel")).toContainText("Must have");
 
-test("requirements board: drag a draft to Confirmed, to Dropped (it asks why), and back out", async ({ page }) => {
-  await signUp(page, "Boardwalk", email("bw"));
-  await page.getByRole("button", { name: "Skip for now" }).click();
-  await page.goto("/admin/products?new=1");
-  await page.getByPlaceholder("Product name").fill("Boardwalk");
-  await page.getByText("Our own product").click();
-  await page.getByRole("button", { name: "Create product" }).click();
-  await expect(page).toHaveURL(/\/admin\/products\/BO$/);
-  await page.goto("/admin/products/BO/requirements");
-  await page.getByRole("button", { name: "New requirement" }).click();
-  await page.getByLabel("Requirement", { exact: true }).fill("Weekly report email");
-  await page.getByRole("button", { name: "Add and write" }).click();
-  await page.locator(".requirement-panel").getByRole("button", { name: "Close" }).click();
-  await expect(page.locator(".requirement-panel")).toHaveCount(0);
-
-  const column = (name: string) => page.getByRole("listitem", { name, exact: true }); // a board list, like the tickets'
-  const drag = async (to: string) => {
-    await page.locator(".requirement-card", { hasText: "Weekly report email" }).hover();
-    await page.mouse.down();
-    const box = (await column(to).boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + 120, { steps: 12 });
-    await page.mouse.up();
-  };
-  await expect(column("Draft")).toContainText("Weekly report email");
-  await drag("Confirmed");
-  await expect(column("Confirmed")).toContainText("Weekly report email");
-  await expect(page.locator(".requirement-panel")).toHaveCount(0); // letting go isn't a click: nothing opened
-  await drag("Dropped");
-  await page.getByLabel("Why is it out of scope?").fill("Not this year");
-  await page.getByRole("button", { name: "Drop it" }).click();
-  await expect(column("Dropped")).toContainText("Not this year");
-  await drag("Confirmed"); // out of Dropped: restored, and still confirmed (nothing changed since)
-  await expect(column("Confirmed")).toContainText("Weekly report email");
+  // An admin archives it with a right-click on its card: off the board, into Settings → Archived — and back.
+  await page.goto("/admin/products/LE/requirements");
+  await page.locator(".room-sections").getByRole("tab", { name: "Requirements" }).click();
+  const card = page.locator(".room-kcard", { hasText: "Customers can pay by card or wallet" });
+  await card.click({ button: "right" });
+  await andSaved(page, () => page.getByRole("menuitem", { name: "Archive requirement" }).click());
+  await expect(card).toHaveCount(0);
+  await page.goto("/admin/settings");
+  const archived = await openArchive(page, "requirements");
+  await expect(archived).toContainText("Customers can pay by card or wallet");
+  await andSaved(page, () => archived.getByRole("button", { name: /^Restore R\d+$/ }).click());
+  await expect(archived).toContainText("Nothing archived");
+  await page.goto("/admin/products/LE/requirements");
+  await page.locator(".room-sections").getByRole("tab", { name: "Requirements" }).click();
+  await expect(page.locator(".room-kcard", { hasText: "Customers can pay by card or wallet" })).toBeVisible();
 });
 
 const PNG_1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
@@ -374,6 +398,55 @@ test("a forgotten password is reset from the emailed link, which then stops work
 
   await page.goto(link);
   await expect(page.getByRole("heading", { name: "This link can't be used" })).toBeVisible();
+});
+
+test("vault: a master password and a recovery code only you hold; forgot it → emailed link + the code → a new one, passwords kept", async ({ page }) => {
+  const MASTER = "Blue-Harbor-Lantern-93", NEW_MASTER = "Quiet-Copper-Meadow-58";
+  await signUp(page, "Vaulty", email("vee"));
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("link", { name: "Vault" }).click();
+  await expect(page.getByRole("heading", { name: "Create your master password" })).toBeVisible();
+  await page.getByLabel("Master password", { exact: true }).fill(MASTER);
+  await page.getByLabel("Type it again").fill(MASTER);
+  await page.getByRole("button", { name: "Create my vault" }).click();
+
+  // The recovery code: shown once, never emailed; the vault opens only once it's saved.
+  await expect(page.getByRole("heading", { name: "Save your recovery code" })).toBeVisible({ timeout: 20_000 });
+  const code = (await page.locator(".vault-code").textContent())!;
+  expect(code).toMatch(/^([A-Z2-9]{4}-){5}[A-Z2-9]{4}$/);
+  await expect(page.getByRole("button", { name: "Open my vault" })).toBeDisabled();
+  await page.getByLabel(/I've saved my recovery code/).check();
+  await page.getByRole("button", { name: "Open my vault" }).click();
+  await page.getByRole("button", { name: "Add item" }).first().click();
+  await page.getByLabel("Item name").fill("Stripe");
+  await page.getByLabel("Password", { exact: true }).fill("sk-live-hunter2");
+  await andSaved(page, () => page.getByRole("button", { name: "Save item" }).click());
+  await expect(page.getByRole("list", { name: "Personal" })).toContainText("Stripe"); // Cards, unless you pick Table
+
+  // Forgot it: a link to their own inbox, then the code and a new master password — in this browser only.
+  await page.getByRole("button", { name: "Lock", exact: true }).click();
+  await page.getByRole("button", { name: /Forgot your master password/ }).click();
+  await expect(page.getByText("We emailed you a link")).toBeVisible();
+  const link = await emailedLink(email("vee"), "vault/recover");
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "Choose a new master password" })).toBeVisible();
+  await page.getByLabel("Recovery code").fill(code.toLowerCase().replace(/-/g, " ")); // typed loosely is fine
+  await page.getByLabel("New master password").fill(NEW_MASTER);
+  await page.getByLabel("Type it again").fill(NEW_MASTER);
+  await page.getByRole("button", { name: "Set new master password" }).click();
+  await expect(page.getByRole("list", { name: "Personal" })).toContainText("Stripe", { timeout: 20_000 }); // kept, and open
+  await expect(page).toHaveURL(/\/admin\/vault$/);
+
+  await page.getByRole("button", { name: "Lock", exact: true }).click();
+  await page.getByLabel("Master password", { exact: true }).fill(MASTER);
+  await page.getByRole("button", { name: "Unlock" }).click();
+  await expect(page.getByText("Wrong master password")).toBeVisible({ timeout: 20_000 }); // the old one is gone
+  await page.getByLabel("Master password", { exact: true }).fill(NEW_MASTER);
+  await page.getByRole("button", { name: "Unlock" }).click();
+  await expect(page.getByRole("list", { name: "Personal" })).toContainText("Stripe", { timeout: 20_000 });
+
+  await page.goto(link); // once
+  await expect(page.getByText("This link has expired or was already used")).toBeVisible();
 });
 
 test("WhatsApp: every company has its own number — until it's connected, a teammate is told there's nothing to link to; no shared bot", async ({ page }) => {
@@ -452,14 +525,14 @@ test("an admin archives a project: it moves to the closed Archived group, read-o
   await expect(page.locator(".archived-banner")).toContainText("read-only"); // its page says so
 
   await archived.click();
-  await sidebar.getByRole("button", { name: "Restore Legacy" }).click(); // one click
+  await andSaved(page, () => sidebar.getByRole("button", { name: "Restore Legacy" }).click()); // one click — saved, so the archive below waits for its own save
   await expect(archived).toContainText("0");
   await expect(page.locator(".archived-banner")).toHaveCount(0);
   await expect(sidebar.getByRole("button", { name: "Legacy options" })).toBeVisible();
 
   // Deleting for good: archived first, then type "Delete Legacy" and agree — until then the button stays off.
   await sidebar.getByRole("button", { name: "Legacy options" }).click();
-  await page.getByRole("button", { name: "Archive project" }).click();
+  await andSaved(page, () => page.getByRole("button", { name: "Archive project" }).click()); // saved before we leave
   const legacy = page.url();
   await page.goto("/admin/settings"); // and in Settings → Archived, with everything else archived
   await expect(page.getByRole("button", { name: /^Archived products/ })).toContainText("Legacy");
@@ -558,7 +631,7 @@ test("tickets are archived, not deleted: off the board, in Settings → Archived
 
   const archiveFromPanel = async () => {
     await page.getByRole("dialog").getByRole("button", { name: "More actions" }).click();
-    await page.getByRole("menuitem", { name: "Archive ticket" }).click();
+    await andSaved(page, () => page.getByRole("menuitem", { name: "Archive ticket" }).click()); // on the server before the page moves on
     await expect(page.locator(".ticket-panel")).toHaveCount(0);
   };
   await archiveFromPanel(); // a new ticket opens itself
@@ -697,11 +770,11 @@ test("docs: a teammate sees a save live and who's editing; only an admin archive
   await page.goto("/admin/settings");
   let archived = await openArchive(page, "docs");
   await expect(archived).toContainText("Handbook page");
-  await archived.getByRole("button", { name: "Restore Handbook page" }).click();
+  await andSaved(page, () => archived.getByRole("button", { name: "Restore Handbook page" }).click()); // saved before we leave
   await expect(archived).toContainText("Nothing archived");
   await page.goto("/admin/docs");
   await page.getByRole("button", { name: "More for Handbook page" }).click();
-  await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
+  await andSaved(page, () => page.getByRole("menuitem", { name: "Archive", exact: true }).click());
   await expect(page.locator(".doc-tree")).not.toContainText("Handbook page");
   await page.goto("/admin/settings");
   archived = await openArchive(page, "docs");
@@ -816,6 +889,10 @@ test("decisions: sticky notes by default, written freely in the editor, supersed
   await page.reload(); // the link reopens it, text kept — with its heading and bold
   await expect(panel.locator(".ProseMirror h2")).toHaveText("Trade-offs");
   await expect(panel.locator(".ProseMirror strong")).toHaveText("more teams");
+  const writes: string[] = []; // from here: what the reopened page sends (not the old one's last save as it unloads)
+  page.on("request", (r) => { if (r.method() === "POST" && r.url().endsWith("/api/org/changes")) writes.push(r.postData() ?? ""); });
+  await page.waitForTimeout(2000); // longer than the editor's save delay
+  expect(writes).toEqual([]); // opening it saves nothing (a developer, who can't edit, was told "You don't have access")
 
   await panel.getByRole("button", { name: "Status: Accepted. Change status" }).click();
   await page.getByRole("menuitemradio", { name: "Superseded" }).click();
@@ -856,9 +933,7 @@ test("decisions: sticky notes by default, written freely in the editor, supersed
   // Archive one from its right-click menu: it leaves the log, kept whole in Settings → Archived, and comes back.
   const log = page.url();
   await note("Bill yearly").click({ button: "right" });
-  const saved2 = page.waitForResponse((r) => r.url().endsWith("/api/org/changes") && r.ok());
-  await page.getByRole("menuitem", { name: "Archive decision" }).click();
-  await saved2;
+  await andSaved(page, () => page.getByRole("menuitem", { name: "Archive decision" }).click());
   await expect(page.getByText(/“Bill yearly” archived/)).toBeVisible();
   await expect(note("Bill yearly")).toHaveCount(0);
   await page.goto("/admin/settings");
@@ -1073,7 +1148,7 @@ test("members: leads up top, the team as cards with what they carry; add someone
   await expect(page.locator(".toast-message", { hasText: /ask an admin to invite them first/ })).toBeVisible();
   await page.getByRole("button", { name: "Add member" }).click();
   await page.getByLabel("Search people to add").fill("oma");
-  await page.getByRole("menuitem", { name: /Omar Dev/ }).click();
+  await andSaved(page, () => page.getByRole("menuitem", { name: /Omar Dev/ }).click()); // saved before the developer looks
   const card = page.getByRole("list", { name: "Team" }).getByRole("listitem").filter({ hasText: "Omar Dev" });
   await expect(card).toContainText("0 open · 0 done");
 
@@ -1154,9 +1229,7 @@ test("notifications: an @mention in an update reaches them live; @@ is urgent; b
   await expect(rows).toHaveCount(3);
   await expect(rows.first()).toContainText("assigned you");
   await expect(rows.last()).toContainText(/mentioned you in [A-Z]+-1 Launch page/);
-  const saved = dev.waitForResponse((r) => r.url().endsWith("/api/org/changes") && r.ok());
-  await dev.getByRole("dialog", { name: "Notifications" }).getByRole("button", { name: "Delete notification" }).first().click();
-  await saved;
+  await andSaved(dev, () => dev.getByRole("dialog", { name: "Notifications" }).getByRole("button", { name: "Delete notification" }).first().click());
   await expect(rows).toHaveCount(2);
   await dev.reload();
   await dev.getByRole("button", { name: "Notifications, 0 unread" }).click();
@@ -1627,7 +1700,7 @@ test("Change photo: a ready-made one, or one from your device (cropped to a squa
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("button", { name: "Change photo" }).click();
   const dialog = page.getByRole("dialog", { name: "Your photo" });
-  await dialog.getByRole("radio", { name: "fox" }).click();
+  await andSaved(page, () => dialog.getByRole("radio", { name: "fox" }).click()); // saved before the reload below
   await expect(page.getByText("Photo changed")).toBeVisible();
   await expect(dialog.getByRole("radio", { name: "fox" })).toHaveAttribute("aria-checked", "true");
   await dialog.getByRole("button", { name: "Close" }).click();
@@ -1683,4 +1756,134 @@ test("live updates come back after the connection is refused (a 502 while 1Fold 
   await expect(other.locator(".kanban-card", { hasText: "Made while it was down" })).toBeVisible({ timeout: 20_000 }); // caught up, no reload
   await add("Made after");
   await expect(other.locator(".kanban-card", { hasText: "Made after" })).toBeVisible({ timeout: 15_000 }); // and live again
+});
+
+test("Client Space: the team adds a client, sends a requirement and a request in their chats, writes a note they never see — the client confirms and answers", async ({ page, browser }) => {
+  const founder = email("cs");
+  const client = email("ali").replace("@acme.example", "@northwind.example");
+  await signUp(page, "Clientele", founder);
+  await confirmEmail(page, founder); // emails go out in the company's name: confirmed first
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.goto("/admin/products?new=1");
+  await page.getByPlaceholder("Product name").fill("Storefront");
+  await page.getByText("Built for a customer").click();
+  await page.getByLabel("Client name").fill("Northwind");
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/ST$/);
+  await expect(page.getByRole("tab", { name: "Requirements" })).toBeVisible(); // Client Space off: the team's own requirements
+  await page.goto("/admin/settings");
+  await andSaved(page, () => page.getByRole("switch", { name: "Client Space" }).click());
+
+  await page.goto("/admin/products/ST/requirements");
+  await expect(page.getByRole("tab", { name: /^Client/ })).toBeVisible();
+  await page.getByRole("tab", { name: /^Chat/ }).click(); // the project's chat: a section of its own
+  await page.locator(".room-chat-title").click(); // the project chat's details: who's on it
+  await page.locator(".room-details").getByRole("button", { name: "Add" }).click();
+  const add = page.getByRole("dialog", { name: "Add a client to Storefront" });
+  await add.getByLabel("Name").fill("Ali Raza");
+  await add.getByLabel("Email").fill(client);
+  await expect(add.getByLabel("Company")).toHaveValue("Northwind");
+  await add.getByRole("button", { name: "Add and make link" }).click();
+  await expect(page.getByRole("heading", { name: "Ali Raza is on Storefront" })).toBeVisible();
+  await expect(page.getByLabel("Their link")).toHaveText(/\/c\/l\/[A-Za-z0-9]{12}$/); // short, and theirs to keep
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.locator(".room-details-close").click();
+
+  await page.getByRole("tab", { name: /^Requests/ }).click();
+  await page.getByRole("button", { name: "New request" }).first().click();
+  const ask = page.getByRole("dialog", { name: /Ask Northwind for something/ });
+  await ask.getByLabel("What you need").fill("Access to your Stripe account");
+  await ask.getByLabel("Who should they invite?").fill("payments@clientele.example");
+  await ask.getByLabel("For").selectOption({ label: "Ali Raza" });
+  await andSaved(page, () => ask.getByRole("button", { name: "Send request" }).click());
+  await expect(page.locator(".room-card")).toContainText("payments@clientele.example"); // its chat opened
+  await page.locator(".room-chat-close").click();
+
+  await page.getByRole("tab", { name: /^Requirements/ }).click();
+  await page.getByRole("button", { name: "New requirement" }).first().click();
+  await page.locator("dialog[open]").getByLabel("Requirement", { exact: true }).fill("Customers can pay by card");
+  await page.getByRole("button", { name: "Add and write" }).click();
+  const panel = page.locator(".requirement-panel");
+  await panel.getByLabel("Add to Acceptance criteria").fill("Card form");
+  await panel.getByLabel("Add to Acceptance criteria").press("Enter");
+  await panel.getByRole("button", { name: "Close" }).click();
+  await andSaved(page, () => page.locator(".room-card").getByRole("button", { name: "Send to client" }).click());
+  await expect(page.locator(".room-event, .room-card-by").first()).toContainText("sent this to confirm");
+  await page.getByRole("button", { name: "Internal note" }).click();
+  await page.getByLabel("Message", { exact: true }).fill("Only for us: Stripe test keys first");
+  await andSaved(page, () => page.getByLabel("Message", { exact: true }).press("Enter"));
+  await expect(page.locator(".room-bubble.is-note")).toContainText("Only for us");
+  await page.locator(".room-chat-close").click();
+
+  await page.getByRole("tab", { name: /^Chat/ }).click();
+  await page.locator(".room-chat-actions").getByRole("button", { name: "Weekly update" }).click();
+  await page.locator("dialog[open]").getByLabel("This week").fill("Checkout is in testing.");
+  await andSaved(page, () => page.getByRole("button", { name: "Send update" }).click());
+
+  // The client: their emailed link, in their own browser. Opening it changes nothing; Continue signs them in.
+  const them = await freshPage(browser);
+  await them.goto(await emailedLink(client, "c/l"));
+  await expect(them.getByRole("heading", { name: "Clientele" })).toBeVisible();
+  await them.getByRole("button", { name: "Continue" }).click();
+  await expect(them).toHaveURL(/\/c$/, { timeout: 20_000 }); // their dashboard: a card per project
+  await them.locator(".pc", { hasText: "Storefront" }).click();
+  await expect(them).toHaveURL(/\/c\/p\/ST/);
+  await expect(them.locator(".room-card")).toContainText("Checkout is in testing."); // it opens on the project chat, with the update
+  await them.getByRole("tab", { name: /^Requirements/ }).click();
+  await them.getByRole("button", { name: /^Filter/ }).click(); // a requirement waits for them to confirm it
+  await expect(them.locator(".filter-menu").getByRole("button", { name: /^Needs you/ })).toContainText("1");
+  await them.keyboard.press("Escape");
+  await them.locator(".room-kcard", { hasText: "Customers can pay by card" }).click();
+  await expect(them.getByText("Only for us")).toHaveCount(0); // the team's note never reaches them
+  await them.locator(".room-card").getByRole("button", { name: "Confirm" }).click();
+  await expect(them.getByRole("region", { name: "Confirmed" })).toContainText("Customers can pay by card");
+  await them.locator(".room-chat-close").click();
+  await them.getByRole("tab", { name: /^Requests/ }).click();
+  await them.locator(".room-kcard", { hasText: "Access to your Stripe account" }).click();
+  await them.locator(".room-card").getByRole("button", { name: "Answer" }).click();
+  await them.getByLabel("Message", { exact: true }).fill("Invited you as a developer.");
+  await them.getByLabel("Message", { exact: true }).press("Enter");
+  await expect(them.getByRole("region", { name: "Answered" })).toContainText("Access to your Stripe account");
+
+  await them.goto("/admin"); // the team's side is closed to a client
+  await expect(them).toHaveURL(/\/c(\/|$|\?)/);
+  expect((await them.request.get("/api/org")).status()).toBe(403);
+
+  // The team: confirmed and answered by the client — and told so.
+  await page.goto("/admin/products/ST/requirements");
+  await page.getByRole("tab", { name: /^Requirements/ }).click();
+  await expect(page.getByRole("region", { name: "Confirmed" })).toContainText("Customers can pay by card");
+  await page.getByRole("tab", { name: /^Requests/ }).click();
+  await expect(page.getByRole("region", { name: "Answered" })).toContainText("Access to your Stripe account");
+  await page.getByRole("button", { name: /^Filter/ }).click(); // the tickets board's quick filters
+  await page.locator(".filter-menu").getByRole("button", { name: /^Done/ }).click();
+  await expect(page.getByRole("region", { name: "Answered" })).not.toContainText("Access to your Stripe account"); // filtered out (its column stays)
+  await page.locator(".filter-menu").getByRole("button", { name: "Clear all" }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Kanban" }).click(); // the same, as the main table — and back: a card opens its chat
+  await page.getByRole("menuitemradio", { name: "Main table" }).click();
+  await expect(page.getByRole("region", { name: "Answered" }).locator(".room-row", { hasText: "Access to your Stripe account" })).toBeVisible();
+  await page.getByRole("button", { name: "Main table" }).click();
+  await page.getByRole("menuitemradio", { name: "Kanban" }).click();
+  await page.getByRole("region", { name: "Answered" }).locator(".room-kcard", { hasText: "Access to your Stripe account" }).click();
+  await expect(page.locator(".room-drawer .room-card")).toContainText("Access to your Stripe account");
+  await page.locator(".room-chat-close").click();
+  await expect(page.locator(".room-drawer")).toHaveCount(0);
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  await expect(page.getByText(/Ali Raza \(Northwind\) confirmed R1/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: /^Chat/ }).click();
+  await page.locator(".room-chat-title").click();
+  await page.getByRole("button", { name: "See what Ali Raza sees" }).click();
+  const preview = page.getByRole("dialog", { name: "What Ali Raza sees" });
+  await expect(preview).toContainText("Checkout is in testing."); // it opens on their chat, as theirs does
+  await preview.getByRole("tab", { name: "Requirements" }).click();
+  await expect(preview).toContainText("Customers can pay by card");
+  await page.getByRole("dialog", { name: "What Ali Raza sees" }).getByRole("button", { name: "Close" }).click();
+
+  // Client Space off: they're out at once.
+  await page.goto("/admin/settings");
+  await andSaved(page, () => page.getByRole("switch", { name: "Client Space" }).click());
+  await them.goto("/c");
+  await expect(them).toHaveURL(/\/c\/signin$/);
 });

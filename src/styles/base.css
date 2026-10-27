@@ -2,6 +2,11 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body { margin: 0; padding: 0; height: 100%; }
+/* The whole app scales with the screen (our px become rem at build time — postcss-scale.cjs): 16px at 1728px wide, the
+   screen it was designed on; never under 90% (text stays readable on small laptops), at most 150% (big monitors).
+   Phones keep their own layout, at 100%. */
+html { font-size: clamp(14.4px, calc(100vw * 16 / 1728), 24px); }
+@media (max-width: 767px) { html { font-size: 16px; } }
 
 body {
   font-family: var(--font-family);

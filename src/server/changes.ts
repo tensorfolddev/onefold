@@ -15,6 +15,7 @@ import * as s from "./db/schema.ts";
 import { emailOn, inviteEmail, sendEmail } from "./email.ts";
 import { journal, type Source } from "./journal.ts";
 import { sendUrgent } from "./whatsapp/urgent.ts";
+import { emailClients } from "./clientSpace.ts";
 
 export interface Step { name: string; args: unknown[] }
 export const MAX_STEPS = 25;
@@ -23,7 +24,7 @@ export const MAX_STEPS = 25;
  * Not for browsers to send as steps: invites carry secrets the server must make, and an image is added by uploading
  * it (POST /api/files), so a ticket can never point at a file that isn't there.
  */
-const SERVER_ONLY = new Set<string>(["inviteMembers", "addAttachment", "touchDoc", "setDocLink", "setDocPublic", "notifyDocMentions"]);
+const SERVER_ONLY = new Set<string>(["inviteMembers", "addAttachment", "touchDoc", "setDocLink", "setDocPublic", "notifyDocMentions", "addClientPerson", "addThreadFile"]);
 const isBrowserCommand = (name: string): name is CommandName => Object.hasOwn(commands, name) && !SERVER_ONLY.has(name);
 
 export async function mustLoad(tx: Tx, who: SessionRow): Promise<Loaded> {
@@ -84,6 +85,7 @@ export async function applySteps(who: SessionRow, steps: Step[], opts: { undoabl
     return { version, key, before: loaded.db, after: db, me };
   });
   await sendUrgent(who.orgId, done.before, done.after, done.me); // saved: now its @@mentions go to WhatsApp
+  await emailClients(who.orgId, done.before, done.after).catch((e) => console.error("[client] email", e));
   return { version: done.version, key: done.key };
 }
 

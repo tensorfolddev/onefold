@@ -4,7 +4,7 @@ export type Action =
   | "product.view" | "product.edit" | "product.create" | "product.approveStage" | "product.requestStage"
   | "members.edit" | "ticket.create" | "ticket.edit" | "ticket.delete" | "statuses.edit" | "product.brand"
   | "doc.add" | "doc.addMeetingNotes" | "doc.delete" | "doc.create" | "doc.edit" | "doc.archive" | "decision.add" | "milestone.edit" | "ticket.archive"
-  | "requirement.edit"
+  | "requirement.edit" | "requirement.archive" | "client.manage" | "client.people"
   | "product.archive" | "product.delete" | "product.group" | "groups.manage" | "members.view"
   | "people.manage" | "teams.manage" | "org.manage";
 
@@ -15,12 +15,15 @@ export interface Ctx {
 
 const ADMIN_ONLY = new Set<Action>([
   "product.create", "product.edit", "product.approveStage", "product.delete", "ticket.delete", "people.manage", "teams.manage", "org.manage",
-  "doc.archive", "doc.delete",
+  "doc.archive", "doc.delete", "requirement.archive",
 ]);
 /** All that can happen to an archived product: looking at it, restoring it, or (an admin) deleting it for good. */
 export const WHILE_ARCHIVED = new Set<Action>(["product.view", "product.archive", "product.delete", "members.view"]);
+// A developer on a project does its everyday work: tickets (archiving too), requirements, and talking to its client
+// (requests, chats, the weekly update). Who the client's people are — and their sign-in links — stays with managers.
 const DEVELOPER_ON_PRODUCT = new Set<Action>([
-  "product.view", "ticket.create", "ticket.edit", "statuses.edit", "doc.addMeetingNotes",
+  "product.view", "ticket.create", "ticket.edit", "ticket.archive", "statuses.edit", "doc.addMeetingNotes",
+  "requirement.edit", "client.manage",
 ]);
 
 export const isOnProduct = (personId: string, p: Product) =>

@@ -180,6 +180,8 @@
 .doc-editor { position: relative; }
 .doc-prose { min-width: 0; overflow-wrap: anywhere; min-height: 240px; font-size: var(--doc-text); line-height: var(--doc-leading); color: var(--primary-text-color); outline: none; caret-color: var(--primary-color); }
 .doc-skeleton { min-height: 240px; background: linear-gradient(90deg, var(--allgrey-background-color) 0 60%, transparent 0) 0 8px / 100% 28px repeat-y; opacity: 0.6; }
+.doc-skeleton { animation: doc-skeleton-in 0s 300ms both; } /* only a wait longer than this shows it: no flash on a quick open */
+@keyframes doc-skeleton-in { from { opacity: 0; } to { opacity: 0.6; } }
 .doc-prose > * + * { margin-top: 0.6em; }
 .doc-prose p { margin: 0; }
 .doc-prose h1, .doc-prose h2, .doc-prose h3 { font-family: var(--title-font-family); letter-spacing: -0.01em; line-height: 1.3; }
@@ -243,8 +245,10 @@
 .doc-callout[data-callout="important"] { --tone: var(--callout-important); }
 .doc-callout[data-callout="important"]::before { content: "★"; }
 .doc-callout > * + * { margin-top: 0.4em; }
+.doc-prose p.is-editor-empty:first-child, .doc-prose .is-empty { position: relative; }
 .doc-prose p.is-editor-empty:first-child::before, .doc-prose .is-empty::before {
-  content: attr(data-placeholder); float: left; height: 0; color: var(--placeholder-color); pointer-events: none;
+  content: attr(data-placeholder); position: absolute; top: 0; left: 0; right: 0; color: var(--placeholder-color); pointer-events: none;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; /* one line, out of the flow: never over the next block */
 }
 .doc-prose .ProseMirror-selectednode { outline: 2px solid color-mix(in srgb, var(--primary-color) 50%, transparent); outline-offset: 2px; border-radius: 4px; }
 .doc-prose ::selection { background: color-mix(in srgb, var(--primary-color) 22%, transparent); }
@@ -385,7 +389,7 @@
 /* ---------- Connected docs: chips, link cards, backlinks ---------- */
 .doc-chip {
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 1px 7px 1px 5px; margin: 0 1px;
-  border-radius: 6px; vertical-align: baseline; line-height: 1.5; font-size: 0.94em; cursor: pointer; text-decoration: none; color: inherit;
+  border-radius: 6px; vertical-align: middle; line-height: 1.5; font-size: 0.94em; cursor: pointer; text-decoration: none; color: inherit; /* middle, not baseline: a flex box's baseline is its first item's — an emoji avatar's, a photo's bottom — so chips sat on different lines (FO-20) */
   background: color-mix(in srgb, var(--primary-color) 7%, var(--primary-background-color));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 16%, transparent);
   transition: background var(--motion-productive-short), box-shadow var(--motion-productive-short);

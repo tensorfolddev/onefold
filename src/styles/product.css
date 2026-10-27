@@ -238,7 +238,7 @@
 .pc-title { flex: 1; min-width: 0; }
 .pc-name {
   font-family: var(--title-font-family); font-size: 22px; font-weight: 500; line-height: 30px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; /* a long name wraps, never cut short on a narrow card */
 }
 .pc-meta { display: flex; align-items: center; gap: 12px; margin-top: 2px; font-size: 14px; color: var(--secondary-text-color); }
 .pc-ring { position: relative; width: 64px; height: 64px; flex: none; }

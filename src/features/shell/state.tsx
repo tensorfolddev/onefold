@@ -4,13 +4,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createTicket, updateTicket as updateTicketAction, type TicketPatch } from "@/data/commands";
 import { useDb } from "@/data/StoreProvider";
 import type { Activity, Ticket } from "@/domain/types";
+import { applyTheme, savedTheme, type Theme } from "./themes";
 
-export type Theme = "light" | "dark" | "night";
-const THEME_CLASS: Record<Theme, string> = {
-  light: "light-app-theme",
-  dark: "dark-app-theme",
-  night: "black-app-theme",
-};
+export type { Theme } from "./themes";
 
 interface AppState {
   theme: Theme;
@@ -33,7 +29,7 @@ const Ctx = createContext<AppState | null>(null);
 /** UI state (theme, open panels). Data lives in the store; ticket helpers here forward to it. */
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const { db, me, act } = useDb();
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>(savedTheme); // the layout's script already painted it (FO-15)
   const meId = me.id;
   const [opened, setOpened] = useState<{ key: string; section: string | null } | null>(null);
   const openTicket = useCallback((key: string | null, section?: string) => setOpened(key ? { key, section: section ?? null } : null), []);
@@ -49,9 +45,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
-    document.body.classList.remove(...Object.values(THEME_CLASS));
-    document.body.classList.add(THEME_CLASS[t]);
+    applyTheme(t);
   }, []);
+
 
   const updateTicket = useCallback(
     (key: string, patch: TicketPatch) => { act((d, m) => updateTicketAction(d, m, key, patch)); },

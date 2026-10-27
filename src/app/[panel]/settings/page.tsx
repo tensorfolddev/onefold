@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { notFound } from "next/navigation";
-import { Archive, Building2, IdCard, Plus, Trash2, Users } from "lucide-react";
+import { Archive, Building2, Handshake, IdCard, Plus, Trash2, Users } from "lucide-react";
 import { addJobTitle, deleteJobTitle, isFreeMail, renameJobTitle, updateOrg } from "@/data/commands";
 import { useMe } from "@/data/StoreProvider";
 import { TeamsManager } from "@/features/people/TeamsManager";
+import { ClientSettings } from "@/features/room/team/ClientSettings";
 import { ArchivedDocsBucket } from "@/features/docs/ArchivedDocs";
 import { ArchivedProductsBucket } from "@/features/products/ArchiveControls";
 import { ArchivedDecisionsBucket } from "@/features/products/ArchivedDecisions";
 import { ArchivedTicketsBucket } from "@/features/products/ArchivedTickets";
+import { ArchivedRequirementsBucket } from "@/features/requirements/ArchivedRequirements";
 import { errorOf, FormError } from "@/ui/fields";
 import { SettingsLayout, type SettingsSection } from "@/ui/SettingsLayout";
 
@@ -21,15 +23,16 @@ export default function SettingsPage() {
     { id: "company", label: "Company", icon: Building2, hint: "Its name, and who can join it.", body: <Company /> },
     { id: "job-titles", label: "Job titles", icon: IdCard, hint: "The titles people pick from. Renaming one updates everyone who has it.", body: <JobTitles /> },
     { id: "teams", label: "Teams", icon: Users, hint: "Your teams and their leads, and who's on which.", body: <TeamsManager /> },
+    { id: "clients", label: "Clients", icon: Handshake, hint: "Let your clients follow their projects — and who from their side can.", body: <ClientSettings /> },
     { id: "archived", label: "Archived", icon: Archive, hint: "Everything archived across the company: bring it back, or delete it for good.",
-      body: <div className="buckets"><ArchivedProductsBucket /><ArchivedTicketsBucket /><ArchivedDocsBucket productKey="" /><ArchivedDecisionsBucket /></div> },
+      body: <div className="buckets"><ArchivedProductsBucket /><ArchivedTicketsBucket /><ArchivedDocsBucket productKey="" /><ArchivedDecisionsBucket /><ArchivedRequirementsBucket /></div> },
   ];
   return (
     <div className="page admin-page settings-page">
       <header className="page-header">
         <div>
           <h1 className="page-title">Settings</h1>
-          <p className="page-subtitle">Your company, its job titles and teams</p>
+          <p className="page-subtitle">Your company, its job titles, teams and clients</p>
         </div>
       </header>
       <SettingsLayout sections={sections} />

@@ -20,12 +20,13 @@ export const BACKED_UP = [
   "members", "teams", "job_titles", "product_groups", "products", "product_members", "board_lists", "requirements",
   "decisions", "decision_files", "milestones", "stage_requests", "tickets", "ticket_dependencies", "attachments",
   "comments", "activity", "notifications", "doc_groups", "docs", "doc_bodies", "doc_versions", "doc_files", "doc_links",
-  "whatsapp_settings", "whatsapp_links", "brief_deliveries", "brief_sends", "audit_log",
+  "whatsapp_settings", "whatsapp_links", "brief_deliveries", "brief_sends", "audit_log", "product_clients", "client_asks",
+  "client_messages", "chat_reads", "vault_accounts", "vaults", "vault_items", // the vault: ciphertext only
 ] as const;
 /** A company's tables never in its backup: secrets, and what only matters while it's running. */
 export const NOT_BACKED_UP = new Set([
   "sessions", "invites", "api_tokens", "public_links", "company_email", "company_bots", "company_drive",
-  "whatsapp_link_codes", "whatsapp_outbox", "undo_points",
+  "whatsapp_link_codes", "whatsapp_outbox", "undo_points", "email_tokens", "client_links",
 ]);
 
 export interface CompanyBackupData {

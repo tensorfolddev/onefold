@@ -59,15 +59,15 @@ export default function DocEditor({ body, editable, onChange, onHeadings, placeh
     editable,
     immediatelyRender: false,
     editorProps: { attributes: { class: "doc-prose", "aria-label": "Document", spellcheck: "true" } },
-    onUpdate: ({ editor: e }) => {
+    onUpdate: ({ editor: e, transaction }) => {
       const json = e.getJSON();
-      onChange(toMarkdown(json));
       onHeadings?.(headingsOf(json));
+      if (transaction.docChanged && e.isEditable) onChange(toMarkdown(json)); // only a real edit saves — never opening it, never a read-only view
     },
     onCreate: ({ editor: e }) => onHeadings?.(headingsOf(e.getJSON())),
   }, []);
 
-  useEffect(() => { editor?.setEditable(editable); }, [editor, editable]);
+  useEffect(() => { editor?.setEditable(editable, false); }, [editor, editable]); // false: TipTap would otherwise report it as an edit
 
   // Uploads land where they were dropped (or at the caret): images inline, anything else as a download card.
   useEffect(() => {

@@ -19,6 +19,7 @@ import type { Panel, Person, Product, SectionValue, Ticket } from "../../domain/
 import type { SessionRow } from "../accounts.ts";
 import { limit, MINUTE } from "../auth/rateLimit.ts";
 import { applyComposed, viewFor } from "../changes.ts";
+import { DATE, registerClientTools } from "./clientTools.ts";
 import { registerDecisionTools } from "./decisionTools.ts";
 import { registerDocTools } from "./docTools.ts";
 import { tokenSession } from "./tokens.ts";
@@ -113,8 +114,6 @@ function summary(c: Ctx, t: Ticket) {
   };
 }
 
-const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a date like 2026-10-31")
-  .refine((d) => { const t = Date.parse(`${d}T00:00:00Z`); return !Number.isNaN(t) && new Date(t).toISOString().startsWith(d); }, "a real date, like 2026-10-31");
 const TYPES = z.enum(["task", "bug", "epic"]);
 const PRIORITIES = z.enum(["critical", "high", "medium", "low"]);
 const ASSIGNEES = z.array(z.string().max(200)).max(20).optional().describe("Everyone on it — names or emails, \"me\" for you; [] for nobody. Replaces whoever was on it");
@@ -154,7 +153,7 @@ function sectionValue(t: Ticket, sectionId: string, value: string | (string | { 
 
 export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
   const server = new McpServer({ name: "1fold", version: "1.0.0" }, {
-    instructions: "1Fold is a product and ticket tracker with docs. Docs are Markdown pages in the company space or a project's, nested under other pages; read them with get_doc and pass its rev as base_rev when you update_doc. Each product keeps a decision log (list_decisions, record_decision): what was decided, why, the alternatives and consequences, and which later decision superseded it. Tickets have keys like CH-12, a type (task, bug, epic), a list (status) and template sections. Products (projects) sit in groups; an archived product is read-only and hidden until it's restored. You act as the person whose API token this is, with their permissions.",
+    instructions: "1Fold is a product and ticket tracker with docs. Docs are Markdown pages in the company space or a project's, nested under other pages; read them with get_doc and pass its rev as base_rev when you update_doc. Each product keeps a decision log (list_decisions, record_decision): what was decided, why, the alternatives and consequences, and which later decision superseded it. Tickets have keys like CH-12, a type (task, bug, epic), a list (status) and template sections. Products (projects) sit in groups; an archived product is read-only and hidden until it's restored. A client project keeps requirements (R1, R2…: what it must do, confirmed by the client) and requests to the client (Q1, Q2…); their chats with the client are never available here. You act as the person whose API token this is, with their permissions.",
   });
   const context = async (): Promise<Ctx> => {
     const view = await viewFor(who);
@@ -186,6 +185,7 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
 
   registerDocTools(server, { who, context, changeCompany, attempt, findProduct });
   registerDecisionTools(server, { who, context, changeCompany, attempt, findProduct });
+  registerClientTools(server, { who, context, changeCompany, attempt, findProduct });
 
   server.registerTool("list_products", {
     title: "List products",
@@ -480,20 +480,23 @@ export function mcpServerFor(who: SessionRow, appUrl: string): McpServer {
     }, (after) => ({ product: findProduct(after, a.product).key, members: membersOf(after, findProduct(after, a.product)) }))));
   }
 
-  // Archived tickets: admins and the product's managers. There's deliberately no tool that deletes a ticket — an admin
-  // does that in the app, from product Settings → Archived.
+  // Archiving a ticket: anyone on its product. Restoring: whoever still sees archived tickets — admins and the product's
+  // managers. There's deliberately no tool that deletes a ticket — an admin does that in the app (Settings → Archived).
   for (const [name, on] of [["archive_ticket", true], ["restore_ticket", false]] as const) {
     server.registerTool(name, {
       title: on ? "Archive a ticket" : "Restore an archived ticket",
       description: on
-        ? "Take a ticket off the board: it turns read-only and leaves every list until restored. An epic takes its tickets with it. Admins, and the product's managers."
+        ? "Take a ticket off the board: it turns read-only and leaves every list until restored. An epic takes its tickets with it. Anyone on the ticket's product."
         : "Bring an archived ticket back exactly as it was (an epic with its tickets). Admins, and the product's managers.",
       inputSchema: { key: z.string().describe("Ticket key, e.g. CH-12") },
       annotations: { ...WRITE, idempotentHint: false },
-    }, (a) => attempt(() => change((c) => findTicket(c, a.key).key, (c) => {
-      const key = findTicket(c, a.key).key;
-      return (db, me) => ({ db: (on ? archiveTickets : restoreTickets)(db, me, [key]), steps: [{ name: on ? "archiveTickets" : "restoreTickets", args: [[key]] }] });
-    })));
+    }, (a) => attempt(async () => {
+      const done = await change((c) => findTicket(c, a.key).key, (c) => {
+        const key = findTicket(c, a.key).key;
+        return (db, me) => ({ db: (on ? archiveTickets : restoreTickets)(db, me, [key]), steps: [{ name: on ? "archiveTickets" : "restoreTickets", args: [[key]] }] });
+      });
+      return on && !("archived" in done) ? { key: done.key, archived: true } : done; // a developer no longer sees what they archived
+    }));
   }
 
   return server;

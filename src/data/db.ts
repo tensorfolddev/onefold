@@ -2,8 +2,8 @@
 // each person their own view of it (domain/snapshot.ts).
 import { TEMPLATES } from "../domain/templates.ts";
 import type {
-  Activity, Comment, Decision, Doc, DocGroup, Invite, Milestone, Notification, Org, Person, Product, ProductGroup, Requirement,
-  StageRequest, Status, Team, Ticket,
+  Activity, Ask, ChatRead, ClientMessage, ClientPerson, Comment, Decision, Doc, DocGroup, Invite, Milestone, Notification, Org, Person, Product,
+  ProductGroup, Requirement, StageRequest, Status, Team, Ticket, VaultAccount, VaultItemRecord, VaultRecord,
 } from "../domain/types.ts";
 
 /** Bump when the shape changes in a way normalize() can't fill in. */
@@ -29,6 +29,15 @@ export interface Db {
   comments: Comment[];
   notifications: Notification[];
   stageRequests: StageRequest[];
+  /** Client Space: the client people (never in `people`), what the team needs from them, and the threads they share. */
+  clientPeople: ClientPerson[];
+  asks: Ask[];
+  clientMessages: ClientMessage[];
+  chatReads: ChatRead[];
+  /** The vault: accounts by person, vaults and their items — ciphertext only. */
+  vaultAccounts: Record<string, VaultAccount>;
+  vaults: VaultRecord[];
+  vaultItems: VaultItemRecord[];
 }
 
 /** Tile colours a product can pick (monday group palette, as design tokens). */
@@ -60,7 +69,7 @@ export function emptyDb(org: Org, founder: Person): Db {
   return {
     version: DB_VERSION, org, invites: [], people: [founder], teams: [], jobTitles: [...DEFAULT_JOB_TITLES],
     productGroups: [], products: [], statusesByProduct: {}, tickets: [], requirements: [], decisions: [], milestones: [],
-    docs: [], docGroups: [], activity: [], comments: [], notifications: [], stageRequests: [],
+    docs: [], docGroups: [], activity: [], comments: [], notifications: [], stageRequests: [], clientPeople: [], asks: [], clientMessages: [], chatReads: [], vaultAccounts: {}, vaults: [], vaultItems: [],
   };
 }
 
@@ -117,12 +126,21 @@ export function normalize(db: Db): Db {
     comments: db.comments ?? [],
     notifications: db.notifications ?? [],
     stageRequests: db.stageRequests ?? [],
+    clientPeople: db.clientPeople ?? [],
+    asks: db.asks ?? [],
+    clientMessages: db.clientMessages ?? [],
+    chatReads: db.chatReads ?? [],
+    vaultAccounts: db.vaultAccounts ?? {},
+    vaults: db.vaults ?? [],
+    vaultItems: db.vaultItems ?? [],
   };
 }
 
 /** Live lookups over the current data. */
 export const makeLookups = (db: Db) => ({
   personById: (id?: string) => db.people.find((p) => p.id === id),
+  /** A client person (Client Space) — names on threads and notifications; never a teammate. */
+  clientById: (id?: string) => db.clientPeople.find((p) => p.id === id),
   productByKey: (key: string) => db.products.find((p) => p.key === key),
   ticketByKey: (key: string) => db.tickets.find((t) => t.key === key),
   statusesFor: (productKey: string) => db.statusesByProduct[productKey] ?? [],

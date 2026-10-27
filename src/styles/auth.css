@@ -364,3 +364,5 @@
   .home-own { flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) { .home-card, .home-card:hover { transition: none; transform: none; } }
+
+.auth-client-link { margin: 0; text-align: center; font-size: 14px; color: var(--secondary-text-color); }
