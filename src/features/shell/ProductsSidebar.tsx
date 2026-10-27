@@ -164,7 +164,7 @@ function ArchivedRow({ product, active, onNavigate }: { product: Product; active
   const canDelete = can("product.delete", { product });
   return (
     <div className={`sidebar-row is-archived${canDelete ? " has-menu" : ""}`}>
-      <Link href={href(`/products/${product.key}`)} onClick={onNavigate} className={`sidebar-item${active ? " is-active" : ""}`}>
+      <Link href={href(`/products/${product.key}`)} prefetch onClick={onNavigate} className={`sidebar-item${active ? " is-active" : ""}`}>
         <ProductTile product={product} />
         <span>{product.name}</span>
       </Link>
@@ -207,7 +207,7 @@ export function ProductsSidebar({ rel, onNavigate }: { rel: string; onNavigate: 
     const menu = can("product.group", { product: p }) || can("product.archive", { product: p });
     return (
       <div key={p.key} className={`sidebar-row${menu ? " has-menu" : ""}`}>
-        <Link href={href(`/products/${p.key}`)} onClick={onNavigate} className={`sidebar-item${isActive(p) ? " is-active" : ""}`}>
+        <Link href={href(`/products/${p.key}`)} prefetch onClick={onNavigate} className={`sidebar-item${isActive(p) ? " is-active" : ""}`}>
           <ProductTile product={p} />
           <span>{p.name}</span>
           <span className="sidebar-item-end">{p.key}</span>
