@@ -9,7 +9,7 @@ import { issueLink, liveLink, type SessionRow } from "./accounts.ts";
 import { applySteps } from "./changes.ts";
 import { database } from "./db/client.ts";
 import * as s from "./db/schema.ts";
-import { sendEmail, vaultResetEmail } from "./email.ts";
+import { deliverEmail, vaultResetEmail } from "./email.ts";
 
 export const VAULT_RESET_MINUTES = 30;
 const GONE = "This link has expired or was already used — ask for a new one from the vault.";
@@ -20,7 +20,10 @@ export async function sendVaultReset(who: SessionRow, appUrl: string): Promise<v
   const [user] = await database().select({ email: s.users.email }).from(s.users).where(eq(s.users.id, who.userId));
   if (!user) throw new ValidationError("Sign in again");
   const token = await issueLink(who.userId, "vault", VAULT_RESET_MINUTES * 60_000, who.orgId);
-  await sendEmail(vaultResetEmail({ to: user.email, link: `${appUrl}/vault/recover/${token}`, minutes: VAULT_RESET_MINUTES }));
+  // Signed in, so there's nothing to hide: if it didn't go, say why instead of "we emailed you".
+  const sent = await deliverEmail(vaultResetEmail({ to: user.email, link: `${appUrl}/vault/recover/${token}`, minutes: VAULT_RESET_MINUTES }));
+  // The reason helps whoever sets email up; an address in it (Resend's "only to <owner>") isn't theirs to see.
+  if (!sent.ok) throw new ValidationError(`The email couldn't be sent: ${sent.reason.replace(/[^\s@<>()]+@[^\s@<>()]+/g, "the account owner")}`);
 }
 
 const theirs = (who: SessionRow, token: string) => and(liveLink(token, "vault"), isNull(s.emailTokens.usedAt), eq(s.emailTokens.userId, who.userId));

@@ -192,3 +192,15 @@ test("only an urgent @@mention in a doc goes to the person's linked WhatsApp —
   await saveBody(sam, made.id, { body: `Over to [@@Ayla Khan](mention:${aylaId}) — today please!`, baseRev: r2.rev });
   assert.equal(await sendOutbox(send), undefined, "still urgent: not sent again");
 });
+
+test("reads reuse the loaded company only while nothing changed: taking Sam off the project closes its docs to him at once", async () => {
+  const made = await createDoc(admin, { productKey: "DC", title: "Cache check" });
+  assert.equal((await readDoc(sam, made.id)).doc.title, "Cache check");
+  assert.equal((await readDoc(sam, made.id)).doc.title, "Cache check"); // the kept copy
+  const samId = (await viewFor(sam)).meId;
+  await applySteps(admin, [{ name: "setMember", args: ["DC", samId, false] }]);
+  await assert.rejects(readDoc(sam, made.id), /not found/i);
+  await assert.rejects(setPresence(sam, made.id, { editing: false }), /not found/i);
+  await applySteps(admin, [{ name: "setMember", args: ["DC", samId, true] }]);
+  assert.equal((await readDoc(sam, made.id)).doc.title, "Cache check");
+});

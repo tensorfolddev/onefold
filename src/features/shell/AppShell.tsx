@@ -21,6 +21,7 @@ import { ProductsSidebar } from "./ProductsSidebar";
 import { TicketPanelHost } from "@/features/tickets/TicketPanel";
 import { GlobalSearch } from "@/features/shell/GlobalSearch";
 import { useDocPrefetch } from "@/features/docs/useDocPrefetch";
+import { VaultProvider } from "@/features/vault/VaultProvider";
 
 interface NavItem { path: string; label: string; icon: LucideIcon }
 
@@ -64,8 +65,20 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   // The cookie said signed in, but this browser doesn't have that company (cleared storage): sign in again.
   useEffect(() => { if (ready && !signedIn) router.replace(`/signin?next=${encodeURIComponent(pathname)}`); }, [ready, signedIn, router, pathname]);
-  if (!signedIn) return <div className="app-loading" aria-busy="true" />;
-  return <AppStateProvider><AppShell>{children}</AppShell></AppStateProvider>;
+  if (!signedIn) return <LoadingFrame />;
+  // The vault's unlocked keys live here, above every page, so leaving the vault page doesn't lock it.
+  return <AppStateProvider><VaultProvider><AppShell>{children}</AppShell></VaultProvider></AppStateProvider>;
+}
+
+/** While the company loads: the app's own frame — top bar, brand, rail — instead of a blank screen. */
+function LoadingFrame() {
+  return (
+    <div className="app no-sidebar" aria-busy="true">
+      <header className="app-topbar"><span className="brand"><BrandMark /><span>1Fold</span></span><EnvBadge /></header>
+      <nav className="app-rail" aria-hidden />
+      <main className="work-area"><div className="doc-skeleton" /></main>
+    </div>
+  );
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {

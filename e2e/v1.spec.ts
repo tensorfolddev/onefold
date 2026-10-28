@@ -449,6 +449,57 @@ test("vault: a master password and a recovery code only you hold; forgot it → 
   await expect(page.getByText("This link has expired or was already used")).toBeVisible();
 });
 
+test("vault: shared before they had a vault, it arrives the moment they make one; shared while theirs is open, it shows at once", async ({ page, browser }) => {
+  const createVault = async (p: Page, master: string) => {
+    await p.getByLabel("Master password", { exact: true }).fill(master);
+    await p.getByLabel("Type it again").fill(master);
+    await p.getByRole("button", { name: "Create my vault" }).click();
+    await p.getByLabel(/I've saved my recovery code/).check({ timeout: 20_000 });
+    await p.getByRole("button", { name: "Open my vault" }).click();
+  };
+  const addItem = async (title: string, secret: string) => {
+    await page.getByRole("button", { name: "Add item" }).first().click();
+    await page.getByLabel("Item name").fill(title);
+    await page.getByLabel("Password", { exact: true }).fill(secret);
+    await andSaved(page, () => page.getByRole("button", { name: "Save item" }).click());
+  };
+  const shareWithKev = async (title: string) => {
+    await page.getByRole("button", { name: `Share ${title}` }).click();
+    await page.locator(".vb-sp-person", { hasText: "Kev Dev" }).locator("input").check();
+    await andSaved(page, () => page.locator(".vb-sp-foot").getByRole("button", { name: "Share" }).click());
+  };
+
+  await signUp(page, "Kappa", email("kap"));
+  await confirmEmail(page, email("kap"));
+  await page.getByLabel("Email 1", { exact: true }).fill(email("kev"));
+  await page.getByRole("button", { name: "Create invite links" }).click();
+  const link = (await page.locator(".inv-link-url").first().textContent())!;
+  await page.getByRole("button", { name: "Go to Kappa" }).click();
+  const kev = await freshPage(browser);
+  await kev.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.${NET}.${(signUps += 1)}` });
+  await kev.goto(new URL(link).pathname);
+  await kev.getByLabel("Full name").fill("Kev Dev");
+  await kev.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await kev.getByRole("button", { name: "Join Kappa" }).click();
+  await expect(kev).toHaveURL(/\/dev$/, { timeout: 20_000 });
+
+  await page.goto("/admin/vault");
+  await createVault(page, "Amber-Falcon-Orchard-71");
+  await page.getByRole("tab", { name: "Table" }).click(); // each row has its own Share button
+  await addItem("Stripe", "sk-test-stripe");
+  await addItem("Figma", "figma-test-pass");
+  await shareWithKev("Stripe"); // Kev has no vault yet: he's invited
+
+  // Kev makes his vault while the admin's is open: her tab finishes the invite at once — nobody locks or unlocks.
+  await kev.goto("/dev/vault");
+  await createVault(kev, "Silver-Tundra-Kettle-46");
+  await expect(kev.getByRole("list", { name: "Shared" })).toContainText("Stripe", { timeout: 20_000 });
+
+  // Shared while Kev's vault is open: it shows up there by itself.
+  await shareWithKev("Figma");
+  await expect(kev.getByRole("list", { name: "Shared" })).toContainText("Figma", { timeout: 20_000 });
+});
+
 test("WhatsApp: every company has its own number — until it's connected, a teammate is told there's nothing to link to; no shared bot", async ({ page }) => {
   await signUp(page, "Eta", email("eta"));
   await page.getByRole("button", { name: "Skip for now" }).click();

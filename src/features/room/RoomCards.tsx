@@ -9,13 +9,13 @@ import { clientText } from "@/domain/clientView";
 import { priorityLook } from "@/domain/selectors/clientLook";
 import { STAGES } from "@/domain/status";
 import type { RoomMessage, RoomModel, RoomThread } from "@/domain/selectors/room";
+import { today } from "@/domain/clock"; // the local day, like everywhere else — not UTC's
 import type { Stage, ThreadFile, WeeklyUpdate } from "@/domain/types";
 import { Markdown, withMentions } from "@/ui/Markdown";
 import type { RoomActions } from "./roomActions";
 import { dateLabel, dayOf, fileSize, KIND, nameOf, RoomAvatar, StatusPill, TypeTag } from "./roomUi";
 
 export const STAGE_NAME: Record<Stage, string> = { INTAKE: "Getting started", DEFINE: "Defining", PLAN: "Planning", BUILD: "Building", RELEASE: "Releasing" };
-const today = () => new Date().toISOString().slice(0, 10);
 
 function Bar({ done, doing, total }: { done: number; doing: number; total: number }) {
   return (

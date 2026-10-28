@@ -3,7 +3,7 @@
 .requirement-priority {
   --p: #676879;
   display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--p) 35%, transparent); background: #fff; color: var(--primary-text-color);
+  border: 1px solid color-mix(in srgb, var(--p) 35%, transparent); background: var(--primary-background-color); color: var(--primary-text-color);
   font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
 }
 .requirement-priority::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--p); }

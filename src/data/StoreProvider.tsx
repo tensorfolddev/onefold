@@ -15,6 +15,9 @@ import { api, ApiError, upload } from "./api.ts";
 import { AccessError, record, recorded, ValidationError, type CommandName, type Commands, type InviteInput, type Step } from "./commands.ts";
 import { makeLookups, type Db, type Lookups } from "./db.ts";
 import { isPublicPath, PANEL_SLUG, panelFromSlug, panelHome } from "./session.ts";
+import { forgetUnlocked } from "../features/vault/unlocked.ts";
+import { coalesce } from "./coalesce.ts";
+import { forgetUnsavedDocs } from "../features/docs/useDocBody.ts";
 
 type Tail<T> = T extends [unknown, unknown, ...infer R] ? R : never;
 type KeyOf<R> = R extends { key: infer K } ? K : true;
@@ -138,8 +141,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const refreshOrSay = useCallback(() => refresh().catch((e: unknown) => toast(message(e), undefined, "error")), [refresh, toast]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time load; state is set when the server answers
-    refresh().catch((e: unknown) => toast(message(e), undefined, "error")).finally(() => setReady(true));
+    // The first load. Signed out (401/403) is an answer; anything else — a 502 while 1Fold restarts for a release, a
+    // dropped connection — is tried again, a little later each time, instead of sending them to sign in.
+    let stop = false;
+    let wait = 1000;
+    let again: ReturnType<typeof setTimeout> | undefined;
+    const first = () => refresh().then(() => { if (!stop) setReady(true); }, (e: unknown) => {
+      if (stop) return;
+      if (wait === 1000) toast(`Can't reach 1Fold — trying again (${message(e)})`, undefined, "error");
+      again = setTimeout(first, wait);
+      wait = Math.min(wait * 2, 15_000);
+    });
+    void first();
+    return () => { stop = true; clearTimeout(again); };
   }, [refresh, toast]);
 
   // Other people's changes: a live event with the new version, or coming back to the tab. The browser re-opens a
@@ -153,6 +167,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let wait = RECONNECT_MS;
     let opened = false;
     let missed = false; // it failed since it last worked (or since the page loaded)
+    const refreshLive = coalesce(refreshOrSay); // a burst of changes: one fetch at a time, plus one to catch up
     const connect = () => {
       clearTimeout(retry);
       events?.close();
@@ -171,7 +186,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         wait = Math.min(wait * 2, RECONNECT_MAX_MS);
       };
       es.addEventListener("version", (e) => {
-        if (Number((e as MessageEvent).data) > (viewRef.current?.version ?? 0) && pending.current === 0) void refreshOrSay();
+        if (Number((e as MessageEvent).data) > (viewRef.current?.version ?? 0) && pending.current === 0) refreshLive();
       });
       // A doc's body was saved, or who has a doc open changed: open doc pages listen for these (features/docs).
       for (const kind of ["doc", "presence"] as const) {
@@ -361,6 +376,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toast(`Couldn't sign out: ${message(e)}`, undefined, "error");
       return;
     }
+    await forgetUnlocked(); // the vault's kept key goes with the session
+    forgetUnsavedDocs(); // and any doc text kept for a save that may not have arrived
     show(null);
     router.replace("/signin");
   }, [router, show, toast]);

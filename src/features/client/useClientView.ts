@@ -6,8 +6,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, message, upload } from "@/data/api";
+import { coalesce } from "@/data/coalesce";
 import type { ClientView } from "@/domain/clientView";
 import type { ClientActionName } from "@/domain/commands/clientActions";
+
+const RECONNECT_MS = 1000; // live updates: the first wait before opening the connection again, doubling up to
+const RECONNECT_MAX_MS = 30_000;
 
 /** Runs one client action; resolves to an error message, or null when it worked. */
 export type ClientAct = (name: ClientActionName, ...args: unknown[]) => Promise<string | null>;
@@ -33,11 +37,35 @@ export function useClientView() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the first load; state is set when the server answers
     void load();
-    const events = new EventSource("/api/client/events");
-    events.addEventListener("version", () => void load());
-    const onVisible = () => { if (document.visibilityState === "visible") void load(); };
+    // Live updates. The browser re-opens a dropped connection by itself, but an answer it can't use — a 502 while 1Fold
+    // restarts for a release — ends it for good; so it's opened again here, a little later each time, and catches up.
+    let events: EventSource | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let wait = RECONNECT_MS;
+    let missed = false;
+    const loadLive = coalesce(load); // a burst of changes: one fetch at a time, plus one to catch up
+    const connect = () => {
+      clearTimeout(retry);
+      events?.close();
+      const es = new EventSource("/api/client/events");
+      events = es;
+      es.onopen = () => { wait = RECONNECT_MS; if (missed) void load(); missed = false; };
+      es.onerror = () => {
+        missed = true;
+        if (es.readyState !== EventSource.CLOSED) return;
+        retry = setTimeout(connect, wait);
+        wait = Math.min(wait * 2, RECONNECT_MAX_MS);
+      };
+      es.addEventListener("version", () => loadLive());
+    };
+    connect();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void load();
+      if (events?.readyState === EventSource.CLOSED) { wait = RECONNECT_MS; connect(); }
+    };
     document.addEventListener("visibilitychange", onVisible);
-    return () => { events.close(); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { clearTimeout(retry); events?.close(); document.removeEventListener("visibilitychange", onVisible); };
   }, [load]);
 
   const act: ClientAct = useCallback(async (name, ...args) => {

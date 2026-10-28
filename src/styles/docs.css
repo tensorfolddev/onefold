@@ -180,7 +180,7 @@
 .doc-editor { position: relative; }
 .doc-prose { min-width: 0; overflow-wrap: anywhere; min-height: 240px; font-size: var(--doc-text); line-height: var(--doc-leading); color: var(--primary-text-color); outline: none; caret-color: var(--primary-color); }
 .doc-skeleton { min-height: 240px; background: linear-gradient(90deg, var(--allgrey-background-color) 0 60%, transparent 0) 0 8px / 100% 28px repeat-y; opacity: 0.6; }
-.doc-skeleton { animation: doc-skeleton-in 0s 300ms both; } /* only a wait longer than this shows it: no flash on a quick open */
+.doc-skeleton { animation: doc-skeleton-in 0s 150ms both; } /* only a wait longer than this shows it: no flash on a quick open */
 @keyframes doc-skeleton-in { from { opacity: 0; } to { opacity: 0.6; } }
 .doc-prose > * + * { margin-top: 0.6em; }
 .doc-prose p { margin: 0; }

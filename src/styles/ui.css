@@ -22,6 +22,8 @@
 .btn-positive { background-color: var(--positive-color); color: #fff; }
 .btn-icon { width: 32px; padding: 0; }
 .btn:disabled { color: var(--disabled-text-38); border-color: var(--disabled-text-38); background: transparent; cursor: not-allowed; }
+/* A busy or not-yet-ready main button stays the main button — faded, not turned into a grey outline. */
+.btn-primary:disabled { background-color: var(--primary-color); color: var(--text-color-on-primary); border-color: transparent; opacity: 0.5; }
 .btn-split { display: inline-flex; }
 .btn-split > .btn:first-child { border-radius: 4px 0 0 4px; }
 .btn-split > .btn:last-child { border-radius: 0 4px 4px 0; width: 28px; padding: 0; border-left: 1px solid rgba(255, 255, 255, 0.3); }
@@ -319,6 +321,13 @@ button.chip.is-selected { background: var(--primary-selected-color); }
 .confirm-dialog::backdrop { background: var(--overlay-color); }
 .confirm-title { font-family: var(--title-font-family); font-size: 20px; font-weight: 500; line-height: 28px; }
 .confirm-body { margin-top: 8px; font-size: 14px; line-height: 20px; color: var(--secondary-text-color); }
+/* A question in the dialog ("Why is it out of scope?"): the label above, the field the dialog's full width. */
+.confirm-body .field { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.confirm-body .field-label { font-size: 13px; line-height: 18px; color: var(--primary-text-color); }
+.confirm-body .field-hint { font-size: 12px; line-height: 16px; color: var(--secondary-text-color); }
+.confirm-body .input { display: flex; width: 100%; color: var(--primary-text-color); } /* typed text ≠ the grey hint */
+/* Waiting for an answer: still clearly the red action, just not ready yet. */
+.btn-danger:disabled { background-color: var(--negative-color); border-color: transparent; color: #fff; opacity: 0.45; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .status-cell.is-readonly { cursor: default; }
 

@@ -33,6 +33,25 @@ export async function mustLoad(tx: Tx, who: SessionRow): Promise<Loaded> {
   return loaded;
 }
 
+/**
+ * For reads only (never to save from): the company as of its current version, reloaded only when that changed. Every
+ * save goes through saveCompany, which bumps the version, so a copy with the same version is the same data — one small
+ * query instead of loading every table, on each doc open and each presence ping.
+ * ponytail: one copy per company in this process's memory; callers must not change it.
+ */
+const lastRead = new Map<string, { version: number; loaded: Promise<Loaded> }>();
+export async function loadForRead(tx: Tx, who: SessionRow): Promise<Loaded> {
+  const [org] = await tx.select({ version: s.orgs.version }).from(s.orgs).where(eq(s.orgs.id, who.orgId));
+  if (!org) throw new AccessError();
+  const kept = lastRead.get(who.orgId);
+  if (kept && kept.version === org.version) return kept.loaded;
+  // One load per version, shared: after a change every open browser asks at once — they all wait on the same load.
+  const loaded = mustLoad(tx, who);
+  lastRead.set(who.orgId, { version: org.version, loaded });
+  loaded.then((l) => { if (l.version !== org.version) lastRead.delete(who.orgId); }, () => lastRead.delete(who.orgId));
+  return loaded;
+}
+
 export interface View {
   db: Db; version: number; meId: string; panel: Panel; orgSlug: string;
   /** Their email isn't confirmed yet (only when email is set up): they can't send invites until it is. */
@@ -42,7 +61,7 @@ export interface View {
 /** What one person's browser gets: their view of the company, its version, and who they are. */
 export async function viewFor(who: SessionRow): Promise<View> {
   const view = await inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
+    const loaded = await loadForRead(tx, who); // every open browser asks for this after each change: don't reload it per ask
     const me = personFor(loaded, who.userId);
     return { db: snapshotFor(loaded.db, me), version: loaded.version, meId: me.id, panel: me.panel!, orgSlug: loaded.db.org.slug };
   });

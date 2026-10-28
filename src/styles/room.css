@@ -166,7 +166,7 @@
 .room-line-tools button:hover { background: var(--primary-background-hover-color); color: var(--primary-text-color); }
 .room-line-tools svg { width: 15px; height: 15px; }
 .room-image { display: block; max-width: 280px; margin-bottom: 4px; border-radius: 6px; overflow: hidden; border: 1px solid var(--layout-border-color); }
-.room-image img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: cover; }
+.room-image img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; max-height: 260px; object-fit: cover; } /* its space is kept before it loads: the chat doesn't jump */
 .room-file { display: flex; align-items: center; gap: 10px; min-width: 220px; margin-bottom: 4px; padding: 8px; border-radius: 6px; background: var(--allgrey-background-color); color: inherit; text-decoration: none; }
 .room-file:hover { background: var(--primary-background-hover-color); }
 .room-file-ico { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 6px; background: var(--primary-color); color: #fff; }
