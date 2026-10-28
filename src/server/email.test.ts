@@ -132,7 +132,9 @@ test("a company's own Resend (Integrations → Email): kept encrypted, the only 
     const sealed = seal("re_company_key_1234");
     assert.equal(sealed.includes("re_company"), false);
     assert.equal(unseal(sealed), "re_company_key_1234");
-    assert.throws(() => unseal(sealed.slice(0, -2) + (sealed.endsWith("A") ? "BB" : "AA")));
+    // Change the first character of the ciphertext: a trailing one can be padding bits the decoder ignores.
+    const at = sealed.lastIndexOf(".") + 1;
+    assert.throws(() => unseal(sealed.slice(0, at) + (sealed[at] === "A" ? "B" : "A") + sealed.slice(at + 1)));
 
     delete process.env.EMAIL_OUTBOX_DIR; // a test inbox takes everything: these go to (a pretend) Resend
     process.env.RESEND_API_KEY = "re_server_key";
