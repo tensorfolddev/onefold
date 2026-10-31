@@ -1,8 +1,10 @@
 "use client";
 
-// Keeps the unlocked keys in memory only (never in storage). Auto-locks after 10 min idle, on leaving the vault, on
-// sign-out and on reload. All persistence goes through store commands as ciphertext — the one exception, a forgotten
-// master password, goes through /api/vault (an emailed link, then the recovery code). From the first 1Fold.
+// Holds the unlocked keys for the whole app (mounted in the panel shell), so moving between pages doesn't lock it. The
+// unlocked private key is also kept in this browser, un-exportable, for an hour (unlocked.ts) so a reload doesn't ask
+// again. Locks after an hour without activity, on Lock, on sign-out and on a new master password. All persistence goes
+// through store commands as ciphertext — the one exception, a forgotten master password, goes through /api/vault (an
+// emailed link, then the recovery code). From the first 1Fold.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/data/api";
 import {
@@ -14,13 +16,17 @@ import type { VaultAccount } from "@/domain/types";
 import {
   createAccount, grantVaultKey, newMasterPassword, newRecoveryCode, newVaultKey, openItem, openVaultKey, sealItem, unlockAccount, type VaultItemData,
 } from "./crypto";
+import { forgetUnlocked, keepUnlocked, keptKey, STAY_UNLOCKED_MS, touchUnlocked, vaultChannel } from "./unlocked";
 
-const IDLE_LOCK_MS = 10 * 60 * 1000;
+const IDLE_LOCK_MS = STAY_UNLOCKED_MS; // an hour without activity
+const TOUCH_EVERY_MS = 60_000; // "still here": push the hour on, at most once a minute
 
 type Status = "none" | "locked" | "unlocked";
 
 interface VaultCtx {
   status: Status;
+  /** False only for the moment after a reload while it checks for a key kept from the last hour. */
+  ready: boolean;
   /** Vault id → decrypted items (memory only, while unlocked). */
   items: Record<string, { id: string; data: VaultItemData; updatedBy: string; updatedAt: string }[]>;
   /** First time: the vault, and its recovery code — shown once, for them to keep (null: it couldn't be saved). */
@@ -62,18 +68,30 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const idle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const status: Status = !account ? "none" : privateKey ? "unlocked" : "locked";
 
-  const lock = useCallback(() => {
+  const who = me ? `${db.org.id}:${me.id}` : "";
+  const openedFrom = useRef(new Map<string, string>()); // vault id → the wrapped key its open key came from
+  const channel = useRef<BroadcastChannel | null>(null);
+  const lockHere = useCallback(() => {
+    openedFrom.current.clear();
     setPrivateKey(null);
     setVaultKeys(new Map());
     setItems({});
   }, []);
+  /** Lock: here, in this browser's other tabs, and forget the kept key. */
+  const lock = useCallback(() => {
+    lockHere();
+    void forgetUnlocked();
+    channel.current?.postMessage("lock");
+  }, [lockHere]);
 
-  // Auto-lock after inactivity.
+  // Auto-lock after an hour without activity; activity keeps the kept key alive too.
   useEffect(() => {
     if (status !== "unlocked") return;
+    let touched = Date.now();
     const arm = () => {
       if (idle.current) clearTimeout(idle.current);
       idle.current = setTimeout(lock, IDLE_LOCK_MS);
+      if (Date.now() - touched > TOUCH_EVERY_MS && who) { touched = Date.now(); void touchUnlocked(who); }
     };
     arm();
     const events = ["pointerdown", "keydown"] as const;
@@ -82,27 +100,47 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       if (idle.current) clearTimeout(idle.current);
       events.forEach((e) => window.removeEventListener(e, arm));
     };
-  }, [status, lock]);
+  }, [status, lock, who]);
 
-  // Open every vault key I hold; share product vaults with members who are still waiting for one.
-  const openKeys = useCallback(async (pk: CryptoKey) => {
-    if (!me) return new Map<string, CryptoKey>();
-    const keys = new Map<string, CryptoKey>();
+  // The keys to vaults I hold one for that aren't open yet — or were re-keyed since (someone lost access).
+  const openNew = useCallback(async (pk: CryptoKey) => {
+    const fresh: { id: string; wrapped: string; key: CryptoKey }[] = [];
+    if (!me) return fresh;
     for (const v of db.vaults) {
       const wrapped = v.keys[me.id];
-      if (!wrapped) continue;
-      try { keys.set(v.id, await openVaultKey(wrapped, pk)); } catch { /* corrupt entry: skip that vault */ }
+      if (!wrapped || openedFrom.current.get(v.id) === wrapped) continue;
+      try { fresh.push({ id: v.id, wrapped, key: await openVaultKey(wrapped, pk) }); } catch { /* corrupt entry: skip that vault */ }
     }
-    // Finish invitations for people who have set up their vault since a password was shared with them.
-    for (const v of db.vaults.filter((x) => x.kind === "shared" && keys.has(x.id))) {
-      const pending = db.people.filter((p) => (v.invited ?? []).includes(p.id) && p.active && db.vaultAccounts[p.id]);
-      for (const p of pending) {
-        const wrapped = await grantVaultKey(keys.get(v.id)!, db.vaultAccounts[p.id].publicKey);
-        act((d, m) => grantVault(d, m, v.id, p.id, wrapped));
+    return fresh;
+  }, [db.vaults, me]);
+
+  // While unlocked, keys keep arriving: a password shared with me after I unlocked, or one re-keyed. Open them as they come.
+  useEffect(() => {
+    if (!privateKey) return;
+    let cancelled = false;
+    void openNew(privateKey).then((fresh) => {
+      if (cancelled || !fresh.length) return;
+      for (const f of fresh) openedFrom.current.set(f.id, f.wrapped);
+      setVaultKeys((cur) => new Map([...cur, ...fresh.map((f): [string, CryptoKey] => [f.id, f.key])]));
+    });
+    return () => { cancelled = true; };
+  }, [privateKey, openNew]);
+
+  // While unlocked: finish the invites of people who set up their vault after a password was shared with them — the moment they do.
+  const granting = useRef(new Set<string>());
+  useEffect(() => {
+    if (!privateKey) return;
+    for (const v of db.vaults) {
+      const key = vaultKeys.get(v.id);
+      if (v.kind !== "shared" || !key) continue;
+      for (const pid of v.invited ?? []) {
+        const theirs = db.vaultAccounts[pid], job = `${v.id}:${pid}`;
+        if (!theirs || granting.current.has(job) || !db.people.some((p) => p.id === pid && p.active)) continue;
+        granting.current.add(job);
+        void grantVaultKey(key, theirs.publicKey).then((wrapped) => act((d, m) => grantVault(d, m, v.id, pid, wrapped)));
       }
     }
-    return keys;
-  }, [db, me, act]);
+  }, [privateKey, db.vaults, db.vaultAccounts, db.people, vaultKeys, act]);
 
   // Decrypt items of the vaults I can open (re-runs when items change while unlocked).
   useEffect(() => {
@@ -132,8 +170,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!act((d, m) => setupVault(d, m, acct, vaultId, wrapped))) return null;
     setPrivateKey(pk);
     setVaultKeys(new Map([[vaultId, personalKey]]));
+    if (who) void keepUnlocked(who, acct.wrappedPrivateKey, pk);
     return code;
-  }, [act]);
+  }, [act, who]);
 
   const changePassword = useCallback(async (current: string, next: string) => {
     if (!account) return false;
@@ -143,22 +182,53 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const forgot = useCallback(async () => { await api("/api/vault/forgot", {}); }, []);
 
+  /** Unlocked with this private key: every vault key I hold, opened now; later ones open as they arrive (above). */
+  const openAll = useCallback(async (pk: CryptoKey) => {
+    openedFrom.current.clear();
+    const fresh = await openNew(pk);
+    for (const f of fresh) openedFrom.current.set(f.id, f.wrapped);
+    setPrivateKey(pk);
+    setVaultKeys(new Map(fresh.map((f) => [f.id, f.key])));
+  }, [openNew]);
+  /** Typed the master password (or the recovery code): open, keep it for an hour, and tell the other tabs. */
+  const openAndKeep = useCallback(async (pk: CryptoKey, wrapped: string) => {
+    await openAll(pk);
+    if (!who) return;
+    await keepUnlocked(who, wrapped, pk);
+    channel.current?.postMessage("unlock");
+  }, [openAll, who]);
+
   const recover = useCallback(async (token: string, recoveryCode: string, next: string) => {
     if (!account) return;
     const { wrap, privateKey: pk } = await newMasterPassword(account, { recoveryCode }, next); // throws WrongRecoveryCodeError
     await api("/api/vault/recover", { token, wrap }); // the link is used up here
     setRecovered({ was: account.wrappedPrivateKey, now: { ...account, ...wrap } });
-    setPrivateKey(pk);
-    setVaultKeys(await openKeys(pk));
-  }, [account, openKeys]);
+    await openAndKeep(pk, wrap.wrappedPrivateKey);
+  }, [account, openAndKeep]);
 
   const unlock = useCallback(async (masterPassword: string) => {
     if (!account) return;
-    const pk = await unlockAccount(account, masterPassword); // throws WrongPasswordError
-    const keys = await openKeys(pk);
-    setPrivateKey(pk);
-    setVaultKeys(keys);
-  }, [account, openKeys]);
+    await openAndKeep(await unlockAccount(account, masterPassword), account.wrappedPrivateKey); // throws WrongPasswordError
+  }, [account, openAndKeep]);
+
+  // Opened in the last hour in this browser (this tab, another one, before a reload): open again without asking.
+  const [checked, setChecked] = useState(false); // looked for a kept key yet (so a reload doesn't flash "Unlock")
+  const restore = useCallback(async () => {
+    if (!who || !account) return;
+    const pk = await keptKey(who, account.wrappedPrivateKey);
+    if (pk) await openAll(pk);
+    setChecked(true);
+  }, [who, account, openAll]);
+  const locked = status === "locked";
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reads IndexedDB; state is set when it answers
+  useEffect(() => { if (locked) void restore(); }, [locked, restore]);
+  useEffect(() => {
+    const ch = vaultChannel();
+    channel.current = ch;
+    if (!ch) return;
+    ch.onmessage = (e: MessageEvent) => { if (e.data === "lock") lockHere(); else if (e.data === "unlock") void restore(); };
+    return () => { ch.close(); channel.current = null; };
+  }, [lockHere, restore]);
 
   const saveItem = useCallback(async (vaultId: string, data: VaultItemData, itemId?: string) => {
     const key = vaultKeys.get(vaultId);
@@ -258,8 +328,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [act, lock]);
 
   const value = useMemo<VaultCtx>(
-    () => ({ status, items, setup, unlock, changePassword, forgot, recover, lock, saveItem, removeItem, createShared, share, giveAccess, removeAccess, cancelInvite, reset }),
-    [status, items, setup, unlock, changePassword, forgot, recover, lock, saveItem, removeItem, createShared, share, giveAccess, removeAccess, cancelInvite, reset],
+    () => ({ status, ready: status !== "locked" || checked, items, setup, unlock, changePassword, forgot, recover, lock, saveItem, removeItem, createShared, share, giveAccess, removeAccess, cancelInvite, reset }),
+    [status, checked, items, setup, unlock, changePassword, forgot, recover, lock, saveItem, removeItem, createShared, share, giveAccess, removeAccess, cancelInvite, reset],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

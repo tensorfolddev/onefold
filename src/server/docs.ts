@@ -13,7 +13,7 @@ import { snapshotFor } from "../domain/snapshot.ts";
 import type { Doc, Person } from "../domain/types.ts";
 import { personFor, type SessionRow } from "./accounts.ts";
 import { newId } from "./auth/secrets.ts";
-import { applyComposed, mustLoad } from "./changes.ts";
+import { applyComposed, loadForRead, mustLoad } from "./changes.ts";
 import { saveCompany } from "./company/store.ts";
 import { inScope, type Tx } from "./db/client.ts";
 import * as s from "./db/schema.ts";
@@ -119,7 +119,7 @@ export interface OpenDoc { doc: Doc; body: string; rev: number; presence: Presen
 
 export async function readDoc(who: SessionRow, id: string): Promise<OpenDoc> {
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
+    const loaded = await loadForRead(tx, who);
     const me = personFor(loaded, who.userId);
     const doc = visibleDoc(loaded.db, me, id);
     const row = await bodyRow(tx, who.orgId, id);
@@ -197,7 +197,7 @@ async function addVersion(tx: Tx, orgId: string, docId: string, rev: number, tit
 /** The docs this person can see that link to a ticket: the ticket panel's "Mentioned in docs". */
 export async function docsLinkingTicket(who: SessionRow, ticketKey: string): Promise<DocLink[]> {
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
+    const loaded = await loadForRead(tx, who);
     return linkedFrom(tx, loaded.db, personFor(loaded, who.userId), who.orgId, "ticket", ticketKey.toUpperCase());
   });
 }
@@ -211,7 +211,7 @@ const wordCount = (md: string) => md.split(/\s+/).filter(Boolean).length;
 /** A doc's versions, newest first: who, when, how long. */
 export async function listVersions(who: SessionRow, docId: string): Promise<VersionInfo[]> {
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
+    const loaded = await loadForRead(tx, who);
     visibleDoc(loaded.db, personFor(loaded, who.userId), docId);
     const rows = await tx.select().from(s.docVersions).where(and(eq(s.docVersions.orgId, who.orgId), eq(s.docVersions.docId, docId)))
       .orderBy(desc(s.docVersions.at)).limit(MAX_VERSIONS_LISTED);
@@ -222,7 +222,7 @@ export async function listVersions(who: SessionRow, docId: string): Promise<Vers
 /** One version's text. */
 export async function getVersion(who: SessionRow, docId: string, versionId: string): Promise<VersionInfo & { body: string }> {
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
+    const loaded = await loadForRead(tx, who);
     visibleDoc(loaded.db, personFor(loaded, who.userId), docId);
     const [v] = await tx.select().from(s.docVersions)
       .where(and(eq(s.docVersions.orgId, who.orgId), eq(s.docVersions.docId, docId), eq(s.docVersions.id, versionId)));
@@ -272,7 +272,7 @@ export async function searchDocs(who: SessionRow, q: string): Promise<DocHit[]> 
   const words = q.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, "")).filter(Boolean).slice(0, 8);
   if (!words.length) return [];
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
+    const loaded = await loadForRead(tx, who);
     const docs = snapshotFor(loaded.db, personFor(loaded, who.userId)).docs.filter((d) => !d.archivedAt);
     const byId = new Map(docs.map((d) => [d.id, d]));
     const lower = words.map((w) => w.toLowerCase());
@@ -310,7 +310,7 @@ export function presenceOf(orgId: string, docId: string, now = Date.now()): Pres
 /** "I have this doc open (and am typing)" — or, with `open: false`, "I left". Tells everyone when that changes. */
 export async function setPresence(who: SessionRow, id: string, state: { editing: boolean; open?: boolean }): Promise<Presence[]> {
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
+    const loaded = await loadForRead(tx, who);
     const me = personFor(loaded, who.userId);
     const doc = visibleDoc(loaded.db, me, id);
     const key = `${who.orgId}:${id}`;

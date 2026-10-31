@@ -45,8 +45,26 @@ export function prefetchDoc(id: string) {
 }
 const keepCopy = (id: string, body: string, rev: number) => { const kept = copies.get(id); if (kept) copies.set(id, { ...kept, body, rev }); };
 
+/**
+ * Leaving with unsaved text: it's sent as the page goes, but nothing can read the answer — so a copy waits in this
+ * browser until the next open shows it arrived. If it didn't, it comes back as unsaved text (or a conflict to resolve).
+ */
+interface Unsaved { body: string; baseRev: number }
+const UNSAVED = (id: string) => `onefold.doc-unsaved:${id}`;
+const readUnsaved = (id: string): Unsaved | null => {
+  try { const s = localStorage.getItem(UNSAVED(id)); return s ? (JSON.parse(s) as Unsaved) : null; } catch { return null; }
+};
+const keepUnsaved = (id: string, u: Unsaved) => { try { localStorage.setItem(UNSAVED(id), JSON.stringify(u)); } catch { /* storage off or full: the send is all there is */ } };
+const dropUnsaved = (id: string) => { try { localStorage.removeItem(UNSAVED(id)); } catch { /* nothing was kept */ } };
+/** Signing out: no unsaved text stays behind for whoever uses this browser next. */
+export function forgetUnsavedDocs() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(UNSAVED(""))) localStorage.removeItem(k);
+  } catch { /* storage off: nothing was kept */ }
+}
+
 export function useDocBody(id: string, meId: string, editable: boolean): DocBody {
-  const [copy] = useState(() => copies.get(id));
+  const [copy] = useState(() => (readUnsaved(id) ? undefined : copies.get(id))); // text left unsaved here: load, then check it
   const [status, setStatus] = useState<DocBody["status"]>(copy ? "ready" : "loading");
   const [error, setError] = useState("");
   const [body, setBody] = useState(copy?.body ?? "");
@@ -66,6 +84,7 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
   const inFlight = useRef(false);
   const blocked = useRef(false); // a conflict is open: don't save until it's resolved
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveSoon = useRef<(delay: number) => void>(() => {});
 
   const load = useCallback(async () => {
     const open = await getDoc(id);
@@ -79,6 +98,17 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
     setStaleBy(null);
     setReloadKey((k) => k + 1);
     setStatus("ready");
+    const left = readUnsaved(id);
+    if (!left) return;
+    dropUnsaved(id);
+    if (left.body === open.body) return; // the save on the way out arrived
+    // It didn't: the text is back as unsaved — saved now if nobody saved since, else the usual "theirs or mine" choice.
+    draft.current = left.body;
+    setBody(left.body);
+    setReloadKey((k) => k + 1);
+    setUnsaved(true);
+    if (open.rev === left.baseRev) saveSoon.current(0);
+    else { blocked.current = true; setConflict({ body: open.body, rev: open.rev, updatedAt: new Date().toISOString() }); }
   }, [id]);
 
   // Mounted once per doc (keyed by id): "loading" — or, with a copy from before, that copy until the latest answers.
@@ -99,7 +129,6 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
     }, () => { /* the copy stays; the next save still checks its revision */ });
   }, [copy, id, load]);
 
-  const saveSoon = useRef<(delay: number) => void>(() => {});
 
   const flush = useCallback(async (keepalive = false): Promise<void> => {
     if (inFlight.current || blocked.current || draft.current === null) return;
@@ -110,6 +139,7 @@ export function useDocBody(id: string, meId: string, editable: boolean): DocBody
     try {
       if (keepalive) { // leaving the page: best effort, the browser finishes it after we're gone
         copies.delete(id); // no answer to keep: next time, fetch it fresh
+        keepUnsaved(id, { body: text, baseRev: rev.current }); // …and check it arrived
         void fetch(`/api/docs/${encodeURIComponent(id)}`, {
           method: "POST", keepalive: true, credentials: "same-origin", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ body: text, baseRev: rev.current }),

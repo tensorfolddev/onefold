@@ -31,7 +31,7 @@ services:
       retries: 30
     restart: unless-stopped
     shm_size: 256mb
-    mem_limit: ${DB_MEMORY:-1g}
+    mem_limit: ${DB_MEMORY:-2g}
     cpus: ${DB_CPUS:-1}
     logging: *logs
     networks: [internal]
@@ -40,8 +40,10 @@ services:
     <<: *app
     environment:
       DATABASE_URL: "postgres://onefold_web:${WEB_DB_PASSWORD:?}@postgres:5432/onefold"
+      # A big company's data is held in memory while views are built: give Node most of the container, not its default.
+      NODE_OPTIONS: "--max-old-space-size=${WEB_HEAP_MB:-2560}"
     volumes: ["files:/data/files"]
-    mem_limit: ${WEB_MEMORY:-1g}
+    mem_limit: ${WEB_MEMORY:-3g}
     cpus: ${WEB_CPUS:-1}
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
@@ -59,7 +61,7 @@ services:
     environment:
       DATABASE_URL: "postgres://onefold_web:${WEB_DB_PASSWORD:?}@postgres:5432/onefold"
     volumes: ["files:/data/files", "whatsapp:/data/whatsapp"]
-    mem_limit: ${WORKER_MEMORY:-512m}
+    mem_limit: ${WORKER_MEMORY:-1g}
     cpus: ${WORKER_CPUS:-0.5}
     networks: [internal]
 

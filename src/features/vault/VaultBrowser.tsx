@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Check, ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, LayoutGrid, Maximize2, Pencil, Plus, Search, Share2, Table2, Trash2, UserRound,
+  Check, ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, Hourglass, LayoutGrid, Maximize2, Pencil, Plus, Search, Share2, Table2, Trash2, UserRound,
   Users, WandSparkles, X,
 } from "lucide-react";
 import { PRODUCT_COLORS } from "@/data/db";
@@ -631,6 +631,9 @@ export function VaultBrowser() {
   const pickView = (v: View) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* not remembered */ } };
   const personal = db.vaults.find((v) => v.kind === "personal" && v.ownerId === me.id);
   const shared = db.vaults.filter((v) => v.kind === "shared" && v.keys[me.id]);
+  // Shared with me before I had a vault: only someone who holds its key can seal it for me, the next time they unlock.
+  const waiting = db.vaults.filter((v) => v.kind === "shared" && !v.keys[me.id] && v.invited?.includes(me.id));
+  const waitingFrom = [...new Set(waiting.map((v) => v.createdBy))].map((id) => db.people.find((p) => p.id === id)?.name ?? "Someone").join(", ");
   const sharedOf = (vaultId: string) => shared.find((v) => v.id === vaultId);
   const rowsIn = (vaultId: string): Row[] => (vault.items[vaultId] ?? []).map((i) => ({ ...i, vaultId }));
   const q = query.trim().toLowerCase();
@@ -661,6 +664,13 @@ export function VaultBrowser() {
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => setSharing([])}><Share2 aria-hidden /> Share several</button>
       </div>
+      {waiting.length > 0 && (
+        <p className="vb-waiting" role="status">
+          <Hourglass aria-hidden />
+          {waiting.length === 1 ? "1 password shared with you is" : `${waiting.length} passwords shared with you are`} on the way from {waitingFrom}.
+          It appears here the next time they open their vault.
+        </p>
+      )}
 
       <div className={`ticket-grid vb-board is-${view}`}>
         {personal && (

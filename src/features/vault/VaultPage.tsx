@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/ui/ConfirmDialog";
 import { RESET_PHRASE } from "@/domain/commands/vault";
 import { formatRecoveryCode, passwordStrength, WrongPasswordError, WrongRecoveryCodeError } from "./crypto";
 import { StrengthBar, VaultBrowser } from "./VaultBrowser";
-import { useVault, VaultProvider } from "./VaultProvider";
+import { useVault } from "./VaultProvider";
 
 /** Password box with a show/hide eye. */
 function SecretInput({ label, value, onChange, autoFocus, autoComplete, state }: {
@@ -284,8 +284,10 @@ function Vault({ recoverToken }: { recoverToken?: string }) {
   // Back to /vault in place: navigating would remount the provider and drop the key just unlocked.
   const recovered = () => { setToken(undefined); window.history.replaceState(null, "", href("/vault")); };
   const body = code ? <RecoveryCode code={code} onDone={() => setCode(null)} />
-    : token && vault.status !== "unlocked" ? <Recover token={token} onDone={recovered} />
-      : vault.status === "unlocked" ? <VaultBrowser /> : <Gate onRecoveryCode={setCode} />;
+    : token ? <Recover token={token} onDone={recovered} /> // the emailed link is checked even when it's already open here
+      : vault.status === "unlocked" ? <VaultBrowser />
+        : !vault.ready ? <div className="doc-skeleton" aria-busy="true" aria-label="Opening your vault" /> // a kept key may open it
+          : <Gate onRecoveryCode={setCode} />;
   return (
     <div className="page vault-page">
       <header className="page-header">
@@ -307,7 +309,7 @@ function Vault({ recoverToken }: { recoverToken?: string }) {
   );
 }
 
-/** /vault, and /vault/recover/<token> (the emailed link). The keys live only while this page is open. */
+/** /vault, and /vault/recover/<token> (the emailed link). The keys live in the panel shell's VaultProvider. */
 export default function VaultPage({ recoverToken }: { recoverToken?: string }) {
-  return <VaultProvider><Vault recoverToken={recoverToken} /></VaultProvider>;
+  return <Vault recoverToken={recoverToken} />;
 }

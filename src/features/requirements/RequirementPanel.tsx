@@ -214,6 +214,7 @@ export function RequirementPanel({ requirement: r, onClose }: { requirement: Req
             <label className="field">
               <span className="field-label">Why is it out of scope?</span>
               <span className="input"><input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="e.g. The client moved it to phase 2" /></span>
+              <span className="field-hint">The client sees this reason next to the requirement.</span>
             </label>
           )}
           onConfirm={() => { if (act((d, m) => dropRequirement(d, m, r.id, reason), { success: `${r.code} dropped — it stays in the list, struck through` })) setAsking(null); }}

@@ -12,7 +12,7 @@ import type { ClientPerson, ClientRole, Person } from "../domain/types.ts";
 import { emailVerified, findUser, issueLink, liveLink, openSession, personFor, type SessionRow } from "./accounts.ts";
 import { newId } from "./auth/secrets.ts";
 import { clientCode, clientCodeOwner, clientCodeUrl, isClientCode } from "./clientLinks.ts";
-import { mustLoad } from "./changes.ts";
+import { loadForRead, mustLoad } from "./changes.ts";
 import { saveCompany, type Loaded } from "./company/store.ts";
 import { opensInBrowser, storedBytes, storeFile } from "./files.ts";
 import { database, inScope, type Tx } from "./db/client.ts";
@@ -113,7 +113,7 @@ function clientFor(loaded: Loaded, userId: string): ClientPerson {
 
 export async function clientView(who: SessionRow): Promise<ClientView & { version: number }> {
   return inScope({ orgId: who.orgId, userId: who.userId }, async (tx) => {
-    const loaded = await mustLoad(tx, who);
+    const loaded = await loadForRead(tx, who); // asked again after every change: reuse the load while nothing changed
     const view = clientViewFor(loaded.db, clientFor(loaded, who.userId).id);
     if (!view) throw new AccessError();
     return { ...view, version: loaded.version };

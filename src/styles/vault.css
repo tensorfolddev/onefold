@@ -477,3 +477,5 @@
 
 /* The vault's own spacers (toolbar, item panel, share dialog): push what follows to the right */
 .vb .spacer { flex: 1; }
+.vb-waiting { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 14px; border-radius: 8px; font-size: 13px; color: var(--primary-text-color); background: color-mix(in srgb, var(--color-working_orange, #fdab3d) 14%, var(--primary-background-color)); }
+.vb-waiting svg { flex: none; width: 16px; height: 16px; color: var(--color-working_orange, #fdab3d); }
